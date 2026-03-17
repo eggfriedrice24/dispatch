@@ -79,7 +79,48 @@
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
 
-  /* Radius — Dispatch uses fixed px values */
+  /* Dispatch-specific surface colors → Tailwind utilities */
+  --color-bg-root: var(--bg-root);
+  --color-bg-surface: var(--bg-surface);
+  --color-bg-raised: var(--bg-raised);
+  --color-bg-elevated: var(--bg-elevated);
+  --color-bg-overlay: var(--bg-overlay);
+
+  /* Dispatch text hierarchy → Tailwind utilities */
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-tertiary: var(--text-tertiary);
+  --color-text-ghost: var(--text-ghost);
+
+  /* Dispatch accent variants → Tailwind utilities */
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-muted: var(--accent-muted);
+  --color-accent-text: var(--accent-text);
+
+  /* Dispatch border variants → Tailwind utilities */
+  --color-border-subtle: var(--border-subtle);
+  --color-border-strong: var(--border-strong);
+  --color-border-accent: var(--border-accent);
+
+  /* Dispatch diff colors → Tailwind utilities */
+  --color-diff-add-bg: var(--diff-add-bg);
+  --color-diff-add-bar: var(--diff-add-bar);
+  --color-diff-add-word: var(--diff-add-word);
+  --color-diff-del-bg: var(--diff-del-bg);
+  --color-diff-del-bar: var(--diff-del-bar);
+  --color-diff-del-word: var(--diff-del-word);
+  --color-diff-hunk-bg: var(--diff-hunk-bg);
+
+  /* Dispatch semantic muted → Tailwind utilities */
+  --color-success-muted: var(--success-muted);
+  --color-danger-muted: var(--danger-muted);
+  --color-warning-muted: var(--warning-muted);
+  --color-info-muted: var(--info-muted);
+  --color-purple: var(--purple);
+  --color-purple-muted: var(--purple-muted);
+
+  /* Radius — Dispatch uses fixed px values (§ 5) */
+  --radius-xs: 2px;
   --radius-sm: 4px;
   --radius-md: 6px;
   --radius-lg: 8px;
@@ -87,6 +128,13 @@
   --radius-2xl: 16px;
   --radius-3xl: 20px;
   --radius-4xl: 24px;
+  --radius-full: 9999px;
+
+  /* Shadows (§ 6) */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.15);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.2);
+  --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.4), 0 2px 6px rgba(0, 0, 0, 0.2);
+  --shadow-glow: 0 0 20px rgba(212, 136, 58, 0.08);
 
   /* Skeleton animation */
   --animate-skeleton: skeleton 2s -1s infinite linear;
@@ -163,6 +211,57 @@
   --chart-4: #a78bfa;
   --chart-5: #ef6461;
 
+  /* ---- Dispatch surface tokens (§ 2.1) ---- */
+  --bg-root: #08080a;
+  --bg-surface: #0f0f12;
+  --bg-raised: #16161b;
+  --bg-elevated: #1c1c22;
+  --bg-overlay: rgba(0, 0, 0, 0.72);
+
+  /* ---- Dispatch text hierarchy (§ 2.2) ---- */
+  --text-primary: #f0ece6;
+  --text-secondary: #9b9590;
+  --text-tertiary: #5e5954;
+  --text-ghost: #3a3632;
+
+  /* ---- Dispatch accent variants (§ 2.3) ---- */
+  --accent-hover: #e09a4e;
+  --accent-muted: rgba(212, 136, 58, 0.12);
+  --accent-text: #e8a655;
+
+  /* ---- Dispatch border variants (§ 2.5) ---- */
+  --border-subtle: #1e1c18;
+  --border-strong: #33302a;
+  --border-accent: rgba(212, 136, 58, 0.25);
+
+  /* ---- Dispatch diff colors (§ 2.6) ---- */
+  --diff-add-bg: rgba(61, 214, 140, 0.07);
+  --diff-add-bar: #3dd68c;
+  --diff-add-word: rgba(61, 214, 140, 0.22);
+  --diff-del-bg: rgba(239, 100, 97, 0.07);
+  --diff-del-bar: #ef6461;
+  --diff-del-word: rgba(239, 100, 97, 0.22);
+  --diff-hunk-bg: rgba(91, 164, 230, 0.06);
+
+  /* ---- Dispatch semantic muted (§ 2.4) ---- */
+  --success-muted: rgba(61, 214, 140, 0.10);
+  --danger-muted: rgba(239, 100, 97, 0.10);
+  --warning-muted: rgba(240, 180, 73, 0.10);
+  --info-muted: rgba(91, 164, 230, 0.10);
+  --purple: #a78bfa;
+  --purple-muted: rgba(167, 139, 250, 0.10);
+
+  /* ---- Dispatch scrollbar (§ 2.7) ---- */
+  --scrollbar-thumb: #2a2824;
+  --scrollbar-hover: #3a3632;
+
+  /* ---- Transitions (§ 7) ---- */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --duration-fast: 120ms;
+  --duration-normal: 200ms;
+  --duration-slow: 400ms;
+
   /* ---- Base radius ---- */
   --radius: 6px;
 }
@@ -210,6 +309,41 @@
   --chart-3: #5ba4e6;
   --chart-4: #a78bfa;
   --chart-5: #ef6461;
+  --bg-root: #08080a;
+  --bg-surface: #0f0f12;
+  --bg-raised: #16161b;
+  --bg-elevated: #1c1c22;
+  --bg-overlay: rgba(0, 0, 0, 0.72);
+  --text-primary: #f0ece6;
+  --text-secondary: #9b9590;
+  --text-tertiary: #5e5954;
+  --text-ghost: #3a3632;
+  --accent-hover: #e09a4e;
+  --accent-muted: rgba(212, 136, 58, 0.12);
+  --accent-text: #e8a655;
+  --border-subtle: #1e1c18;
+  --border-strong: #33302a;
+  --border-accent: rgba(212, 136, 58, 0.25);
+  --diff-add-bg: rgba(61, 214, 140, 0.07);
+  --diff-add-bar: #3dd68c;
+  --diff-add-word: rgba(61, 214, 140, 0.22);
+  --diff-del-bg: rgba(239, 100, 97, 0.07);
+  --diff-del-bar: #ef6461;
+  --diff-del-word: rgba(239, 100, 97, 0.22);
+  --diff-hunk-bg: rgba(91, 164, 230, 0.06);
+  --success-muted: rgba(61, 214, 140, 0.10);
+  --danger-muted: rgba(239, 100, 97, 0.10);
+  --warning-muted: rgba(240, 180, 73, 0.10);
+  --info-muted: rgba(91, 164, 230, 0.10);
+  --purple: #a78bfa;
+  --purple-muted: rgba(167, 139, 250, 0.10);
+  --scrollbar-thumb: #2a2824;
+  --scrollbar-hover: #3a3632;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --duration-fast: 120ms;
+  --duration-normal: 200ms;
+  --duration-slow: 400ms;
   --radius: 6px;
 }
 
@@ -236,7 +370,12 @@
     font-family: var(--font-mono);
   }
 
-  /* Scrollbar */
+  /* Scrollbar (§ 2.7) */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) transparent;
+  }
+
   ::-webkit-scrollbar {
     width: 5px;
     height: 5px;
@@ -247,11 +386,11 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    background: #2a2824;
+    background: var(--scrollbar-thumb);
     border-radius: 9999px;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: #3a3632;
+    background: var(--scrollbar-hover);
   }
 }
