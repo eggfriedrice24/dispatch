@@ -1,4 +1,6 @@
 import type { DiffFile } from "../lib/diff-parser";
+import type { Annotation } from "./ci-annotation";
+import type { ReviewComment } from "./inline-comment";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -8,7 +10,9 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight, GitMerge } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { useSyntaxHighlighter } from "../hooks/use-syntax-highlight";
 import { parseDiff } from "../lib/diff-parser";
+import { inferLanguage } from "../lib/highlighter";
 import { queryClient, trpc } from "../lib/trpc";
 import { useWorkspace } from "../lib/workspace-context";
 import { ChecksPanel } from "./checks-panel";
@@ -40,6 +44,10 @@ function PrDetail({ prNumber }: { prNumber: number }) {
   const [currentFileIndex, setCurrentFileIndex] = useState(0);
   const [activeTab, setActiveTab] = useState<"checks" | "reviews" | "files">("files");
   const [diffMode, setDiffMode] = useState<"all" | "since-review">("all");
+  const [activeComposer, setActiveComposer] = useState<{ line: number } | null>(null);
+
+  // Syntax highlighting
+  const highlighter = useSyntaxHighlighter();
 
   // PR detail query
   const detailQuery = useQuery({
@@ -99,6 +107,45 @@ function PrDetail({ prNumber }: { prNumber: number }) {
     }
     return parseDiff(rawDiff);
   }, [rawDiff]);
+
+  // PR comments (inline in diff)
+  const commentsQuery = useQuery({
+    ...trpc.pr.comments.queryOptions({ cwd, prNumber }),
+    staleTime: 30_000,
+  });
+
+  const commentsMap = useMemo(() => {
+    const map = new Map<string, ReviewComment[]>();
+    for (const c of commentsQuery.data ?? []) {
+      if (!c.line) {
+        continue;
+      }
+      const key = `${c.path}:${c.line}`;
+      const existing = map.get(key) ?? [];
+      existing.push(c);
+      map.set(key, existing);
+    }
+    return map;
+  }, [commentsQuery.data]);
+
+  // CI annotations (inline in diff)
+  const annotationsQuery = useQuery({
+    ...trpc.checks.annotations.queryOptions({ cwd, prNumber }),
+    staleTime: 30_000,
+  });
+
+  const annotationsMap = useMemo(() => {
+    const map = new Map<string, Annotation[]>();
+    for (const a of annotationsQuery.data ?? []) {
+      for (let line = a.startLine; line <= a.endLine; line++) {
+        const key = `${a.path}:${line}`;
+        const existing = map.get(key) ?? [];
+        existing.push(a);
+        map.set(key, existing);
+      }
+    }
+    return map;
+  }, [annotationsQuery.data]);
 
   const currentFile = files[currentFileIndex] ?? null;
 
@@ -177,11 +224,17 @@ function PrDetail({ prNumber }: { prNumber: number }) {
             <span className="text-destructive font-mono text-[11px]">-{totalDeletions}</span>
           </div>
         </div>
-        <MergeButton
-          cwd={cwd}
-          prNumber={prNumber}
-          pr={pr}
-        />
+        <div className="flex items-center gap-1.5">
+          <ApproveButton
+            cwd={cwd}
+            prNumber={prNumber}
+          />
+          <MergeButton
+            cwd={cwd}
+            prNumber={prNumber}
+            pr={pr}
+          />
+        </div>
       </div>
 
       {/* Diff viewer + side panel */}
@@ -211,7 +264,17 @@ function PrDetail({ prNumber }: { prNumber: number }) {
               <Spinner className="text-primary h-4 w-4" />
             </div>
           ) : currentFile ? (
-            <DiffViewer file={currentFile} />
+            <DiffViewer
+              file={currentFile}
+              highlighter={highlighter}
+              language={inferLanguage(currentFile.newPath || currentFile.oldPath)}
+              comments={commentsMap}
+              annotations={annotationsMap}
+              prNumber={prNumber}
+              activeComposer={activeComposer}
+              onGutterClick={(line) => setActiveComposer({ line })}
+              onCloseComposer={() => setActiveComposer(null)}
+            />
           ) : (
             <div className="flex flex-1 items-center justify-center">
               <p className="text-text-tertiary text-xs">No files changed</p>
@@ -590,6 +653,35 @@ function MergeButton({
     >
       {mergeMutation.isPending ? <Spinner className="h-3 w-3" /> : <GitMerge size={13} />}
       Merge
+    </Button>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Approve button
+// ---------------------------------------------------------------------------
+
+function ApproveButton({ cwd, prNumber }: { cwd: string; prNumber: number }) {
+  const approveMutation = useMutation(
+    trpc.pr.submitReview.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["pr"] });
+      },
+    }),
+  );
+
+  return (
+    <Button
+      size="sm"
+      variant="outline"
+      className="border-success/30 text-success hover:bg-success-muted gap-1.5"
+      disabled={approveMutation.isPending}
+      onClick={() => {
+        approveMutation.mutate({ cwd, prNumber, event: "APPROVE" });
+      }}
+    >
+      {approveMutation.isPending ? <Spinner className="h-3 w-3" /> : "✓"}
+      Approve
     </Button>
   );
 }

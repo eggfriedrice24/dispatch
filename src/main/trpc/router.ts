@@ -64,6 +64,47 @@ const prRouter = router({
       await ghCli.mergePr(input.cwd, input.prNumber, input.strategy);
       return { success: true };
     }),
+
+  comments: publicProcedure
+    .input(z.object({ cwd: z.string(), prNumber: z.number() }))
+    .query(async ({ input }) => {
+      return ghCli.getPrReviewComments(input.cwd, input.prNumber);
+    }),
+
+  createComment: publicProcedure
+    .input(
+      z.object({
+        cwd: z.string(),
+        prNumber: z.number(),
+        body: z.string(),
+        path: z.string(),
+        line: z.number(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      await ghCli.createReviewComment(
+        input.cwd,
+        input.prNumber,
+        input.body,
+        input.path,
+        input.line,
+      );
+      return { success: true };
+    }),
+
+  submitReview: publicProcedure
+    .input(
+      z.object({
+        cwd: z.string(),
+        prNumber: z.number(),
+        event: z.enum(["APPROVE", "REQUEST_CHANGES", "COMMENT"]),
+        body: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      await ghCli.submitReview(input.cwd, input.prNumber, input.event, input.body);
+      return { success: true };
+    }),
 });
 
 // ---------------------------------------------------------------------------
@@ -88,6 +129,12 @@ const checksRouter = router({
     .mutation(async ({ input }) => {
       await ghCli.rerunFailedJobs(input.cwd, input.runId);
       return { success: true };
+    }),
+
+  annotations: publicProcedure
+    .input(z.object({ cwd: z.string(), prNumber: z.number() }))
+    .query(async ({ input }) => {
+      return ghCli.getCheckAnnotations(input.cwd, input.prNumber);
     }),
 });
 

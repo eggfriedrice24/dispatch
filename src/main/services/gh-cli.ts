@@ -195,3 +195,137 @@ export async function mergePr(
 ): Promise<void> {
   await exec(`gh pr merge ${prNumber} --${strategy} --delete-branch`, { cwd });
 }
+
+// ---------------------------------------------------------------------------
+// Review comments
+// ---------------------------------------------------------------------------
+
+export interface GhReviewComment {
+  id: number;
+  body: string;
+  path: string;
+  line: number | null;
+  original_line: number | null;
+  side: "LEFT" | "RIGHT";
+  user: { login: string; avatar_url: string };
+  created_at: string;
+  updated_at: string;
+  in_reply_to_id?: number;
+}
+
+export async function getPrReviewComments(
+  cwd: string,
+  prNumber: number,
+): Promise<GhReviewComment[]> {
+  const { stdout } = await exec(
+    `gh api "repos/{owner}/{repo}/pulls/${prNumber}/comments" --paginate`,
+    { cwd, timeout: 30_000 },
+  );
+  return parseJsonOutput<GhReviewComment[]>(stdout);
+}
+
+export async function createReviewComment(
+  cwd: string,
+  prNumber: number,
+  body: string,
+  path: string,
+  line: number,
+): Promise<void> {
+  const { stdout: commitSha } = await exec(
+    `gh pr view ${prNumber} --json headRefOid --jq ".headRefOid"`,
+    { cwd },
+  );
+
+  await exec(
+    `gh api "repos/{owner}/{repo}/pulls/${prNumber}/comments" -X POST -f body="${body.replace(/"/g, '\\"')}" -f path="${path}" -F line=${line} -f side="RIGHT" -f commit_id="${commitSha.trim()}"`,
+    { cwd, timeout: 15_000 },
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Submit review
+// ---------------------------------------------------------------------------
+
+export type ReviewEvent = "APPROVE" | "REQUEST_CHANGES" | "COMMENT";
+
+export async function submitReview(
+  cwd: string,
+  prNumber: number,
+  event: ReviewEvent,
+  body?: string,
+): Promise<void> {
+  let cmd = `gh pr review ${prNumber}`;
+  switch (event) {
+    case "APPROVE":
+      cmd += " --approve";
+      break;
+    case "REQUEST_CHANGES":
+      cmd += " --request-changes";
+      break;
+    case "COMMENT":
+      cmd += " --comment";
+      break;
+  }
+  if (body) {
+    cmd += ` --body "${body.replace(/"/g, '\\"')}"`;
+  }
+  await exec(cmd, { cwd, timeout: 15_000 });
+}
+
+// ---------------------------------------------------------------------------
+// CI Annotations
+// ---------------------------------------------------------------------------
+
+export interface GhAnnotation {
+  path: string;
+  startLine: number;
+  endLine: number;
+  level: "notice" | "warning" | "failure";
+  message: string;
+  title: string;
+  checkName: string;
+}
+
+export async function getCheckAnnotations(cwd: string, prNumber: number): Promise<GhAnnotation[]> {
+  const checks = await getPrChecks(cwd, prNumber);
+  const failingChecks = checks.filter((c) => c.conclusion === "failure");
+
+  const annotations: GhAnnotation[] = [];
+  for (const check of failingChecks) {
+    const runIdMatch = check.detailsUrl?.match(/\/runs\/(\d+)/);
+    if (!runIdMatch) {
+      continue;
+    }
+    const runId = runIdMatch[1];
+
+    try {
+      const { stdout } = await exec(
+        `gh api "repos/{owner}/{repo}/check-runs/${runId}/annotations" --paginate`,
+        { cwd, timeout: 15_000 },
+      );
+      const parsed = JSON.parse(stdout) as Array<{
+        path: string;
+        start_line: number;
+        end_line: number;
+        annotation_level: "notice" | "warning" | "failure";
+        message: string;
+        title: string;
+      }>;
+      for (const a of parsed) {
+        annotations.push({
+          path: a.path,
+          startLine: a.start_line,
+          endLine: a.end_line,
+          level: a.annotation_level,
+          message: a.message,
+          title: a.title,
+          checkName: check.name,
+        });
+      }
+    } catch {
+      // Annotations not available for this check
+    }
+  }
+
+  return annotations;
+}
