@@ -9,7 +9,7 @@ import { Bell, GitPullRequest, Settings } from "lucide-react";
  * - -webkit-app-region: drag (Electron window dragging)
  * - Interactive elements: -webkit-app-region: no-drag
  */
-export function Navbar() {
+export function Navbar({ selectedPr }: { selectedPr?: number | null }) {
   return (
     <header
       className="border-border bg-bg-surface flex h-10 shrink-0 items-center border-b px-3"
@@ -29,7 +29,7 @@ export function Navbar() {
         </span>
       </div>
 
-      {/* Nav tabs */}
+      {/* Nav tabs + breadcrumb */}
       <nav
         className="ml-8 flex items-center gap-1"
         style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
@@ -39,6 +39,12 @@ export function Navbar() {
           icon={<GitPullRequest size={14} />}
           active
         />
+        {selectedPr && (
+          <>
+            <span className="text-text-ghost mx-1 text-[11px]">/</span>
+            <span className="text-text-tertiary font-mono text-[11px]">#{selectedPr}</span>
+          </>
+        )}
       </nav>
 
       {/* Spacer */}

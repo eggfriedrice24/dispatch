@@ -39,6 +39,7 @@ function PrDetail({ prNumber }: { prNumber: number }) {
   const { cwd } = useWorkspace();
   const [currentFileIndex, setCurrentFileIndex] = useState(0);
   const [activeTab, setActiveTab] = useState<"checks" | "reviews" | "files">("files");
+  const [diffMode, setDiffMode] = useState<"all" | "since-review">("all");
 
   // PR detail query
   const detailQuery = useQuery({
@@ -46,14 +47,35 @@ function PrDetail({ prNumber }: { prNumber: number }) {
     refetchInterval: 60_000,
   });
 
-  // PR diff query
+  // Full PR diff query
   const diffQuery = useQuery({
     ...trpc.pr.diff.queryOptions({ cwd, prNumber }),
     staleTime: 60_000,
   });
 
-  // Viewed files
+  // Review rounds: last reviewed SHA
   const repoName = cwd.split("/").pop() ?? "";
+  const lastShaQuery = useQuery(trpc.review.getLastSha.queryOptions({ repo: repoName, prNumber }));
+  const lastSha = lastShaQuery.data ?? null;
+  const headSha = detailQuery.data?.headRefOid ?? "";
+
+  // Incremental diff (since last review)
+  const incrementalDiffQuery = useQuery({
+    ...trpc.git.diff.queryOptions({ cwd, fromRef: lastSha ?? "", toRef: headSha }),
+    enabled: diffMode === "since-review" && !!lastSha && !!headSha && lastSha !== headSha,
+    staleTime: 60_000,
+  });
+
+  // Save review SHA mutation
+  const saveShaMutation = useMutation(
+    trpc.review.saveSha.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["review", "getLastSha"] });
+      },
+    }),
+  );
+
+  // Viewed files
   const viewedQuery = useQuery(trpc.review.viewedFiles.queryOptions({ repo: repoName, prNumber }));
   const viewedFiles = useMemo(() => new Set(viewedQuery.data ?? []), [viewedQuery.data]);
 
@@ -65,13 +87,18 @@ function PrDetail({ prNumber }: { prNumber: number }) {
     }),
   );
 
-  // Parse diff
+  // Parse diff — choose between full and incremental
+  const rawDiff =
+    diffMode === "since-review" && incrementalDiffQuery.data
+      ? incrementalDiffQuery.data
+      : diffQuery.data;
+
   const files: DiffFile[] = useMemo(() => {
-    if (!diffQuery.data) {
+    if (!rawDiff) {
       return [];
     }
-    return parseDiff(diffQuery.data);
-  }, [diffQuery.data]);
+    return parseDiff(rawDiff);
+  }, [rawDiff]);
 
   const currentFile = files[currentFileIndex] ?? null;
 
@@ -168,6 +195,14 @@ function PrDetail({ prNumber }: { prNumber: number }) {
             totalFiles={files.length}
             onPrev={goToPrevFile}
             onNext={goToNextFile}
+            diffMode={diffMode}
+            onDiffModeChange={setDiffMode}
+            hasLastReview={!!lastSha && lastSha !== headSha}
+            onMarkReviewed={() => {
+              if (headSha) {
+                saveShaMutation.mutate({ repo: repoName, prNumber, sha: headSha });
+              }
+            }}
           />
 
           {/* Diff viewer */}
@@ -269,12 +304,20 @@ function DiffToolbar({
   totalFiles,
   onPrev,
   onNext,
+  diffMode,
+  onDiffModeChange,
+  hasLastReview,
+  onMarkReviewed,
 }: {
   currentFile: DiffFile | null;
   currentIndex: number;
   totalFiles: number;
   onPrev: () => void;
   onNext: () => void;
+  diffMode: "all" | "since-review";
+  onDiffModeChange: (mode: "all" | "since-review") => void;
+  hasLastReview: boolean;
+  onMarkReviewed: () => void;
 }) {
   const filePath = currentFile?.newPath ?? currentFile?.oldPath ?? "";
   const fileName = filePath.split("/").pop() ?? "";
@@ -305,6 +348,43 @@ function DiffToolbar({
       </span>
 
       <div className="flex-1" />
+
+      {/* Review rounds toggle (§ 8.11) */}
+      {hasLastReview && (
+        <div className="border-border bg-bg-raised flex items-center rounded-md border p-[2px]">
+          <button
+            type="button"
+            onClick={() => onDiffModeChange("all")}
+            className={`rounded-sm px-2.5 py-1 text-[11px] ${
+              diffMode === "all"
+                ? "bg-bg-elevated text-text-primary shadow-sm"
+                : "text-text-tertiary"
+            }`}
+          >
+            All changes
+          </button>
+          <button
+            type="button"
+            onClick={() => onDiffModeChange("since-review")}
+            className={`rounded-sm px-2.5 py-1 text-[11px] ${
+              diffMode === "since-review"
+                ? "bg-bg-elevated text-text-primary shadow-sm"
+                : "text-text-tertiary"
+            }`}
+          >
+            Since last review
+          </button>
+        </div>
+      )}
+
+      {/* Mark as reviewed button */}
+      <button
+        type="button"
+        onClick={onMarkReviewed}
+        className="text-text-secondary hover:bg-bg-raised hover:text-text-primary rounded-md px-2 py-1 text-[11px]"
+      >
+        Mark reviewed
+      </button>
 
       {currentFile && (
         <>
