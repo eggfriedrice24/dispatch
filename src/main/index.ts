@@ -2,12 +2,23 @@ import { join } from "node:path";
 
 import { type BrowserWindowConstructorOptions, app, BrowserWindow } from "electron";
 
+import { closeDatabase, initDatabase } from "./db/database";
+import { registerTrpcIpcHandler } from "./trpc/ipc-handler";
+import { appRouter } from "./trpc/router";
+
+// ---------------------------------------------------------------------------
+// Window configuration
+// ---------------------------------------------------------------------------
+
 const WINDOW_CONFIG: BrowserWindowConstructorOptions = {
   width: 1200,
   height: 800,
   minWidth: 800,
   minHeight: 600,
   show: false,
+  titleBarStyle: "hiddenInset",
+  trafficLightPosition: { x: 12, y: 12 },
+  backgroundColor: "#08080a",
   webPreferences: {
     preload: join(__dirname, "../preload/index.mjs"),
     contextIsolation: true,
@@ -15,6 +26,10 @@ const WINDOW_CONFIG: BrowserWindowConstructorOptions = {
     sandbox: true,
   },
 };
+
+// ---------------------------------------------------------------------------
+// App lifecycle
+// ---------------------------------------------------------------------------
 
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow(WINDOW_CONFIG);
@@ -33,6 +48,11 @@ function createWindow(): BrowserWindow {
 }
 
 app.whenReady().then(() => {
+  // Initialize infrastructure
+  initDatabase();
+  registerTrpcIpcHandler(appRouter);
+
+  // Create main window
   createWindow();
 
   app.on("activate", () => {
@@ -46,6 +66,10 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
     app.quit();
   }
+});
+
+app.on("before-quit", () => {
+  closeDatabase();
 });
 
 process.on("message", (msg) => {
