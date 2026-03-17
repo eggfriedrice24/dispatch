@@ -5,6 +5,7 @@ import type { ReviewComment } from "./inline-comment";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { toastManager } from "@/components/ui/toast";
 import { relativeTime } from "@/shared/format";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight, GitMerge } from "lucide-react";
@@ -634,6 +635,18 @@ function MergeButton({
     trpc.pr.merge.mutationOptions({
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ["pr"] });
+        toastManager.add({
+          title: `PR #${prNumber} merged`,
+          description: "Branch deleted.",
+          type: "success",
+        });
+      },
+      onError: (err) => {
+        toastManager.add({
+          title: "Merge failed",
+          description: String(err.message),
+          type: "error",
+        });
       },
     }),
   );
@@ -666,6 +679,18 @@ function ApproveButton({ cwd, prNumber }: { cwd: string; prNumber: number }) {
     trpc.pr.submitReview.mutationOptions({
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ["pr"] });
+        toastManager.add({
+          title: "Review submitted",
+          description: "You approved this PR.",
+          type: "success",
+        });
+      },
+      onError: (err) => {
+        toastManager.add({
+          title: "Review failed",
+          description: String(err.message),
+          type: "error",
+        });
       },
     }),
   );

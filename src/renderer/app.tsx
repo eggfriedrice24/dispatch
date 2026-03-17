@@ -1,4 +1,5 @@
 import { Spinner } from "@/components/ui/spinner";
+import { ToastProvider } from "@/components/ui/toast";
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
 
@@ -141,7 +142,9 @@ function resolvePhase({
 export function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <AppContent />
+      <ToastProvider position="bottom-right">
+        <AppContent />
+      </ToastProvider>
     </QueryClientProvider>
   );
 }

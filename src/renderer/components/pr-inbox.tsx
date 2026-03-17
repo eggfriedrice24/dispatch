@@ -219,6 +219,8 @@ export function PrInbox({ selectedPr, onSelectPr }: PrInboxProps) {
                     pr.isDraft,
                   )}
                   updatedAt={relativeTime(new Date(pr.updatedAt))}
+                  additions={pr.additions}
+                  deletions={pr.deletions}
                   isActive={selectedPr === pr.number}
                   isFocused={focusIndex === index}
                   onClick={() => {
@@ -251,6 +253,8 @@ export function PrInbox({ selectedPr, onSelectPr }: PrInboxProps) {
                       pr.isDraft,
                     )}
                     updatedAt={relativeTime(new Date(pr.updatedAt))}
+                    additions={pr.additions}
+                    deletions={pr.deletions}
                     isActive={selectedPr === pr.number}
                     isFocused={focusIndex === globalIndex}
                     onClick={() => {
@@ -290,12 +294,28 @@ function SectionLabel({ label, dotColor }: { label: string; dotColor: string }) 
   );
 }
 
+function prSizeLabel(additions: number, deletions: number): { label: string; color: string } {
+  const total = additions + deletions;
+  if (total < 50) {
+    return { label: "S", color: "text-success" };
+  }
+  if (total < 200) {
+    return { label: "M", color: "text-warning" };
+  }
+  if (total < 500) {
+    return { label: "L", color: "text-info" };
+  }
+  return { label: "XL", color: "text-destructive" };
+}
+
 function PrItem({
   number,
   title,
   author,
   statusColor,
   updatedAt,
+  additions,
+  deletions,
   isActive,
   isFocused,
   onClick,
@@ -305,10 +325,14 @@ function PrItem({
   author: string;
   statusColor: string;
   updatedAt: string;
+  additions: number;
+  deletions: number;
   isActive: boolean;
   isFocused: boolean;
   onClick: () => void;
 }) {
+  const size = prSizeLabel(additions, deletions);
+
   return (
     <button
       type="button"
@@ -323,7 +347,14 @@ function PrItem({
     >
       <div className={`mt-1 h-2 w-2 shrink-0 rounded-full ${statusColor}`} />
       <div className="min-w-0 flex-1">
-        <p className="text-text-primary truncate text-xs font-medium">{title}</p>
+        <div className="flex items-center gap-1.5">
+          <p className="text-text-primary truncate text-xs font-medium">{title}</p>
+          <span
+            className={`bg-bg-raised shrink-0 rounded-sm px-1 font-mono text-[9px] font-medium ${size.color}`}
+          >
+            {size.label}
+          </span>
+        </div>
         <p className="text-text-tertiary mt-0.5 font-mono text-[10px]">
           #{number} · {author} · {updatedAt}
         </p>
