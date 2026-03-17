@@ -27,10 +27,9 @@ export async function blame(
   line: number,
   ref: string,
 ): Promise<BlameLine> {
-  const { stdout } = await exec(
-    `git blame -L ${line},${line} ${ref} --porcelain -- "${file}"`,
-    { cwd },
-  );
+  const { stdout } = await exec(`git blame -L ${line},${line} ${ref} --porcelain -- "${file}"`, {
+    cwd,
+  });
 
   const lines = stdout.split("\n");
   const sha = lines[0]?.split(" ")[0] ?? "";
@@ -63,11 +62,7 @@ export interface LogEntry {
   message: string;
 }
 
-export async function fileHistory(
-  cwd: string,
-  filePath: string,
-  limit = 20,
-): Promise<LogEntry[]> {
+export async function fileHistory(cwd: string, filePath: string, limit = 20): Promise<LogEntry[]> {
   const separator = "---DISPATCH_LOG_SEP---";
   const format = `%H${separator}%an${separator}%aI${separator}%s`;
 
@@ -90,20 +85,12 @@ export async function fileHistory(
 // Diff
 // ---------------------------------------------------------------------------
 
-export async function diff(
-  cwd: string,
-  fromRef: string,
-  toRef: string,
-): Promise<string> {
+export async function diff(cwd: string, fromRef: string, toRef: string): Promise<string> {
   const { stdout } = await exec(`git diff ${fromRef}..${toRef}`, { cwd });
   return stdout;
 }
 
-export async function diffStat(
-  cwd: string,
-  fromRef: string,
-  toRef: string,
-): Promise<string> {
+export async function diffStat(cwd: string, fromRef: string, toRef: string): Promise<string> {
   const { stdout } = await exec(`git diff --stat ${fromRef}..${toRef}`, { cwd });
   return stdout;
 }

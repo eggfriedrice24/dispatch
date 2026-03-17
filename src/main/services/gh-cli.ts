@@ -68,10 +68,7 @@ export async function listPrs(
   filter: "reviewRequested" | "authored" = "reviewRequested",
 ): Promise<GhPrListItem[]> {
   const flag = filter === "reviewRequested" ? "--search 'review-requested:@me'" : "--author @me";
-  const { stdout } = await exec(
-    `gh pr list ${flag} --json ${PR_LIST_FIELDS} --limit 50`,
-    { cwd },
-  );
+  const { stdout } = await exec(`gh pr list ${flag} --json ${PR_LIST_FIELDS} --limit 50`, { cwd });
   return parseJsonOutput<GhPrListItem[]>(stdout);
 }
 
@@ -129,10 +126,7 @@ const PR_DETAIL_FIELDS = [
 ].join(",");
 
 export async function getPrDetail(cwd: string, prNumber: number): Promise<GhPrDetail> {
-  const { stdout } = await exec(
-    `gh pr view ${prNumber} --json ${PR_DETAIL_FIELDS}`,
-    { cwd },
-  );
+  const { stdout } = await exec(`gh pr view ${prNumber} --json ${PR_DETAIL_FIELDS}`, { cwd });
   return parseJsonOutput<GhPrDetail>(stdout);
 }
 

@@ -1,17 +1,33 @@
-<!DOCTYPE html>
-<html lang="en" class="dark">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dispatch — Design System Reference</title>
+<!doctype html>
+<html
+  lang="en"
+  class="dark"
+>
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0"
+    />
+    <title>Dispatch — Design System Reference</title>
 
-<!-- Fonts -->
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+    <!-- Fonts -->
+    <link
+      rel="preconnect"
+      href="https://fonts.googleapis.com"
+    />
+    <link
+      rel="preconnect"
+      href="https://fonts.gstatic.com"
+      crossorigin
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap"
+      rel="stylesheet"
+    />
 
-<style>
-/* ============================================================
+    <style>
+      /* ============================================================
    DISPATCH DESIGN SYSTEM
    ============================================================
    
@@ -29,1935 +45,2680 @@
    
    ============================================================ */
 
-:root {
-  /* === CORE PALETTE: "Midnight Copper" === */
-  
-  /* Surfaces — warm-tinted blacks, not cold zinc */
-  --bg-root:        #08080a;     /* Near-black with warm undertone */
-  --bg-surface:     #0f0f12;     /* Lifted surface */
-  --bg-raised:      #16161b;     /* Cards, panels */
-  --bg-elevated:    #1c1c22;     /* Dropdowns, popovers */
-  --bg-overlay:     rgba(0, 0, 0, 0.72);
-  
-  /* Text — slightly warm whites */
-  --text-primary:   #f0ece6;     /* Warm off-white, not sterile #fafafa */
-  --text-secondary: #9b9590;     /* Warm gray, not cold zinc */
-  --text-tertiary:  #5e5954;     /* Subtle labels */
-  --text-ghost:     #3a3632;     /* Barely visible hints */
-  
-  /* Accent: Copper/Amber — the signature color */
-  --accent:         #d4883a;     /* Warm copper — the primary action color */
-  --accent-hover:   #e09a4e;     /* Lighter on hover */
-  --accent-muted:   rgba(212, 136, 58, 0.12);  /* Subtle accent bg */
-  --accent-text:    #e8a655;     /* Accent in text context */
-  
-  /* Semantic */
-  --success:        #3dd68c;     /* Bright mint green */
-  --success-muted:  rgba(61, 214, 140, 0.10);
-  --danger:         #ef6461;     /* Warm red, not cold */
-  --danger-muted:   rgba(239, 100, 97, 0.10);
-  --warning:        #f0b449;     /* Golden amber */
-  --warning-muted:  rgba(240, 180, 73, 0.10);
-  --info:           #5ba4e6;     /* Soft blue */
-  --info-muted:     rgba(91, 164, 230, 0.10);
-  --purple:         #a78bfa;     /* For reviews/approvals */
-  --purple-muted:   rgba(167, 139, 250, 0.10);
-  
-  /* Borders — warm-tinted */
-  --border:         #25231f;     /* Warm dark border */
-  --border-subtle:  #1e1c18;     /* Very subtle separator */
-  --border-strong:  #33302a;     /* Emphasized border */
-  --border-accent:  rgba(212, 136, 58, 0.25);
-  
-  /* Diff colors */
-  --diff-add-bg:    rgba(61, 214, 140, 0.07);
-  --diff-add-bar:   #3dd68c;
-  --diff-add-word:  rgba(61, 214, 140, 0.22);
-  --diff-del-bg:    rgba(239, 100, 97, 0.07);
-  --diff-del-bar:   #ef6461;
-  --diff-del-word:  rgba(239, 100, 97, 0.22);
-  --diff-hunk-bg:   rgba(91, 164, 230, 0.06);
-  
-  /* Scrollbar */
-  --scrollbar-thumb: #2a2824;
-  --scrollbar-hover: #3a3632;
-  
-  /* Radius — confident, not brutalist. Slightly softened. */
-  --radius-xs:  2px;
-  --radius-sm:  4px;
-  --radius-md:  6px;
-  --radius-lg:  8px;
-  --radius-xl:  12px;
-  --radius-full: 9999px;
-  
-  /* Shadows — warm-tinted, more present than Better Hub */
-  --shadow-sm:  0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.15);
-  --shadow-md:  0 2px 8px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.2);
-  --shadow-lg:  0 4px 16px rgba(0, 0, 0, 0.4), 0 2px 6px rgba(0, 0, 0, 0.2);
-  --shadow-glow: 0 0 20px rgba(212, 136, 58, 0.08);
-  
-  /* Typography */
-  --font-sans:  'DM Sans', system-ui, -apple-system, sans-serif;
-  --font-mono:  'JetBrains Mono', ui-monospace, monospace;
-  --font-display: 'Instrument Serif', Georgia, serif;
-  
-  /* Transitions */
-  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
-  --duration-fast: 120ms;
-  --duration-normal: 200ms;
-  --duration-slow: 400ms;
-}
-
-/* === RESET & BASE === */
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-body {
-  font-family: var(--font-sans);
-  background: var(--bg-root);
-  color: var(--text-primary);
-  font-size: 13px;
-  line-height: 1.5;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  overflow-x: hidden;
-}
-
-/* Scrollbar */
-::-webkit-scrollbar { width: 5px; height: 5px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: var(--radius-full); }
-::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-hover); }
-
-/* === LAYOUT === */
-.app-frame {
-  display: grid;
-  grid-template-rows: 42px 1fr;
-  height: 100vh;
-  overflow: hidden;
-}
-
-/* === NAVBAR === */
-.navbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 12px;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg-surface);
-  z-index: 100;
-  -webkit-app-region: drag;
-}
-
-.navbar-left {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  -webkit-app-region: no-drag;
-}
-
-.logo {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  text-decoration: none;
-  color: var(--text-primary);
-}
-
-.logo-mark {
-  width: 20px;
-  height: 20px;
-  background: var(--accent);
-  border-radius: var(--radius-sm);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--font-display);
-  font-size: 14px;
-  font-weight: 400;
-  color: #08080a;
-  font-style: italic;
-  line-height: 1;
-}
-
-.logo-text {
-  font-family: var(--font-sans);
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  color: var(--text-primary);
-}
-
-.nav-tabs {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  list-style: none;
-}
-
-.nav-tab {
-  padding: 6px 10px;
-  font-size: 12px;
-  color: var(--text-secondary);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: all var(--duration-fast) ease;
-  position: relative;
-  font-weight: 450;
-}
-
-.nav-tab:hover {
-  color: var(--text-primary);
-  background: var(--bg-raised);
-}
-
-.nav-tab.active {
-  color: var(--text-primary);
-  font-weight: 500;
-}
-
-.nav-tab.active::after {
-  content: '';
-  position: absolute;
-  bottom: -7px;
-  left: 8px;
-  right: 8px;
-  height: 1.5px;
-  background: var(--accent);
-  border-radius: 1px;
-}
-
-.nav-tab .count {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  padding: 1px 5px;
-  border-radius: var(--radius-full);
-  background: var(--accent-muted);
-  color: var(--accent-text);
-  margin-left: 4px;
-  font-weight: 500;
-}
-
-.navbar-right {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  -webkit-app-region: no-drag;
-}
-
-.nav-icon-btn {
-  width: 30px;
-  height: 30px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-sm);
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: all var(--duration-fast) ease;
-  border: none;
-  background: none;
-  position: relative;
-}
-
-.nav-icon-btn:hover {
-  color: var(--text-primary);
-  background: var(--bg-raised);
-}
-
-.nav-icon-btn svg {
-  width: 15px;
-  height: 15px;
-}
-
-.avatar {
-  width: 24px;
-  height: 24px;
-  border-radius: var(--radius-full);
-  background: linear-gradient(135deg, var(--accent) 0%, #7c5a2a 100%);
-  border: 1.5px solid var(--border-strong);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--bg-root);
-}
-
-.badge-dot {
-  position: absolute;
-  top: 5px;
-  right: 5px;
-  width: 6px;
-  height: 6px;
-  border-radius: var(--radius-full);
-  background: var(--accent);
-  border: 1.5px solid var(--bg-surface);
-}
-
-/* === MAIN CONTENT SPLIT === */
-.main-content {
-  display: grid;
-  grid-template-columns: 260px 1fr;
-  overflow: hidden;
-}
-
-/* === SIDEBAR (PR INBOX) === */
-.sidebar {
-  border-right: 1px solid var(--border);
-  background: var(--bg-surface);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.sidebar-header {
-  padding: 12px 12px 8px;
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.sidebar-title {
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-secondary);
-  margin-bottom: 8px;
-}
-
-.search-box {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 8px;
-  background: var(--bg-raised);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  color: var(--text-tertiary);
-  font-size: 12px;
-  cursor: text;
-}
-
-.search-box svg { width: 13px; height: 13px; flex-shrink: 0; }
-
-.search-box kbd {
-  margin-left: auto;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  padding: 1px 4px;
-  border-radius: 3px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  color: var(--text-ghost);
-}
-
-.sidebar-section {
-  padding: 8px 0;
-}
-
-.section-label {
-  padding: 4px 12px 6px;
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-tertiary);
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.section-label .dot {
-  width: 5px;
-  height: 5px;
-  border-radius: var(--radius-full);
-}
-
-.pr-list {
-  list-style: none;
-  overflow-y: auto;
-  flex: 1;
-}
-
-.pr-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 8px 12px;
-  cursor: pointer;
-  transition: background var(--duration-fast) ease;
-  border-left: 2px solid transparent;
-  position: relative;
-}
-
-.pr-item:hover {
-  background: var(--bg-raised);
-}
-
-.pr-item.active {
-  background: var(--accent-muted);
-  border-left-color: var(--accent);
-}
-
-.pr-item .status-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: var(--radius-full);
-  margin-top: 4px;
-  flex-shrink: 0;
-}
-
-.pr-item .status-dot.success { background: var(--success); }
-.pr-item .status-dot.pending { background: var(--warning); }
-.pr-item .status-dot.failure { background: var(--danger); }
-.pr-item .status-dot.review { background: var(--purple); }
-
-.pr-item-content {
-  flex: 1;
-  min-width: 0;
-}
-
-.pr-item-title {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-primary);
-  line-height: 1.3;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.pr-item-meta {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 2px;
-  font-size: 10px;
-  color: var(--text-tertiary);
-  font-family: var(--font-mono);
-}
-
-.pr-item-repo {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.pr-item-time {
-  flex-shrink: 0;
-}
-
-/* === PR DETAIL AREA === */
-.detail-area {
-  display: grid;
-  grid-template-rows: auto 1fr;
-  overflow: hidden;
-  background: var(--bg-root);
-}
-
-/* PR Header */
-.pr-header {
-  padding: 12px 20px;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg-surface);
-}
-
-.pr-header-top {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.pr-title-area { flex: 1; min-width: 0; }
-
-.pr-title {
-  font-size: 16px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  line-height: 1.3;
-  color: var(--text-primary);
-}
-
-.pr-title .pr-number {
-  color: var(--text-tertiary);
-  font-weight: 400;
-}
-
-.pr-subtitle {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 4px;
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-.pr-subtitle .branch {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  padding: 1px 6px;
-  background: var(--bg-raised);
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  color: var(--accent-text);
-}
-
-.pr-subtitle .arrow {
-  color: var(--text-ghost);
-}
-
-.pr-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
-}
-
-/* Buttons */
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  padding: 6px 12px;
-  font-size: 12px;
-  font-weight: 500;
-  font-family: var(--font-sans);
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  transition: all var(--duration-fast) ease;
-  border: 1px solid transparent;
-  white-space: nowrap;
-}
-
-.btn svg { width: 14px; height: 14px; }
-
-.btn-primary {
-  background: var(--accent);
-  color: #08080a;
-  border-color: var(--accent);
-  font-weight: 600;
-}
-
-.btn-primary:hover {
-  background: var(--accent-hover);
-  border-color: var(--accent-hover);
-  box-shadow: var(--shadow-glow);
-}
-
-.btn-secondary {
-  background: var(--bg-raised);
-  color: var(--text-primary);
-  border-color: var(--border-strong);
-}
-
-.btn-secondary:hover {
-  background: var(--bg-elevated);
-  border-color: var(--border-strong);
-}
-
-.btn-ghost {
-  background: transparent;
-  color: var(--text-secondary);
-  border-color: transparent;
-}
-
-.btn-ghost:hover {
-  background: var(--bg-raised);
-  color: var(--text-primary);
-}
-
-.btn-success {
-  background: var(--success);
-  color: #08080a;
-  border-color: var(--success);
-  font-weight: 600;
-}
-
-.btn-success:hover {
-  filter: brightness(1.1);
-}
-
-.btn-sm {
-  padding: 4px 8px;
-  font-size: 11px;
-}
-
-/* Badges */
-.badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
-  font-size: 11px;
-  font-weight: 500;
-  border-radius: var(--radius-full);
-}
-
-.badge svg { width: 12px; height: 12px; }
-
-.badge-success {
-  background: var(--success-muted);
-  color: var(--success);
-}
-
-.badge-danger {
-  background: var(--danger-muted);
-  color: var(--danger);
-}
-
-.badge-warning {
-  background: var(--warning-muted);
-  color: var(--warning);
-}
-
-.badge-info {
-  background: var(--info-muted);
-  color: var(--info);
-}
-
-.badge-purple {
-  background: var(--purple-muted);
-  color: var(--purple);
-}
-
-.badge-neutral {
-  background: var(--bg-raised);
-  color: var(--text-secondary);
-  border: 1px solid var(--border);
-}
-
-/* === SPLIT PANE (Diff + Side Panel) === */
-.split-pane {
-  display: grid;
-  grid-template-columns: 1fr 320px;
-  overflow: hidden;
-}
-
-/* === DIFF VIEWER === */
-.diff-panel {
-  display: grid;
-  grid-template-rows: 38px 1fr;
-  overflow: hidden;
-  border-right: 1px solid var(--border);
-}
-
-.diff-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 12px;
-  border-bottom: 1px solid var(--border-subtle);
-  background: var(--bg-surface);
-}
-
-.diff-toolbar-left {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.file-nav {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-}
-
-.file-nav-btn {
-  width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-sm);
-  border: none;
-  background: none;
-  color: var(--text-tertiary);
-  cursor: pointer;
-  transition: all var(--duration-fast) ease;
-}
-
-.file-nav-btn:hover {
-  color: var(--text-primary);
-  background: var(--bg-raised);
-}
-
-.file-nav-btn svg { width: 13px; height: 13px; }
-
-.file-name {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--text-primary);
-  font-weight: 500;
-}
-
-.file-name .path {
-  color: var(--text-tertiary);
-}
-
-.file-stats {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  margin-left: 8px;
-}
-
-.file-stats .add { color: var(--success); }
-.file-stats .del { color: var(--danger); }
-
-.diff-toolbar-right {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.progress-bar {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 10px;
-  color: var(--text-tertiary);
-  font-family: var(--font-mono);
-}
-
-.progress-track {
-  width: 60px;
-  height: 3px;
-  background: var(--border);
-  border-radius: var(--radius-full);
-  overflow: hidden;
-}
-
-.progress-fill {
-  height: 100%;
-  background: var(--accent);
-  border-radius: var(--radius-full);
-  transition: width var(--duration-normal) var(--ease-out);
-}
-
-/* Diff content */
-.diff-content {
-  overflow-y: auto;
-  font-family: var(--font-mono);
-  font-size: 12.5px;
-  line-height: 20px;
-}
-
-.diff-hunk-header {
-  background: var(--diff-hunk-bg);
-  color: var(--info);
-  padding: 4px 12px;
-  font-size: 11px;
-  border-top: 1px solid var(--border-subtle);
-  border-bottom: 1px solid var(--border-subtle);
-  position: sticky;
-  top: 0;
-  z-index: 1;
-}
-
-.diff-line {
-  display: flex;
-  align-items: stretch;
-  min-height: 20px;
-  transition: background var(--duration-fast) ease;
-}
-
-.diff-line:hover {
-  filter: brightness(1.15);
-}
-
-.diff-gutter {
-  width: 52px;
-  flex-shrink: 0;
-  display: flex;
-  padding: 0 6px;
-  gap: 2px;
-  user-select: none;
-  cursor: pointer;
-}
-
-.diff-gutter span {
-  width: 22px;
-  text-align: right;
-  color: var(--text-ghost);
-  font-size: 11px;
-}
-
-.diff-gutter:hover span {
-  color: var(--text-tertiary);
-}
-
-.diff-marker {
-  width: 16px;
-  flex-shrink: 0;
-  text-align: center;
-  user-select: none;
-  font-weight: 600;
-  font-size: 11px;
-}
-
-.diff-code {
-  flex: 1;
-  padding: 0 12px 0 4px;
-  white-space: pre;
-  tab-size: 4;
-  overflow-x: auto;
-}
-
-.diff-line.add {
-  background: var(--diff-add-bg);
-}
-
-.diff-line.add .diff-marker {
-  color: var(--success);
-}
-
-.diff-line.del {
-  background: var(--diff-del-bg);
-}
-
-.diff-line.del .diff-marker {
-  color: var(--danger);
-}
-
-.diff-word-add {
-  background: var(--diff-add-word);
-  border-radius: 2px;
-  padding: 0 1px;
-}
-
-.diff-word-del {
-  background: var(--diff-del-word);
-  border-radius: 2px;
-  padding: 0 1px;
-}
-
-/* CI annotation inline in diff */
-.diff-annotation {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 8px 12px 8px 68px;
-  background: var(--danger-muted);
-  border-left: 2px solid var(--danger);
-  font-family: var(--font-sans);
-  font-size: 12px;
-  color: var(--danger);
-}
-
-.diff-annotation svg {
-  width: 14px;
-  height: 14px;
-  flex-shrink: 0;
-  margin-top: 1px;
-}
-
-.diff-annotation-text {
-  flex: 1;
-}
-
-.diff-annotation-source {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  color: var(--text-tertiary);
-  margin-top: 2px;
-}
-
-/* === SIDE PANEL === */
-.side-panel {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  background: var(--bg-surface);
-}
-
-.side-tabs {
-  display: flex;
-  align-items: center;
-  padding: 0 12px;
-  border-bottom: 1px solid var(--border);
-  gap: 0;
-}
-
-.side-tab {
-  padding: 10px 12px;
-  font-size: 12px;
-  color: var(--text-secondary);
-  cursor: pointer;
-  position: relative;
-  transition: color var(--duration-fast) ease;
-  font-weight: 450;
-}
-
-.side-tab:hover { color: var(--text-primary); }
-
-.side-tab.active {
-  color: var(--text-primary);
-  font-weight: 500;
-}
-
-.side-tab.active::after {
-  content: '';
-  position: absolute;
-  bottom: -1px;
-  left: 12px;
-  right: 12px;
-  height: 1.5px;
-  background: var(--accent);
-  border-radius: 1px;
-}
-
-.side-tab .tab-count {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  margin-left: 4px;
-  color: var(--text-tertiary);
-}
-
-/* Checks panel */
-.side-content {
-  flex: 1;
-  overflow-y: auto;
-  padding: 12px;
-}
-
-.checks-section {
-  margin-bottom: 16px;
-}
-
-.checks-section-title {
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-tertiary);
-  margin-bottom: 8px;
-}
-
-.check-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
-  border-radius: var(--radius-md);
-  transition: background var(--duration-fast) ease;
-  cursor: pointer;
-}
-
-.check-item:hover {
-  background: var(--bg-raised);
-}
-
-.check-icon {
-  width: 16px;
-  height: 16px;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.check-icon svg { width: 14px; height: 14px; }
-
-.check-icon.pass svg { color: var(--success); }
-.check-icon.fail svg { color: var(--danger); }
-.check-icon.running svg { color: var(--warning); animation: spin 1.5s linear infinite; }
-
-@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-
-.check-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.check-name {
-  font-size: 12px;
-  font-weight: 450;
-  color: var(--text-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.check-detail {
-  font-size: 10px;
-  color: var(--text-tertiary);
-  font-family: var(--font-mono);
-}
-
-.check-action {
-  flex-shrink: 0;
-}
-
-/* Merge panel at bottom */
-.merge-panel {
-  padding: 12px;
-  border-top: 1px solid var(--border);
-  background: var(--bg-raised);
-}
-
-.merge-checklist {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-bottom: 10px;
-}
-
-.merge-check {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11px;
-}
-
-.merge-check svg { width: 13px; height: 13px; flex-shrink: 0; }
-
-.merge-check.pass svg { color: var(--success); }
-.merge-check.pass { color: var(--text-secondary); }
-.merge-check.fail svg { color: var(--danger); }
-.merge-check.fail { color: var(--danger); }
-
-.merge-actions {
-  display: flex;
-  gap: 6px;
-}
-
-.merge-actions .btn { flex: 1; }
-
-/* === DESIGN SYSTEM SHOWCASE === */
-.showcase {
-  padding: 40px;
-  max-width: 900px;
-  margin: 0 auto;
-}
-
-.showcase h1 {
-  font-family: var(--font-display);
-  font-size: 48px;
-  font-weight: 400;
-  font-style: italic;
-  letter-spacing: -0.03em;
-  line-height: 1.1;
-  color: var(--text-primary);
-  margin-bottom: 8px;
-}
-
-.showcase .subtitle {
-  font-size: 16px;
-  color: var(--text-secondary);
-  margin-bottom: 48px;
-  max-width: 500px;
-  line-height: 1.6;
-}
-
-.showcase-section {
-  margin-bottom: 48px;
-}
-
-.showcase-section h2 {
-  font-family: var(--font-sans);
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--accent);
-  margin-bottom: 20px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--border);
-}
-
-/* Color swatches */
-.swatch-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 8px;
-}
-
-.swatch {
-  border-radius: var(--radius-md);
-  overflow: hidden;
-  border: 1px solid var(--border);
-}
-
-.swatch-color {
-  height: 48px;
-}
-
-.swatch-label {
-  padding: 6px 8px;
-  font-size: 10px;
-  background: var(--bg-surface);
-}
-
-.swatch-name {
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: 1px;
-}
-
-.swatch-value {
-  font-family: var(--font-mono);
-  color: var(--text-tertiary);
-  font-size: 9px;
-}
-
-/* Type scale */
-.type-sample { margin-bottom: 16px; }
-
-.type-sample .label {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  color: var(--text-tertiary);
-  margin-bottom: 4px;
-}
-
-.type-display {
-  font-family: var(--font-display);
-  font-size: 36px;
-  font-style: italic;
-  letter-spacing: -0.03em;
-  line-height: 1.1;
-}
-
-.type-heading {
-  font-family: var(--font-sans);
-  font-size: 20px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-}
-
-.type-body {
-  font-family: var(--font-sans);
-  font-size: 14px;
-  color: var(--text-secondary);
-  line-height: 1.6;
-}
-
-.type-mono {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--accent-text);
-}
-
-.type-label {
-  font-family: var(--font-sans);
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-tertiary);
-}
-
-/* Component showcase */
-.component-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-bottom: 16px;
-}
-
-/* Keyboard shortcuts showcase */
-.kbd {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 20px;
-  height: 20px;
-  padding: 0 5px;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: 500;
-  background: var(--bg-raised);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-  color: var(--text-secondary);
-  box-shadow: 0 1px 0 var(--border);
-}
-
-/* Toggle */
-.toggle-group {
-  display: flex;
-  background: var(--bg-raised);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: 2px;
-}
-
-.toggle-opt {
-  padding: 4px 10px;
-  font-size: 11px;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  color: var(--text-tertiary);
-  transition: all var(--duration-fast) ease;
-}
-
-.toggle-opt.active {
-  background: var(--bg-elevated);
-  color: var(--text-primary);
-  box-shadow: var(--shadow-sm);
-}
-
-/* Tooltip-like info card */
-.info-card {
-  background: var(--bg-raised);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 16px;
-  max-width: 340px;
-}
-
-.info-card-title {
-  font-size: 13px;
-  font-weight: 600;
-  margin-bottom: 4px;
-}
-
-.info-card-meta {
-  font-size: 11px;
-  color: var(--text-tertiary);
-  margin-bottom: 8px;
-  font-family: var(--font-mono);
-}
-
-.info-card-body {
-  font-size: 12px;
-  color: var(--text-secondary);
-  line-height: 1.5;
-}
-
-/* Blame tooltip */
-.blame-tooltip {
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-md);
-  padding: 8px 10px;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  box-shadow: var(--shadow-md);
-  font-size: 11px;
-}
-
-.blame-tooltip .blame-author {
-  font-weight: 500;
-  color: var(--text-primary);
-}
-
-.blame-tooltip .blame-date {
-  color: var(--text-tertiary);
-  font-family: var(--font-mono);
-  font-size: 10px;
-}
-
-.blame-tooltip .blame-msg {
-  color: var(--text-secondary);
-  max-width: 200px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* Background texture */
-.bg-texture {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  pointer-events: none;
-  z-index: -1;
-  opacity: 0.015;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
-  background-repeat: repeat;
-  background-size: 256px 256px;
-}
-
-/* Accent line at very top of app */
-.accent-bar {
-  height: 2px;
-  background: linear-gradient(90deg, transparent, var(--accent), transparent);
-  opacity: 0.4;
-}
-</style>
-</head>
-<body>
-
-<div class="bg-texture"></div>
-
-<!-- ============================================================
+      :root {
+        /* === CORE PALETTE: "Midnight Copper" === */
+
+        /* Surfaces — warm-tinted blacks, not cold zinc */
+        --bg-root: #08080a; /* Near-black with warm undertone */
+        --bg-surface: #0f0f12; /* Lifted surface */
+        --bg-raised: #16161b; /* Cards, panels */
+        --bg-elevated: #1c1c22; /* Dropdowns, popovers */
+        --bg-overlay: rgba(0, 0, 0, 0.72);
+
+        /* Text — slightly warm whites */
+        --text-primary: #f0ece6; /* Warm off-white, not sterile #fafafa */
+        --text-secondary: #9b9590; /* Warm gray, not cold zinc */
+        --text-tertiary: #5e5954; /* Subtle labels */
+        --text-ghost: #3a3632; /* Barely visible hints */
+
+        /* Accent: Copper/Amber — the signature color */
+        --accent: #d4883a; /* Warm copper — the primary action color */
+        --accent-hover: #e09a4e; /* Lighter on hover */
+        --accent-muted: rgba(212, 136, 58, 0.12); /* Subtle accent bg */
+        --accent-text: #e8a655; /* Accent in text context */
+
+        /* Semantic */
+        --success: #3dd68c; /* Bright mint green */
+        --success-muted: rgba(61, 214, 140, 0.1);
+        --danger: #ef6461; /* Warm red, not cold */
+        --danger-muted: rgba(239, 100, 97, 0.1);
+        --warning: #f0b449; /* Golden amber */
+        --warning-muted: rgba(240, 180, 73, 0.1);
+        --info: #5ba4e6; /* Soft blue */
+        --info-muted: rgba(91, 164, 230, 0.1);
+        --purple: #a78bfa; /* For reviews/approvals */
+        --purple-muted: rgba(167, 139, 250, 0.1);
+
+        /* Borders — warm-tinted */
+        --border: #25231f; /* Warm dark border */
+        --border-subtle: #1e1c18; /* Very subtle separator */
+        --border-strong: #33302a; /* Emphasized border */
+        --border-accent: rgba(212, 136, 58, 0.25);
+
+        /* Diff colors */
+        --diff-add-bg: rgba(61, 214, 140, 0.07);
+        --diff-add-bar: #3dd68c;
+        --diff-add-word: rgba(61, 214, 140, 0.22);
+        --diff-del-bg: rgba(239, 100, 97, 0.07);
+        --diff-del-bar: #ef6461;
+        --diff-del-word: rgba(239, 100, 97, 0.22);
+        --diff-hunk-bg: rgba(91, 164, 230, 0.06);
+
+        /* Scrollbar */
+        --scrollbar-thumb: #2a2824;
+        --scrollbar-hover: #3a3632;
+
+        /* Radius — confident, not brutalist. Slightly softened. */
+        --radius-xs: 2px;
+        --radius-sm: 4px;
+        --radius-md: 6px;
+        --radius-lg: 8px;
+        --radius-xl: 12px;
+        --radius-full: 9999px;
+
+        /* Shadows — warm-tinted, more present than Better Hub */
+        --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.15);
+        --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.2);
+        --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.4), 0 2px 6px rgba(0, 0, 0, 0.2);
+        --shadow-glow: 0 0 20px rgba(212, 136, 58, 0.08);
+
+        /* Typography */
+        --font-sans: "DM Sans", system-ui, -apple-system, sans-serif;
+        --font-mono: "JetBrains Mono", ui-monospace, monospace;
+        --font-display: "Instrument Serif", Georgia, serif;
+
+        /* Transitions */
+        --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+        --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+        --duration-fast: 120ms;
+        --duration-normal: 200ms;
+        --duration-slow: 400ms;
+      }
+
+      /* === RESET & BASE === */
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: var(--font-sans);
+        background: var(--bg-root);
+        color: var(--text-primary);
+        font-size: 13px;
+        line-height: 1.5;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        overflow-x: hidden;
+      }
+
+      /* Scrollbar */
+      ::-webkit-scrollbar {
+        width: 5px;
+        height: 5px;
+      }
+      ::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: var(--scrollbar-thumb);
+        border-radius: var(--radius-full);
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: var(--scrollbar-hover);
+      }
+
+      /* === LAYOUT === */
+      .app-frame {
+        display: grid;
+        grid-template-rows: 42px 1fr;
+        height: 100vh;
+        overflow: hidden;
+      }
+
+      /* === NAVBAR === */
+      .navbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 12px;
+        border-bottom: 1px solid var(--border);
+        background: var(--bg-surface);
+        z-index: 100;
+        -webkit-app-region: drag;
+      }
+
+      .navbar-left {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        -webkit-app-region: no-drag;
+      }
+
+      .logo {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        text-decoration: none;
+        color: var(--text-primary);
+      }
+
+      .logo-mark {
+        width: 20px;
+        height: 20px;
+        background: var(--accent);
+        border-radius: var(--radius-sm);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: var(--font-display);
+        font-size: 14px;
+        font-weight: 400;
+        color: #08080a;
+        font-style: italic;
+        line-height: 1;
+      }
+
+      .logo-text {
+        font-family: var(--font-sans);
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+        color: var(--text-primary);
+      }
+
+      .nav-tabs {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        list-style: none;
+      }
+
+      .nav-tab {
+        padding: 6px 10px;
+        font-size: 12px;
+        color: var(--text-secondary);
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        transition: all var(--duration-fast) ease;
+        position: relative;
+        font-weight: 450;
+      }
+
+      .nav-tab:hover {
+        color: var(--text-primary);
+        background: var(--bg-raised);
+      }
+
+      .nav-tab.active {
+        color: var(--text-primary);
+        font-weight: 500;
+      }
+
+      .nav-tab.active::after {
+        content: "";
+        position: absolute;
+        bottom: -7px;
+        left: 8px;
+        right: 8px;
+        height: 1.5px;
+        background: var(--accent);
+        border-radius: 1px;
+      }
+
+      .nav-tab .count {
+        font-family: var(--font-mono);
+        font-size: 10px;
+        padding: 1px 5px;
+        border-radius: var(--radius-full);
+        background: var(--accent-muted);
+        color: var(--accent-text);
+        margin-left: 4px;
+        font-weight: 500;
+      }
+
+      .navbar-right {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        -webkit-app-region: no-drag;
+      }
+
+      .nav-icon-btn {
+        width: 30px;
+        height: 30px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: var(--radius-sm);
+        color: var(--text-secondary);
+        cursor: pointer;
+        transition: all var(--duration-fast) ease;
+        border: none;
+        background: none;
+        position: relative;
+      }
+
+      .nav-icon-btn:hover {
+        color: var(--text-primary);
+        background: var(--bg-raised);
+      }
+
+      .nav-icon-btn svg {
+        width: 15px;
+        height: 15px;
+      }
+
+      .avatar {
+        width: 24px;
+        height: 24px;
+        border-radius: var(--radius-full);
+        background: linear-gradient(135deg, var(--accent) 0%, #7c5a2a 100%);
+        border: 1.5px solid var(--border-strong);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 10px;
+        font-weight: 600;
+        color: var(--bg-root);
+      }
+
+      .badge-dot {
+        position: absolute;
+        top: 5px;
+        right: 5px;
+        width: 6px;
+        height: 6px;
+        border-radius: var(--radius-full);
+        background: var(--accent);
+        border: 1.5px solid var(--bg-surface);
+      }
+
+      /* === MAIN CONTENT SPLIT === */
+      .main-content {
+        display: grid;
+        grid-template-columns: 260px 1fr;
+        overflow: hidden;
+      }
+
+      /* === SIDEBAR (PR INBOX) === */
+      .sidebar {
+        border-right: 1px solid var(--border);
+        background: var(--bg-surface);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+
+      .sidebar-header {
+        padding: 12px 12px 8px;
+        border-bottom: 1px solid var(--border-subtle);
+      }
+
+      .sidebar-title {
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--text-secondary);
+        margin-bottom: 8px;
+      }
+
+      .search-box {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 8px;
+        background: var(--bg-raised);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        color: var(--text-tertiary);
+        font-size: 12px;
+        cursor: text;
+      }
+
+      .search-box svg {
+        width: 13px;
+        height: 13px;
+        flex-shrink: 0;
+      }
+
+      .search-box kbd {
+        margin-left: auto;
+        font-family: var(--font-mono);
+        font-size: 10px;
+        padding: 1px 4px;
+        border-radius: 3px;
+        background: var(--bg-elevated);
+        border: 1px solid var(--border);
+        color: var(--text-ghost);
+      }
+
+      .sidebar-section {
+        padding: 8px 0;
+      }
+
+      .section-label {
+        padding: 4px 12px 6px;
+        font-size: 10px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--text-tertiary);
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+
+      .section-label .dot {
+        width: 5px;
+        height: 5px;
+        border-radius: var(--radius-full);
+      }
+
+      .pr-list {
+        list-style: none;
+        overflow-y: auto;
+        flex: 1;
+      }
+
+      .pr-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        padding: 8px 12px;
+        cursor: pointer;
+        transition: background var(--duration-fast) ease;
+        border-left: 2px solid transparent;
+        position: relative;
+      }
+
+      .pr-item:hover {
+        background: var(--bg-raised);
+      }
+
+      .pr-item.active {
+        background: var(--accent-muted);
+        border-left-color: var(--accent);
+      }
+
+      .pr-item .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: var(--radius-full);
+        margin-top: 4px;
+        flex-shrink: 0;
+      }
+
+      .pr-item .status-dot.success {
+        background: var(--success);
+      }
+      .pr-item .status-dot.pending {
+        background: var(--warning);
+      }
+      .pr-item .status-dot.failure {
+        background: var(--danger);
+      }
+      .pr-item .status-dot.review {
+        background: var(--purple);
+      }
+
+      .pr-item-content {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .pr-item-title {
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--text-primary);
+        line-height: 1.3;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .pr-item-meta {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 2px;
+        font-size: 10px;
+        color: var(--text-tertiary);
+        font-family: var(--font-mono);
+      }
+
+      .pr-item-repo {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .pr-item-time {
+        flex-shrink: 0;
+      }
+
+      /* === PR DETAIL AREA === */
+      .detail-area {
+        display: grid;
+        grid-template-rows: auto 1fr;
+        overflow: hidden;
+        background: var(--bg-root);
+      }
+
+      /* PR Header */
+      .pr-header {
+        padding: 12px 20px;
+        border-bottom: 1px solid var(--border);
+        background: var(--bg-surface);
+      }
+
+      .pr-header-top {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 16px;
+      }
+
+      .pr-title-area {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .pr-title {
+        font-size: 16px;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+        line-height: 1.3;
+        color: var(--text-primary);
+      }
+
+      .pr-title .pr-number {
+        color: var(--text-tertiary);
+        font-weight: 400;
+      }
+
+      .pr-subtitle {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 4px;
+        font-size: 12px;
+        color: var(--text-secondary);
+      }
+
+      .pr-subtitle .branch {
+        font-family: var(--font-mono);
+        font-size: 11px;
+        padding: 1px 6px;
+        background: var(--bg-raised);
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--border);
+        color: var(--accent-text);
+      }
+
+      .pr-subtitle .arrow {
+        color: var(--text-ghost);
+      }
+
+      .pr-actions {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-shrink: 0;
+      }
+
+      /* Buttons */
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+        padding: 6px 12px;
+        font-size: 12px;
+        font-weight: 500;
+        font-family: var(--font-sans);
+        border-radius: var(--radius-md);
+        cursor: pointer;
+        transition: all var(--duration-fast) ease;
+        border: 1px solid transparent;
+        white-space: nowrap;
+      }
+
+      .btn svg {
+        width: 14px;
+        height: 14px;
+      }
+
+      .btn-primary {
+        background: var(--accent);
+        color: #08080a;
+        border-color: var(--accent);
+        font-weight: 600;
+      }
+
+      .btn-primary:hover {
+        background: var(--accent-hover);
+        border-color: var(--accent-hover);
+        box-shadow: var(--shadow-glow);
+      }
+
+      .btn-secondary {
+        background: var(--bg-raised);
+        color: var(--text-primary);
+        border-color: var(--border-strong);
+      }
+
+      .btn-secondary:hover {
+        background: var(--bg-elevated);
+        border-color: var(--border-strong);
+      }
+
+      .btn-ghost {
+        background: transparent;
+        color: var(--text-secondary);
+        border-color: transparent;
+      }
+
+      .btn-ghost:hover {
+        background: var(--bg-raised);
+        color: var(--text-primary);
+      }
+
+      .btn-success {
+        background: var(--success);
+        color: #08080a;
+        border-color: var(--success);
+        font-weight: 600;
+      }
+
+      .btn-success:hover {
+        filter: brightness(1.1);
+      }
+
+      .btn-sm {
+        padding: 4px 8px;
+        font-size: 11px;
+      }
+
+      /* Badges */
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 8px;
+        font-size: 11px;
+        font-weight: 500;
+        border-radius: var(--radius-full);
+      }
+
+      .badge svg {
+        width: 12px;
+        height: 12px;
+      }
+
+      .badge-success {
+        background: var(--success-muted);
+        color: var(--success);
+      }
+
+      .badge-danger {
+        background: var(--danger-muted);
+        color: var(--danger);
+      }
+
+      .badge-warning {
+        background: var(--warning-muted);
+        color: var(--warning);
+      }
+
+      .badge-info {
+        background: var(--info-muted);
+        color: var(--info);
+      }
+
+      .badge-purple {
+        background: var(--purple-muted);
+        color: var(--purple);
+      }
+
+      .badge-neutral {
+        background: var(--bg-raised);
+        color: var(--text-secondary);
+        border: 1px solid var(--border);
+      }
+
+      /* === SPLIT PANE (Diff + Side Panel) === */
+      .split-pane {
+        display: grid;
+        grid-template-columns: 1fr 320px;
+        overflow: hidden;
+      }
+
+      /* === DIFF VIEWER === */
+      .diff-panel {
+        display: grid;
+        grid-template-rows: 38px 1fr;
+        overflow: hidden;
+        border-right: 1px solid var(--border);
+      }
+
+      .diff-toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 12px;
+        border-bottom: 1px solid var(--border-subtle);
+        background: var(--bg-surface);
+      }
+
+      .diff-toolbar-left {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .file-nav {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+      }
+
+      .file-nav-btn {
+        width: 24px;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: var(--radius-sm);
+        border: none;
+        background: none;
+        color: var(--text-tertiary);
+        cursor: pointer;
+        transition: all var(--duration-fast) ease;
+      }
+
+      .file-nav-btn:hover {
+        color: var(--text-primary);
+        background: var(--bg-raised);
+      }
+
+      .file-nav-btn svg {
+        width: 13px;
+        height: 13px;
+      }
+
+      .file-name {
+        font-family: var(--font-mono);
+        font-size: 12px;
+        color: var(--text-primary);
+        font-weight: 500;
+      }
+
+      .file-name .path {
+        color: var(--text-tertiary);
+      }
+
+      .file-stats {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-family: var(--font-mono);
+        font-size: 11px;
+        margin-left: 8px;
+      }
+
+      .file-stats .add {
+        color: var(--success);
+      }
+      .file-stats .del {
+        color: var(--danger);
+      }
+
+      .diff-toolbar-right {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+
+      .progress-bar {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 10px;
+        color: var(--text-tertiary);
+        font-family: var(--font-mono);
+      }
+
+      .progress-track {
+        width: 60px;
+        height: 3px;
+        background: var(--border);
+        border-radius: var(--radius-full);
+        overflow: hidden;
+      }
+
+      .progress-fill {
+        height: 100%;
+        background: var(--accent);
+        border-radius: var(--radius-full);
+        transition: width var(--duration-normal) var(--ease-out);
+      }
+
+      /* Diff content */
+      .diff-content {
+        overflow-y: auto;
+        font-family: var(--font-mono);
+        font-size: 12.5px;
+        line-height: 20px;
+      }
+
+      .diff-hunk-header {
+        background: var(--diff-hunk-bg);
+        color: var(--info);
+        padding: 4px 12px;
+        font-size: 11px;
+        border-top: 1px solid var(--border-subtle);
+        border-bottom: 1px solid var(--border-subtle);
+        position: sticky;
+        top: 0;
+        z-index: 1;
+      }
+
+      .diff-line {
+        display: flex;
+        align-items: stretch;
+        min-height: 20px;
+        transition: background var(--duration-fast) ease;
+      }
+
+      .diff-line:hover {
+        filter: brightness(1.15);
+      }
+
+      .diff-gutter {
+        width: 52px;
+        flex-shrink: 0;
+        display: flex;
+        padding: 0 6px;
+        gap: 2px;
+        user-select: none;
+        cursor: pointer;
+      }
+
+      .diff-gutter span {
+        width: 22px;
+        text-align: right;
+        color: var(--text-ghost);
+        font-size: 11px;
+      }
+
+      .diff-gutter:hover span {
+        color: var(--text-tertiary);
+      }
+
+      .diff-marker {
+        width: 16px;
+        flex-shrink: 0;
+        text-align: center;
+        user-select: none;
+        font-weight: 600;
+        font-size: 11px;
+      }
+
+      .diff-code {
+        flex: 1;
+        padding: 0 12px 0 4px;
+        white-space: pre;
+        tab-size: 4;
+        overflow-x: auto;
+      }
+
+      .diff-line.add {
+        background: var(--diff-add-bg);
+      }
+
+      .diff-line.add .diff-marker {
+        color: var(--success);
+      }
+
+      .diff-line.del {
+        background: var(--diff-del-bg);
+      }
+
+      .diff-line.del .diff-marker {
+        color: var(--danger);
+      }
+
+      .diff-word-add {
+        background: var(--diff-add-word);
+        border-radius: 2px;
+        padding: 0 1px;
+      }
+
+      .diff-word-del {
+        background: var(--diff-del-word);
+        border-radius: 2px;
+        padding: 0 1px;
+      }
+
+      /* CI annotation inline in diff */
+      .diff-annotation {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        padding: 8px 12px 8px 68px;
+        background: var(--danger-muted);
+        border-left: 2px solid var(--danger);
+        font-family: var(--font-sans);
+        font-size: 12px;
+        color: var(--danger);
+      }
+
+      .diff-annotation svg {
+        width: 14px;
+        height: 14px;
+        flex-shrink: 0;
+        margin-top: 1px;
+      }
+
+      .diff-annotation-text {
+        flex: 1;
+      }
+
+      .diff-annotation-source {
+        font-family: var(--font-mono);
+        font-size: 10px;
+        color: var(--text-tertiary);
+        margin-top: 2px;
+      }
+
+      /* === SIDE PANEL === */
+      .side-panel {
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        background: var(--bg-surface);
+      }
+
+      .side-tabs {
+        display: flex;
+        align-items: center;
+        padding: 0 12px;
+        border-bottom: 1px solid var(--border);
+        gap: 0;
+      }
+
+      .side-tab {
+        padding: 10px 12px;
+        font-size: 12px;
+        color: var(--text-secondary);
+        cursor: pointer;
+        position: relative;
+        transition: color var(--duration-fast) ease;
+        font-weight: 450;
+      }
+
+      .side-tab:hover {
+        color: var(--text-primary);
+      }
+
+      .side-tab.active {
+        color: var(--text-primary);
+        font-weight: 500;
+      }
+
+      .side-tab.active::after {
+        content: "";
+        position: absolute;
+        bottom: -1px;
+        left: 12px;
+        right: 12px;
+        height: 1.5px;
+        background: var(--accent);
+        border-radius: 1px;
+      }
+
+      .side-tab .tab-count {
+        font-family: var(--font-mono);
+        font-size: 10px;
+        margin-left: 4px;
+        color: var(--text-tertiary);
+      }
+
+      /* Checks panel */
+      .side-content {
+        flex: 1;
+        overflow-y: auto;
+        padding: 12px;
+      }
+
+      .checks-section {
+        margin-bottom: 16px;
+      }
+
+      .checks-section-title {
+        font-size: 10px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--text-tertiary);
+        margin-bottom: 8px;
+      }
+
+      .check-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 8px;
+        border-radius: var(--radius-md);
+        transition: background var(--duration-fast) ease;
+        cursor: pointer;
+      }
+
+      .check-item:hover {
+        background: var(--bg-raised);
+      }
+
+      .check-icon {
+        width: 16px;
+        height: 16px;
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .check-icon svg {
+        width: 14px;
+        height: 14px;
+      }
+
+      .check-icon.pass svg {
+        color: var(--success);
+      }
+      .check-icon.fail svg {
+        color: var(--danger);
+      }
+      .check-icon.running svg {
+        color: var(--warning);
+        animation: spin 1.5s linear infinite;
+      }
+
+      @keyframes spin {
+        from {
+          transform: rotate(0deg);
+        }
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      .check-info {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .check-name {
+        font-size: 12px;
+        font-weight: 450;
+        color: var(--text-primary);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .check-detail {
+        font-size: 10px;
+        color: var(--text-tertiary);
+        font-family: var(--font-mono);
+      }
+
+      .check-action {
+        flex-shrink: 0;
+      }
+
+      /* Merge panel at bottom */
+      .merge-panel {
+        padding: 12px;
+        border-top: 1px solid var(--border);
+        background: var(--bg-raised);
+      }
+
+      .merge-checklist {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        margin-bottom: 10px;
+      }
+
+      .merge-check {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 11px;
+      }
+
+      .merge-check svg {
+        width: 13px;
+        height: 13px;
+        flex-shrink: 0;
+      }
+
+      .merge-check.pass svg {
+        color: var(--success);
+      }
+      .merge-check.pass {
+        color: var(--text-secondary);
+      }
+      .merge-check.fail svg {
+        color: var(--danger);
+      }
+      .merge-check.fail {
+        color: var(--danger);
+      }
+
+      .merge-actions {
+        display: flex;
+        gap: 6px;
+      }
+
+      .merge-actions .btn {
+        flex: 1;
+      }
+
+      /* === DESIGN SYSTEM SHOWCASE === */
+      .showcase {
+        padding: 40px;
+        max-width: 900px;
+        margin: 0 auto;
+      }
+
+      .showcase h1 {
+        font-family: var(--font-display);
+        font-size: 48px;
+        font-weight: 400;
+        font-style: italic;
+        letter-spacing: -0.03em;
+        line-height: 1.1;
+        color: var(--text-primary);
+        margin-bottom: 8px;
+      }
+
+      .showcase .subtitle {
+        font-size: 16px;
+        color: var(--text-secondary);
+        margin-bottom: 48px;
+        max-width: 500px;
+        line-height: 1.6;
+      }
+
+      .showcase-section {
+        margin-bottom: 48px;
+      }
+
+      .showcase-section h2 {
+        font-family: var(--font-sans);
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--accent);
+        margin-bottom: 20px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid var(--border);
+      }
+
+      /* Color swatches */
+      .swatch-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        gap: 8px;
+      }
+
+      .swatch {
+        border-radius: var(--radius-md);
+        overflow: hidden;
+        border: 1px solid var(--border);
+      }
+
+      .swatch-color {
+        height: 48px;
+      }
+
+      .swatch-label {
+        padding: 6px 8px;
+        font-size: 10px;
+        background: var(--bg-surface);
+      }
+
+      .swatch-name {
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 1px;
+      }
+
+      .swatch-value {
+        font-family: var(--font-mono);
+        color: var(--text-tertiary);
+        font-size: 9px;
+      }
+
+      /* Type scale */
+      .type-sample {
+        margin-bottom: 16px;
+      }
+
+      .type-sample .label {
+        font-family: var(--font-mono);
+        font-size: 10px;
+        color: var(--text-tertiary);
+        margin-bottom: 4px;
+      }
+
+      .type-display {
+        font-family: var(--font-display);
+        font-size: 36px;
+        font-style: italic;
+        letter-spacing: -0.03em;
+        line-height: 1.1;
+      }
+
+      .type-heading {
+        font-family: var(--font-sans);
+        font-size: 20px;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+      }
+
+      .type-body {
+        font-family: var(--font-sans);
+        font-size: 14px;
+        color: var(--text-secondary);
+        line-height: 1.6;
+      }
+
+      .type-mono {
+        font-family: var(--font-mono);
+        font-size: 12px;
+        color: var(--accent-text);
+      }
+
+      .type-label {
+        font-family: var(--font-sans);
+        font-size: 10px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--text-tertiary);
+      }
+
+      /* Component showcase */
+      .component-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-bottom: 16px;
+      }
+
+      /* Keyboard shortcuts showcase */
+      .kbd {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 20px;
+        height: 20px;
+        padding: 0 5px;
+        font-family: var(--font-mono);
+        font-size: 10px;
+        font-weight: 500;
+        background: var(--bg-raised);
+        border: 1px solid var(--border-strong);
+        border-radius: var(--radius-sm);
+        color: var(--text-secondary);
+        box-shadow: 0 1px 0 var(--border);
+      }
+
+      /* Toggle */
+      .toggle-group {
+        display: flex;
+        background: var(--bg-raised);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        padding: 2px;
+      }
+
+      .toggle-opt {
+        padding: 4px 10px;
+        font-size: 11px;
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        color: var(--text-tertiary);
+        transition: all var(--duration-fast) ease;
+      }
+
+      .toggle-opt.active {
+        background: var(--bg-elevated);
+        color: var(--text-primary);
+        box-shadow: var(--shadow-sm);
+      }
+
+      /* Tooltip-like info card */
+      .info-card {
+        background: var(--bg-raised);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: 16px;
+        max-width: 340px;
+      }
+
+      .info-card-title {
+        font-size: 13px;
+        font-weight: 600;
+        margin-bottom: 4px;
+      }
+
+      .info-card-meta {
+        font-size: 11px;
+        color: var(--text-tertiary);
+        margin-bottom: 8px;
+        font-family: var(--font-mono);
+      }
+
+      .info-card-body {
+        font-size: 12px;
+        color: var(--text-secondary);
+        line-height: 1.5;
+      }
+
+      /* Blame tooltip */
+      .blame-tooltip {
+        background: var(--bg-elevated);
+        border: 1px solid var(--border-strong);
+        border-radius: var(--radius-md);
+        padding: 8px 10px;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        box-shadow: var(--shadow-md);
+        font-size: 11px;
+      }
+
+      .blame-tooltip .blame-author {
+        font-weight: 500;
+        color: var(--text-primary);
+      }
+
+      .blame-tooltip .blame-date {
+        color: var(--text-tertiary);
+        font-family: var(--font-mono);
+        font-size: 10px;
+      }
+
+      .blame-tooltip .blame-msg {
+        color: var(--text-secondary);
+        max-width: 200px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      /* Background texture */
+      .bg-texture {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        pointer-events: none;
+        z-index: -1;
+        opacity: 0.015;
+        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+        background-repeat: repeat;
+        background-size: 256px 256px;
+      }
+
+      /* Accent line at very top of app */
+      .accent-bar {
+        height: 2px;
+        background: linear-gradient(90deg, transparent, var(--accent), transparent);
+        opacity: 0.4;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="bg-texture"></div>
+
+    <!-- ============================================================
      SECTION 1: FULL APP MOCKUP (PR Review View)
      ============================================================ -->
-<div class="app-frame">
-  <div class="accent-bar"></div>
-  
-  <!-- NAVBAR -->
-  <nav class="navbar">
-    <div class="navbar-left">
-      <a class="logo" href="#">
-        <div class="logo-mark">d</div>
-        <span class="logo-text">Dispatch</span>
-      </a>
-      <ul class="nav-tabs">
-        <li class="nav-tab">Inbox<span class="count">4</span></li>
-        <li class="nav-tab active">Review</li>
-        <li class="nav-tab">Workflows</li>
-        <li class="nav-tab">Deploys</li>
-      </ul>
-    </div>
-    <div class="navbar-right">
-      <button class="nav-icon-btn" title="Command palette">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-      </button>
-      <button class="nav-icon-btn" title="Notifications">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
-        <div class="badge-dot"></div>
-      </button>
-      <div class="avatar">B</div>
-    </div>
-  </nav>
+    <div class="app-frame">
+      <div class="accent-bar"></div>
 
-  <!-- MAIN -->
-  <div class="main-content">
-    
-    <!-- SIDEBAR: PR Inbox -->
-    <div class="sidebar">
-      <div class="sidebar-header">
-        <div class="sidebar-title">Pull Requests</div>
-        <div class="search-box">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-          <span>Filter PRs...</span>
-          <kbd>/</kbd>
+      <!-- NAVBAR -->
+      <nav class="navbar">
+        <div class="navbar-left">
+          <a
+            class="logo"
+            href="#"
+          >
+            <div class="logo-mark">d</div>
+            <span class="logo-text">Dispatch</span>
+          </a>
+          <ul class="nav-tabs">
+            <li class="nav-tab">Inbox<span class="count">4</span></li>
+            <li class="nav-tab active">Review</li>
+            <li class="nav-tab">Workflows</li>
+            <li class="nav-tab">Deploys</li>
+          </ul>
         </div>
-      </div>
-      
-      <ul class="pr-list">
-        <li style="padding: 0;">
-          <div class="section-label">
-            <span class="dot" style="background: var(--purple)"></span>
-            Needs your review
-          </div>
-        </li>
-        <li class="pr-item active">
-          <div class="status-dot review"></div>
-          <div class="pr-item-content">
-            <div class="pr-item-title">feat: add streaming response handler</div>
-            <div class="pr-item-meta">
-              <span class="pr-item-repo">api-gateway</span>
-              <span>&middot;</span>
-              <span class="pr-item-time">12m</span>
-            </div>
-          </div>
-        </li>
-        <li class="pr-item">
-          <div class="status-dot review"></div>
-          <div class="pr-item-content">
-            <div class="pr-item-title">fix: race condition in queue consumer</div>
-            <div class="pr-item-meta">
-              <span class="pr-item-repo">worker-service</span>
-              <span>&middot;</span>
-              <span class="pr-item-time">1h</span>
-            </div>
-          </div>
-        </li>
-
-        <li style="padding: 0;">
-          <div class="section-label">
-            <span class="dot" style="background: var(--danger)"></span>
-            Your PRs &middot; CI failing
-          </div>
-        </li>
-        <li class="pr-item">
-          <div class="status-dot failure"></div>
-          <div class="pr-item-content">
-            <div class="pr-item-title">refactor: migrate auth to better-auth v2</div>
-            <div class="pr-item-meta">
-              <span class="pr-item-repo">platform</span>
-              <span>&middot;</span>
-              <span class="pr-item-time">3h</span>
-            </div>
-          </div>
-        </li>
-
-        <li style="padding: 0;">
-          <div class="section-label">
-            <span class="dot" style="background: var(--success)"></span>
-            Ready to merge
-          </div>
-        </li>
-        <li class="pr-item">
-          <div class="status-dot success"></div>
-          <div class="pr-item-content">
-            <div class="pr-item-title">chore: bump dependencies to latest</div>
-            <div class="pr-item-meta">
-              <span class="pr-item-repo">web-client</span>
-              <span>&middot;</span>
-              <span class="pr-item-time">6h</span>
-            </div>
-          </div>
-        </li>
-        <li class="pr-item">
-          <div class="status-dot success"></div>
-          <div class="pr-item-content">
-            <div class="pr-item-title">docs: update API reference for v3</div>
-            <div class="pr-item-meta">
-              <span class="pr-item-repo">docs</span>
-              <span>&middot;</span>
-              <span class="pr-item-time">1d</span>
-            </div>
-          </div>
-        </li>
-
-        <li style="padding: 0;">
-          <div class="section-label">
-            <span class="dot" style="background: var(--warning)"></span>
-            Waiting on others
-          </div>
-        </li>
-        <li class="pr-item">
-          <div class="status-dot pending"></div>
-          <div class="pr-item-content">
-            <div class="pr-item-title">feat: implement SSO with SAML provider</div>
-            <div class="pr-item-meta">
-              <span class="pr-item-repo">auth-service</span>
-              <span>&middot;</span>
-              <span class="pr-item-time">2d</span>
-            </div>
-          </div>
-        </li>
-      </ul>
-    </div>
-
-    <!-- DETAIL AREA -->
-    <div class="detail-area">
-      <!-- PR Header -->
-      <div class="pr-header">
-        <div class="pr-header-top">
-          <div class="pr-title-area">
-            <div class="pr-title">feat: add streaming response handler <span class="pr-number">#847</span></div>
-            <div class="pr-subtitle">
-              <div class="avatar" style="width: 18px; height: 18px; font-size: 8px;">JK</div>
-              <span>jake opened 12 minutes ago</span>
-              <span class="arrow">&larr;</span>
-              <span class="branch">feat/streaming</span>
-              <span class="arrow">&rarr;</span>
-              <span class="branch">main</span>
-              <span style="margin-left: 4px;">
-                <span class="badge badge-info">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
-                  4 files
-                </span>
-              </span>
-              <span class="badge badge-success">+126</span>
-              <span class="badge badge-danger">-34</span>
-            </div>
-          </div>
-          <div class="pr-actions">
-            <div class="toggle-group">
-              <div class="toggle-opt active">Unified</div>
-              <div class="toggle-opt">Split</div>
-            </div>
-            <button class="btn btn-secondary btn-sm">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              Checkout
-            </button>
-            <button class="btn btn-primary">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:13px;height:13px"><polyline points="20 6 9 17 4 12"/></svg>
-              Approve
-            </button>
-          </div>
+        <div class="navbar-right">
+          <button
+            class="nav-icon-btn"
+            title="Command palette"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <circle
+                cx="11"
+                cy="11"
+                r="8"
+              />
+              <path d="m21 21-4.3-4.3" />
+            </svg>
+          </button>
+          <button
+            class="nav-icon-btn"
+            title="Notifications"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+              <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+            </svg>
+            <div class="badge-dot"></div>
+          </button>
+          <div class="avatar">B</div>
         </div>
-      </div>
+      </nav>
 
-      <!-- Split: Diff + Side Panel -->
-      <div class="split-pane">
-        
-        <!-- DIFF -->
-        <div class="diff-panel">
-          <div class="diff-toolbar">
-            <div class="diff-toolbar-left">
-              <div class="file-nav">
-                <button class="file-nav-btn">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+      <!-- MAIN -->
+      <div class="main-content">
+        <!-- SIDEBAR: PR Inbox -->
+        <div class="sidebar">
+          <div class="sidebar-header">
+            <div class="sidebar-title">Pull Requests</div>
+            <div class="search-box">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <circle
+                  cx="11"
+                  cy="11"
+                  r="8"
+                />
+                <path d="m21 21-4.3-4.3" />
+              </svg>
+              <span>Filter PRs...</span>
+              <kbd>/</kbd>
+            </div>
+          </div>
+
+          <ul class="pr-list">
+            <li style="padding: 0">
+              <div class="section-label">
+                <span
+                  class="dot"
+                  style="background: var(--purple)"
+                ></span>
+                Needs your review
+              </div>
+            </li>
+            <li class="pr-item active">
+              <div class="status-dot review"></div>
+              <div class="pr-item-content">
+                <div class="pr-item-title">feat: add streaming response handler</div>
+                <div class="pr-item-meta">
+                  <span class="pr-item-repo">api-gateway</span>
+                  <span>&middot;</span>
+                  <span class="pr-item-time">12m</span>
+                </div>
+              </div>
+            </li>
+            <li class="pr-item">
+              <div class="status-dot review"></div>
+              <div class="pr-item-content">
+                <div class="pr-item-title">fix: race condition in queue consumer</div>
+                <div class="pr-item-meta">
+                  <span class="pr-item-repo">worker-service</span>
+                  <span>&middot;</span>
+                  <span class="pr-item-time">1h</span>
+                </div>
+              </div>
+            </li>
+
+            <li style="padding: 0">
+              <div class="section-label">
+                <span
+                  class="dot"
+                  style="background: var(--danger)"
+                ></span>
+                Your PRs &middot; CI failing
+              </div>
+            </li>
+            <li class="pr-item">
+              <div class="status-dot failure"></div>
+              <div class="pr-item-content">
+                <div class="pr-item-title">refactor: migrate auth to better-auth v2</div>
+                <div class="pr-item-meta">
+                  <span class="pr-item-repo">platform</span>
+                  <span>&middot;</span>
+                  <span class="pr-item-time">3h</span>
+                </div>
+              </div>
+            </li>
+
+            <li style="padding: 0">
+              <div class="section-label">
+                <span
+                  class="dot"
+                  style="background: var(--success)"
+                ></span>
+                Ready to merge
+              </div>
+            </li>
+            <li class="pr-item">
+              <div class="status-dot success"></div>
+              <div class="pr-item-content">
+                <div class="pr-item-title">chore: bump dependencies to latest</div>
+                <div class="pr-item-meta">
+                  <span class="pr-item-repo">web-client</span>
+                  <span>&middot;</span>
+                  <span class="pr-item-time">6h</span>
+                </div>
+              </div>
+            </li>
+            <li class="pr-item">
+              <div class="status-dot success"></div>
+              <div class="pr-item-content">
+                <div class="pr-item-title">docs: update API reference for v3</div>
+                <div class="pr-item-meta">
+                  <span class="pr-item-repo">docs</span>
+                  <span>&middot;</span>
+                  <span class="pr-item-time">1d</span>
+                </div>
+              </div>
+            </li>
+
+            <li style="padding: 0">
+              <div class="section-label">
+                <span
+                  class="dot"
+                  style="background: var(--warning)"
+                ></span>
+                Waiting on others
+              </div>
+            </li>
+            <li class="pr-item">
+              <div class="status-dot pending"></div>
+              <div class="pr-item-content">
+                <div class="pr-item-title">feat: implement SSO with SAML provider</div>
+                <div class="pr-item-meta">
+                  <span class="pr-item-repo">auth-service</span>
+                  <span>&middot;</span>
+                  <span class="pr-item-time">2d</span>
+                </div>
+              </div>
+            </li>
+          </ul>
+        </div>
+
+        <!-- DETAIL AREA -->
+        <div class="detail-area">
+          <!-- PR Header -->
+          <div class="pr-header">
+            <div class="pr-header-top">
+              <div class="pr-title-area">
+                <div class="pr-title">
+                  feat: add streaming response handler <span class="pr-number">#847</span>
+                </div>
+                <div class="pr-subtitle">
+                  <div
+                    class="avatar"
+                    style="width: 18px; height: 18px; font-size: 8px"
+                  >
+                    JK
+                  </div>
+                  <span>jake opened 12 minutes ago</span>
+                  <span class="arrow">&larr;</span>
+                  <span class="branch">feat/streaming</span>
+                  <span class="arrow">&rarr;</span>
+                  <span class="branch">main</span>
+                  <span style="margin-left: 4px">
+                    <span class="badge badge-info">
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2.5"
+                      >
+                        <path
+                          d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"
+                        />
+                      </svg>
+                      4 files
+                    </span>
+                  </span>
+                  <span class="badge badge-success">+126</span>
+                  <span class="badge badge-danger">-34</span>
+                </div>
+              </div>
+              <div class="pr-actions">
+                <div class="toggle-group">
+                  <div class="toggle-opt active">Unified</div>
+                  <div class="toggle-opt">Split</div>
+                </div>
+                <button class="btn btn-secondary btn-sm">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    style="width: 13px; height: 13px"
+                  >
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="7 10 12 15 17 10" />
+                    <line
+                      x1="12"
+                      y1="15"
+                      x2="12"
+                      y2="3"
+                    />
+                  </svg>
+                  Checkout
                 </button>
-                <button class="file-nav-btn">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+                <button class="btn btn-primary">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.5"
+                    style="width: 13px; height: 13px"
+                  >
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                  Approve
                 </button>
               </div>
-              <span class="file-name"><span class="path">src/handlers/</span>stream.ts</span>
-              <span class="file-stats">
-                <span class="add">+47</span>
-                <span class="del">-12</span>
-              </span>
-            </div>
-            <div class="diff-toolbar-right">
-              <div class="progress-bar">
-                <span>2/4</span>
-                <div class="progress-track">
-                  <div class="progress-fill" style="width: 50%"></div>
-                </div>
-              </div>
-              <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text-tertiary);cursor:pointer;">
-                <input type="checkbox" style="accent-color: var(--accent)"> Viewed
-              </label>
             </div>
           </div>
 
-          <div class="diff-content">
-            <div class="diff-hunk-header">@@ -1,8 +1,14 @@ import { StreamController } from './controller'</div>
-            
-            <div class="diff-line">
-              <div class="diff-gutter"><span>1</span><span>1</span></div>
-              <div class="diff-marker"></div>
-              <div class="diff-code"><span style="color:#c084fc">import</span> { StreamController } <span style="color:#c084fc">from</span> <span style="color:#a5d6a7">'./controller'</span>;</div>
-            </div>
-            <div class="diff-line del">
-              <div class="diff-gutter"><span>2</span><span></span></div>
-              <div class="diff-marker">-</div>
-              <div class="diff-code"><span style="color:#c084fc">import</span> { <span class="diff-word-del">Response</span> } <span style="color:#c084fc">from</span> <span style="color:#a5d6a7">'./types'</span>;</div>
-            </div>
-            <div class="diff-line add">
-              <div class="diff-gutter"><span></span><span>2</span></div>
-              <div class="diff-marker">+</div>
-              <div class="diff-code"><span style="color:#c084fc">import</span> { <span class="diff-word-add">StreamResponse</span>, <span class="diff-word-add">StreamOptions</span> } <span style="color:#c084fc">from</span> <span style="color:#a5d6a7">'./types'</span>;</div>
-            </div>
-            <div class="diff-line add">
-              <div class="diff-gutter"><span></span><span>3</span></div>
-              <div class="diff-marker">+</div>
-              <div class="diff-code"><span style="color:#c084fc">import</span> { <span class="diff-word-add">validateChunk</span> } <span style="color:#c084fc">from</span> <span style="color:#a5d6a7">'./validation'</span>;</div>
-            </div>
-            <div class="diff-line">
-              <div class="diff-gutter"><span>3</span><span>4</span></div>
-              <div class="diff-marker"></div>
-              <div class="diff-code"></div>
-            </div>
-            <div class="diff-line del">
-              <div class="diff-gutter"><span>4</span><span></span></div>
-              <div class="diff-marker">-</div>
-              <div class="diff-code"><span style="color:#c084fc">export async function</span> <span style="color:#82aaff">handleStream</span>(<span class="diff-word-del">req</span>: <span style="color:#ffcb6b">Request</span>) {</div>
-            </div>
-            <div class="diff-line add">
-              <div class="diff-gutter"><span></span><span>5</span></div>
-              <div class="diff-marker">+</div>
-              <div class="diff-code"><span style="color:#c084fc">export async function</span> <span style="color:#82aaff">handleStream</span>(<span class="diff-word-add">req</span>: <span style="color:#ffcb6b">Request</span>, <span class="diff-word-add">opts</span>: <span style="color:#ffcb6b">StreamOptions</span>) {</div>
-            </div>
-            <div class="diff-line add">
-              <div class="diff-gutter"><span></span><span>6</span></div>
-              <div class="diff-marker">+</div>
-              <div class="diff-code">  <span style="color:#c084fc">const</span> controller = <span style="color:#c084fc">new</span> <span style="color:#ffcb6b">StreamController</span>(opts);</div>
-            </div>
-            <div class="diff-line add">
-              <div class="diff-gutter"><span></span><span>7</span></div>
-              <div class="diff-marker">+</div>
-              <div class="diff-code">  <span style="color:#c084fc">const</span> encoder = <span style="color:#c084fc">new</span> <span style="color:#ffcb6b">TextEncoder</span>();</div>
-            </div>
-            <div class="diff-line">
-              <div class="diff-gutter"><span>5</span><span>8</span></div>
-              <div class="diff-marker"></div>
-              <div class="diff-code"></div>
-            </div>
-            <div class="diff-line add">
-              <div class="diff-gutter"><span></span><span>9</span></div>
-              <div class="diff-marker">+</div>
-              <div class="diff-code">  <span style="color:#c084fc">const</span> stream = <span style="color:#c084fc">new</span> <span style="color:#ffcb6b">ReadableStream</span>({</div>
-            </div>
-            <div class="diff-line add">
-              <div class="diff-gutter"><span></span><span>10</span></div>
-              <div class="diff-marker">+</div>
-              <div class="diff-code">    <span style="color:#c084fc">async</span> <span style="color:#82aaff">start</span>(ctrl) {</div>
-            </div>
-            <div class="diff-line add">
-              <div class="diff-gutter"><span></span><span>11</span></div>
-              <div class="diff-marker">+</div>
-              <div class="diff-code">      <span style="color:#c084fc">for await</span> (<span style="color:#c084fc">const</span> chunk <span style="color:#c084fc">of</span> controller.chunks()) {</div>
-            </div>
-            <div class="diff-line add">
-              <div class="diff-gutter"><span></span><span>12</span></div>
-              <div class="diff-marker">+</div>
-              <div class="diff-code">        <span style="color:#c084fc">if</span> (!<span style="color:#82aaff">validateChunk</span>(chunk)) <span style="color:#c084fc">continue</span>;</div>
-            </div>
-
-            <!-- CI FAILURE ANNOTATION INLINE -->
-            <div class="diff-annotation">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-              <div class="diff-annotation-text">
-                <div><strong>TypeError:</strong> validateChunk is not exported from './validation'</div>
-                <div class="diff-annotation-source">CI / Build &middot; test-suite &middot; Failed 2m ago</div>
-              </div>
-              <button class="btn btn-sm btn-ghost" style="color: var(--danger); flex-shrink:0;">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
-                Re-run
-              </button>
-            </div>
-
-            <div class="diff-line add">
-              <div class="diff-gutter"><span></span><span>13</span></div>
-              <div class="diff-marker">+</div>
-              <div class="diff-code">        ctrl.<span style="color:#82aaff">enqueue</span>(encoder.<span style="color:#82aaff">encode</span>(chunk));</div>
-            </div>
-            <div class="diff-line add">
-              <div class="diff-gutter"><span></span><span>14</span></div>
-              <div class="diff-marker">+</div>
-              <div class="diff-code">      }</div>
-            </div>
-            <div class="diff-line">
-              <div class="diff-gutter"><span>6</span><span>15</span></div>
-              <div class="diff-marker"></div>
-              <div class="diff-code">    }</div>
-            </div>
-            <div class="diff-line">
-              <div class="diff-gutter"><span>7</span><span>16</span></div>
-              <div class="diff-marker"></div>
-              <div class="diff-code">  });</div>
-            </div>
-            <div class="diff-line">
-              <div class="diff-gutter"><span>8</span><span>17</span></div>
-              <div class="diff-marker"></div>
-              <div class="diff-code">}</div>
-            </div>
-
-            <!-- BLAME TOOLTIP DEMO -->
-            <div style="padding: 16px 68px;">
-              <div class="blame-tooltip">
-                <div class="avatar" style="width:18px;height:18px;font-size:8px;">JK</div>
-                <div>
-                  <span class="blame-author">jake</span>
-                  <span class="blame-date" style="margin-left: 6px;">3 days ago</span>
+          <!-- Split: Diff + Side Panel -->
+          <div class="split-pane">
+            <!-- DIFF -->
+            <div class="diff-panel">
+              <div class="diff-toolbar">
+                <div class="diff-toolbar-left">
+                  <div class="file-nav">
+                    <button class="file-nav-btn">
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      >
+                        <polyline points="15 18 9 12 15 6" />
+                      </svg>
+                    </button>
+                    <button class="file-nav-btn">
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      >
+                        <polyline points="9 18 15 12 9 6" />
+                      </svg>
+                    </button>
+                  </div>
+                  <span class="file-name"><span class="path">src/handlers/</span>stream.ts</span>
+                  <span class="file-stats">
+                    <span class="add">+47</span>
+                    <span class="del">-12</span>
+                  </span>
                 </div>
-                <span style="color:var(--border-strong)">|</span>
-                <span class="blame-msg">refactor: extract stream controller</span>
-              </div>
-              <div style="font-size:10px;color:var(--text-ghost);margin-top:4px;font-style:italic;">
-                ^ Blame on hover (desktop-only feature via local git)
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- SIDE PANEL -->
-        <div class="side-panel">
-          <div class="side-tabs">
-            <div class="side-tab">Conversation <span class="tab-count">3</span></div>
-            <div class="side-tab active">Checks</div>
-            <div class="side-tab">AI</div>
-          </div>
-
-          <div class="side-content">
-            <div class="checks-section">
-              <div class="checks-section-title">Required (1/3 passing)</div>
-              
-              <div class="check-item">
-                <div class="check-icon fail">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>
+                <div class="diff-toolbar-right">
+                  <div class="progress-bar">
+                    <span>2/4</span>
+                    <div class="progress-track">
+                      <div
+                        class="progress-fill"
+                        style="width: 50%"
+                      ></div>
+                    </div>
+                  </div>
+                  <label
+                    style="
+                      display: flex;
+                      align-items: center;
+                      gap: 4px;
+                      font-size: 11px;
+                      color: var(--text-tertiary);
+                      cursor: pointer;
+                    "
+                  >
+                    <input
+                      type="checkbox"
+                      style="accent-color: var(--accent)"
+                    />
+                    Viewed
+                  </label>
                 </div>
-                <div class="check-info">
-                  <div class="check-name">CI / Build</div>
-                  <div class="check-detail">Failed in 1m 42s</div>
+              </div>
+
+              <div class="diff-content">
+                <div class="diff-hunk-header">
+                  @@ -1,8 +1,14 @@ import { StreamController } from './controller'
                 </div>
-                <div class="check-action">
-                  <button class="btn btn-sm btn-ghost" style="color: var(--accent-text); font-size: 10px;">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:11px;height:11px"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+
+                <div class="diff-line">
+                  <div class="diff-gutter"><span>1</span><span>1</span></div>
+                  <div class="diff-marker"></div>
+                  <div class="diff-code">
+                    <span style="color: #c084fc">import</span> { StreamController }
+                    <span style="color: #c084fc">from</span>
+                    <span style="color: #a5d6a7">'./controller'</span>;
+                  </div>
+                </div>
+                <div class="diff-line del">
+                  <div class="diff-gutter"><span>2</span><span></span></div>
+                  <div class="diff-marker">-</div>
+                  <div class="diff-code">
+                    <span style="color: #c084fc">import</span> {
+                    <span class="diff-word-del">Response</span> }
+                    <span style="color: #c084fc">from</span>
+                    <span style="color: #a5d6a7">'./types'</span>;
+                  </div>
+                </div>
+                <div class="diff-line add">
+                  <div class="diff-gutter"><span></span><span>2</span></div>
+                  <div class="diff-marker">+</div>
+                  <div class="diff-code">
+                    <span style="color: #c084fc">import</span> {
+                    <span class="diff-word-add">StreamResponse</span>,
+                    <span class="diff-word-add">StreamOptions</span> }
+                    <span style="color: #c084fc">from</span>
+                    <span style="color: #a5d6a7">'./types'</span>;
+                  </div>
+                </div>
+                <div class="diff-line add">
+                  <div class="diff-gutter"><span></span><span>3</span></div>
+                  <div class="diff-marker">+</div>
+                  <div class="diff-code">
+                    <span style="color: #c084fc">import</span> {
+                    <span class="diff-word-add">validateChunk</span> }
+                    <span style="color: #c084fc">from</span>
+                    <span style="color: #a5d6a7">'./validation'</span>;
+                  </div>
+                </div>
+                <div class="diff-line">
+                  <div class="diff-gutter"><span>3</span><span>4</span></div>
+                  <div class="diff-marker"></div>
+                  <div class="diff-code"></div>
+                </div>
+                <div class="diff-line del">
+                  <div class="diff-gutter"><span>4</span><span></span></div>
+                  <div class="diff-marker">-</div>
+                  <div class="diff-code">
+                    <span style="color: #c084fc">export async function</span>
+                    <span style="color: #82aaff">handleStream</span>(<span class="diff-word-del"
+                      >req</span
+                    >: <span style="color: #ffcb6b">Request</span>) {
+                  </div>
+                </div>
+                <div class="diff-line add">
+                  <div class="diff-gutter"><span></span><span>5</span></div>
+                  <div class="diff-marker">+</div>
+                  <div class="diff-code">
+                    <span style="color: #c084fc">export async function</span>
+                    <span style="color: #82aaff">handleStream</span>(<span class="diff-word-add"
+                      >req</span
+                    >: <span style="color: #ffcb6b">Request</span>,
+                    <span class="diff-word-add">opts</span>:
+                    <span style="color: #ffcb6b">StreamOptions</span>) {
+                  </div>
+                </div>
+                <div class="diff-line add">
+                  <div class="diff-gutter"><span></span><span>6</span></div>
+                  <div class="diff-marker">+</div>
+                  <div class="diff-code">
+                    <span style="color: #c084fc">const</span> controller =
+                    <span style="color: #c084fc">new</span>
+                    <span style="color: #ffcb6b">StreamController</span>(opts);
+                  </div>
+                </div>
+                <div class="diff-line add">
+                  <div class="diff-gutter"><span></span><span>7</span></div>
+                  <div class="diff-marker">+</div>
+                  <div class="diff-code">
+                    <span style="color: #c084fc">const</span> encoder =
+                    <span style="color: #c084fc">new</span>
+                    <span style="color: #ffcb6b">TextEncoder</span>();
+                  </div>
+                </div>
+                <div class="diff-line">
+                  <div class="diff-gutter"><span>5</span><span>8</span></div>
+                  <div class="diff-marker"></div>
+                  <div class="diff-code"></div>
+                </div>
+                <div class="diff-line add">
+                  <div class="diff-gutter"><span></span><span>9</span></div>
+                  <div class="diff-marker">+</div>
+                  <div class="diff-code">
+                    <span style="color: #c084fc">const</span> stream =
+                    <span style="color: #c084fc">new</span>
+                    <span style="color: #ffcb6b">ReadableStream</span>({
+                  </div>
+                </div>
+                <div class="diff-line add">
+                  <div class="diff-gutter"><span></span><span>10</span></div>
+                  <div class="diff-marker">+</div>
+                  <div class="diff-code">
+                    <span style="color: #c084fc">async</span>
+                    <span style="color: #82aaff">start</span>(ctrl) {
+                  </div>
+                </div>
+                <div class="diff-line add">
+                  <div class="diff-gutter"><span></span><span>11</span></div>
+                  <div class="diff-marker">+</div>
+                  <div class="diff-code">
+                    <span style="color: #c084fc">for await</span> (<span style="color: #c084fc"
+                      >const</span
+                    >
+                    chunk <span style="color: #c084fc">of</span> controller.chunks()) {
+                  </div>
+                </div>
+                <div class="diff-line add">
+                  <div class="diff-gutter"><span></span><span>12</span></div>
+                  <div class="diff-marker">+</div>
+                  <div class="diff-code">
+                    <span style="color: #c084fc">if</span> (!<span style="color: #82aaff"
+                      >validateChunk</span
+                    >(chunk)) <span style="color: #c084fc">continue</span>;
+                  </div>
+                </div>
+
+                <!-- CI FAILURE ANNOTATION INLINE -->
+                <div class="diff-annotation">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <circle
+                      cx="12"
+                      cy="12"
+                      r="10"
+                    />
+                    <line
+                      x1="12"
+                      y1="8"
+                      x2="12"
+                      y2="12"
+                    />
+                    <line
+                      x1="12"
+                      y1="16"
+                      x2="12.01"
+                      y2="16"
+                    />
+                  </svg>
+                  <div class="diff-annotation-text">
+                    <div>
+                      <strong>TypeError:</strong> validateChunk is not exported from './validation'
+                    </div>
+                    <div class="diff-annotation-source">
+                      CI / Build &middot; test-suite &middot; Failed 2m ago
+                    </div>
+                  </div>
+                  <button
+                    class="btn btn-sm btn-ghost"
+                    style="color: var(--danger); flex-shrink: 0"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      style="width: 12px; height: 12px"
+                    >
+                      <path d="M1 4v6h6" />
+                      <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
+                    </svg>
                     Re-run
                   </button>
                 </div>
-              </div>
 
-              <div class="check-item">
-                <div class="check-icon pass">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
+                <div class="diff-line add">
+                  <div class="diff-gutter"><span></span><span>13</span></div>
+                  <div class="diff-marker">+</div>
+                  <div class="diff-code">
+                    ctrl.<span style="color: #82aaff">enqueue</span>(encoder.<span
+                      style="color: #82aaff"
+                      >encode</span
+                    >(chunk));
+                  </div>
                 </div>
-                <div class="check-info">
-                  <div class="check-name">CI / Lint</div>
-                  <div class="check-detail">Passed in 24s</div>
+                <div class="diff-line add">
+                  <div class="diff-gutter"><span></span><span>14</span></div>
+                  <div class="diff-marker">+</div>
+                  <div class="diff-code">}</div>
                 </div>
-              </div>
+                <div class="diff-line">
+                  <div class="diff-gutter"><span>6</span><span>15</span></div>
+                  <div class="diff-marker"></div>
+                  <div class="diff-code">}</div>
+                </div>
+                <div class="diff-line">
+                  <div class="diff-gutter"><span>7</span><span>16</span></div>
+                  <div class="diff-marker"></div>
+                  <div class="diff-code">});</div>
+                </div>
+                <div class="diff-line">
+                  <div class="diff-gutter"><span>8</span><span>17</span></div>
+                  <div class="diff-marker"></div>
+                  <div class="diff-code">}</div>
+                </div>
 
-              <div class="check-item">
-                <div class="check-icon running">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                </div>
-                <div class="check-info">
-                  <div class="check-name">CI / Integration Tests</div>
-                  <div class="check-detail">Running... 3m 12s</div>
+                <!-- BLAME TOOLTIP DEMO -->
+                <div style="padding: 16px 68px">
+                  <div class="blame-tooltip">
+                    <div
+                      class="avatar"
+                      style="width: 18px; height: 18px; font-size: 8px"
+                    >
+                      JK
+                    </div>
+                    <div>
+                      <span class="blame-author">jake</span>
+                      <span
+                        class="blame-date"
+                        style="margin-left: 6px"
+                        >3 days ago</span
+                      >
+                    </div>
+                    <span style="color: var(--border-strong)">|</span>
+                    <span class="blame-msg">refactor: extract stream controller</span>
+                  </div>
+                  <div
+                    style="
+                      font-size: 10px;
+                      color: var(--text-ghost);
+                      margin-top: 4px;
+                      font-style: italic;
+                    "
+                  >
+                    ^ Blame on hover (desktop-only feature via local git)
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div class="checks-section">
-              <div class="checks-section-title">Optional</div>
-              <div class="check-item">
-                <div class="check-icon pass">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
-                </div>
-                <div class="check-info">
-                  <div class="check-name">CodeRabbit Review</div>
-                  <div class="check-detail">1 comment</div>
-                </div>
+            <!-- SIDE PANEL -->
+            <div class="side-panel">
+              <div class="side-tabs">
+                <div class="side-tab">Conversation <span class="tab-count">3</span></div>
+                <div class="side-tab active">Checks</div>
+                <div class="side-tab">AI</div>
               </div>
-            </div>
 
-            <!-- AI Failure Summary -->
-            <div class="info-card" style="margin-top: 8px; border-color: var(--border-accent);">
-              <div style="display:flex;align-items:center;gap:5px;margin-bottom:8px;">
-                <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" style="width:14px;height:14px"><path d="M12 3l1.912 5.813L20 10.5l-4.588 3.687L17.175 20 12 16.875 6.825 20l1.763-5.813L4 10.5l6.088-1.687z"/></svg>
-                <span style="font-size:11px;font-weight:600;color:var(--accent-text);">AI Failure Analysis</span>
-              </div>
-              <div class="info-card-body">
-                <code style="font-family:var(--font-mono);font-size:11px;background:var(--bg-elevated);padding:1px 4px;border-radius:3px;">validateChunk</code> 
-                is imported but not exported from <code style="font-family:var(--font-mono);font-size:11px;background:var(--bg-elevated);padding:1px 4px;border-radius:3px;">./validation</code>. 
-                Add <code style="font-family:var(--font-mono);font-size:11px;background:var(--bg-elevated);padding:1px 4px;border-radius:3px;">export</code> to the function declaration on line 14 of validation.ts.
-              </div>
-            </div>
-          </div>
+              <div class="side-content">
+                <div class="checks-section">
+                  <div class="checks-section-title">Required (1/3 passing)</div>
 
-          <!-- MERGE PANEL -->
-          <div class="merge-panel">
-            <div class="merge-checklist">
-              <div class="merge-check pass">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-                <span>1 approval (jake)</span>
+                  <div class="check-item">
+                    <div class="check-icon fail">
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2.5"
+                      >
+                        <circle
+                          cx="12"
+                          cy="12"
+                          r="10"
+                        />
+                        <path d="m15 9-6 6" />
+                        <path d="m9 9 6 6" />
+                      </svg>
+                    </div>
+                    <div class="check-info">
+                      <div class="check-name">CI / Build</div>
+                      <div class="check-detail">Failed in 1m 42s</div>
+                    </div>
+                    <div class="check-action">
+                      <button
+                        class="btn btn-sm btn-ghost"
+                        style="color: var(--accent-text); font-size: 10px"
+                      >
+                        <svg
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          style="width: 11px; height: 11px"
+                        >
+                          <path d="M1 4v6h6" />
+                          <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
+                        </svg>
+                        Re-run
+                      </button>
+                    </div>
+                  </div>
+
+                  <div class="check-item">
+                    <div class="check-icon pass">
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2.5"
+                      >
+                        <circle
+                          cx="12"
+                          cy="12"
+                          r="10"
+                        />
+                        <path d="m9 12 2 2 4-4" />
+                      </svg>
+                    </div>
+                    <div class="check-info">
+                      <div class="check-name">CI / Lint</div>
+                      <div class="check-detail">Passed in 24s</div>
+                    </div>
+                  </div>
+
+                  <div class="check-item">
+                    <div class="check-icon running">
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      >
+                        <circle
+                          cx="12"
+                          cy="12"
+                          r="10"
+                        />
+                        <polyline points="12 6 12 12 16 14" />
+                      </svg>
+                    </div>
+                    <div class="check-info">
+                      <div class="check-name">CI / Integration Tests</div>
+                      <div class="check-detail">Running... 3m 12s</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="checks-section">
+                  <div class="checks-section-title">Optional</div>
+                  <div class="check-item">
+                    <div class="check-icon pass">
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2.5"
+                      >
+                        <circle
+                          cx="12"
+                          cy="12"
+                          r="10"
+                        />
+                        <path d="m9 12 2 2 4-4" />
+                      </svg>
+                    </div>
+                    <div class="check-info">
+                      <div class="check-name">CodeRabbit Review</div>
+                      <div class="check-detail">1 comment</div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- AI Failure Summary -->
+                <div
+                  class="info-card"
+                  style="margin-top: 8px; border-color: var(--border-accent)"
+                >
+                  <div style="display: flex; align-items: center; gap: 5px; margin-bottom: 8px">
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="var(--accent)"
+                      stroke-width="2"
+                      style="width: 14px; height: 14px"
+                    >
+                      <path
+                        d="M12 3l1.912 5.813L20 10.5l-4.588 3.687L17.175 20 12 16.875 6.825 20l1.763-5.813L4 10.5l6.088-1.687z"
+                      />
+                    </svg>
+                    <span style="font-size: 11px; font-weight: 600; color: var(--accent-text)"
+                      >AI Failure Analysis</span
+                    >
+                  </div>
+                  <div class="info-card-body">
+                    <code
+                      style="
+                        font-family: var(--font-mono);
+                        font-size: 11px;
+                        background: var(--bg-elevated);
+                        padding: 1px 4px;
+                        border-radius: 3px;
+                      "
+                      >validateChunk</code
+                    >
+                    is imported but not exported from
+                    <code
+                      style="
+                        font-family: var(--font-mono);
+                        font-size: 11px;
+                        background: var(--bg-elevated);
+                        padding: 1px 4px;
+                        border-radius: 3px;
+                      "
+                      >./validation</code
+                    >. Add
+                    <code
+                      style="
+                        font-family: var(--font-mono);
+                        font-size: 11px;
+                        background: var(--bg-elevated);
+                        padding: 1px 4px;
+                        border-radius: 3px;
+                      "
+                      >export</code
+                    >
+                    to the function declaration on line 14 of validation.ts.
+                  </div>
+                </div>
               </div>
-              <div class="merge-check fail">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m18 6-12 12"/><path d="m6 6 12 12"/></svg>
-                <span>1 of 3 required checks failing</span>
+
+              <!-- MERGE PANEL -->
+              <div class="merge-panel">
+                <div class="merge-checklist">
+                  <div class="merge-check pass">
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2.5"
+                    >
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                    <span>1 approval (jake)</span>
+                  </div>
+                  <div class="merge-check fail">
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2.5"
+                    >
+                      <path d="m18 6-12 12" />
+                      <path d="m6 6 12 12" />
+                    </svg>
+                    <span>1 of 3 required checks failing</span>
+                  </div>
+                  <div class="merge-check pass">
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2.5"
+                    >
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                    <span>No conflicts</span>
+                  </div>
+                </div>
+                <div class="merge-actions">
+                  <button
+                    class="btn btn-secondary"
+                    style="flex: 0"
+                  >
+                    Close
+                  </button>
+                  <button
+                    class="btn btn-success"
+                    style="opacity: 0.5; cursor: not-allowed"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2.5"
+                      style="width: 13px; height: 13px"
+                    >
+                      <path d="M7 17l9.2-9.2M17 17V7H7" />
+                    </svg>
+                    Squash &amp; Merge
+                  </button>
+                </div>
               </div>
-              <div class="merge-check pass">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-                <span>No conflicts</span>
-              </div>
-            </div>
-            <div class="merge-actions">
-              <button class="btn btn-secondary" style="flex: 0;">Close</button>
-              <button class="btn btn-success" style="opacity: 0.5; cursor: not-allowed;">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:13px;height:13px"><path d="M7 17l9.2-9.2M17 17V7H7"/></svg>
-                Squash &amp; Merge
-              </button>
             </div>
           </div>
         </div>
       </div>
     </div>
-  </div>
-</div>
 
-<!-- ============================================================
+    <!-- ============================================================
      SECTION 2: DESIGN SYSTEM DOCUMENTATION
      ============================================================ -->
-<div class="showcase" style="margin-top: 40px;">
-  
-  <h1>Dispatch</h1>
-  <p class="subtitle">
-    Design system reference. Warm precision. Copper accents on midnight surfaces. 
-    Confident geometry with editorial flair.
-  </p>
+    <div
+      class="showcase"
+      style="margin-top: 40px"
+    >
+      <h1>Dispatch</h1>
+      <p class="subtitle">
+        Design system reference. Warm precision. Copper accents on midnight surfaces. Confident
+        geometry with editorial flair.
+      </p>
 
-  <!-- COLORS -->
-  <div class="showcase-section">
-    <h2>Color Palette</h2>
-    
-    <h3 style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:12px;">Surfaces</h3>
-    <div class="swatch-grid" style="margin-bottom: 20px;">
-      <div class="swatch"><div class="swatch-color" style="background:#08080a"></div><div class="swatch-label"><div class="swatch-name">Root</div><div class="swatch-value">#08080a</div></div></div>
-      <div class="swatch"><div class="swatch-color" style="background:#0f0f12"></div><div class="swatch-label"><div class="swatch-name">Surface</div><div class="swatch-value">#0f0f12</div></div></div>
-      <div class="swatch"><div class="swatch-color" style="background:#16161b"></div><div class="swatch-label"><div class="swatch-name">Raised</div><div class="swatch-value">#16161b</div></div></div>
-      <div class="swatch"><div class="swatch-color" style="background:#1c1c22"></div><div class="swatch-label"><div class="swatch-name">Elevated</div><div class="swatch-value">#1c1c22</div></div></div>
-    </div>
+      <!-- COLORS -->
+      <div class="showcase-section">
+        <h2>Color Palette</h2>
 
-    <h3 style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:12px;">Text</h3>
-    <div class="swatch-grid" style="margin-bottom: 20px;">
-      <div class="swatch"><div class="swatch-color" style="background:#f0ece6"></div><div class="swatch-label"><div class="swatch-name">Primary</div><div class="swatch-value">#f0ece6 (warm)</div></div></div>
-      <div class="swatch"><div class="swatch-color" style="background:#9b9590"></div><div class="swatch-label"><div class="swatch-name">Secondary</div><div class="swatch-value">#9b9590</div></div></div>
-      <div class="swatch"><div class="swatch-color" style="background:#5e5954"></div><div class="swatch-label"><div class="swatch-name">Tertiary</div><div class="swatch-value">#5e5954</div></div></div>
-      <div class="swatch"><div class="swatch-color" style="background:#3a3632"></div><div class="swatch-label"><div class="swatch-name">Ghost</div><div class="swatch-value">#3a3632</div></div></div>
-    </div>
+        <h3
+          style="
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-bottom: 12px;
+          "
+        >
+          Surfaces
+        </h3>
+        <div
+          class="swatch-grid"
+          style="margin-bottom: 20px"
+        >
+          <div class="swatch">
+            <div
+              class="swatch-color"
+              style="background: #08080a"
+            ></div>
+            <div class="swatch-label">
+              <div class="swatch-name">Root</div>
+              <div class="swatch-value">#08080a</div>
+            </div>
+          </div>
+          <div class="swatch">
+            <div
+              class="swatch-color"
+              style="background: #0f0f12"
+            ></div>
+            <div class="swatch-label">
+              <div class="swatch-name">Surface</div>
+              <div class="swatch-value">#0f0f12</div>
+            </div>
+          </div>
+          <div class="swatch">
+            <div
+              class="swatch-color"
+              style="background: #16161b"
+            ></div>
+            <div class="swatch-label">
+              <div class="swatch-name">Raised</div>
+              <div class="swatch-value">#16161b</div>
+            </div>
+          </div>
+          <div class="swatch">
+            <div
+              class="swatch-color"
+              style="background: #1c1c22"
+            ></div>
+            <div class="swatch-label">
+              <div class="swatch-name">Elevated</div>
+              <div class="swatch-value">#1c1c22</div>
+            </div>
+          </div>
+        </div>
 
-    <h3 style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:12px;">Accent & Semantic</h3>
-    <div class="swatch-grid">
-      <div class="swatch"><div class="swatch-color" style="background:#d4883a"></div><div class="swatch-label"><div class="swatch-name">Accent (Copper)</div><div class="swatch-value">#d4883a</div></div></div>
-      <div class="swatch"><div class="swatch-color" style="background:#3dd68c"></div><div class="swatch-label"><div class="swatch-name">Success</div><div class="swatch-value">#3dd68c</div></div></div>
-      <div class="swatch"><div class="swatch-color" style="background:#ef6461"></div><div class="swatch-label"><div class="swatch-name">Danger</div><div class="swatch-value">#ef6461</div></div></div>
-      <div class="swatch"><div class="swatch-color" style="background:#f0b449"></div><div class="swatch-label"><div class="swatch-name">Warning</div><div class="swatch-value">#f0b449</div></div></div>
-      <div class="swatch"><div class="swatch-color" style="background:#5ba4e6"></div><div class="swatch-label"><div class="swatch-name">Info</div><div class="swatch-value">#5ba4e6</div></div></div>
-      <div class="swatch"><div class="swatch-color" style="background:#a78bfa"></div><div class="swatch-label"><div class="swatch-name">Purple</div><div class="swatch-value">#a78bfa</div></div></div>
-    </div>
-  </div>
+        <h3
+          style="
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-bottom: 12px;
+          "
+        >
+          Text
+        </h3>
+        <div
+          class="swatch-grid"
+          style="margin-bottom: 20px"
+        >
+          <div class="swatch">
+            <div
+              class="swatch-color"
+              style="background: #f0ece6"
+            ></div>
+            <div class="swatch-label">
+              <div class="swatch-name">Primary</div>
+              <div class="swatch-value">#f0ece6 (warm)</div>
+            </div>
+          </div>
+          <div class="swatch">
+            <div
+              class="swatch-color"
+              style="background: #9b9590"
+            ></div>
+            <div class="swatch-label">
+              <div class="swatch-name">Secondary</div>
+              <div class="swatch-value">#9b9590</div>
+            </div>
+          </div>
+          <div class="swatch">
+            <div
+              class="swatch-color"
+              style="background: #5e5954"
+            ></div>
+            <div class="swatch-label">
+              <div class="swatch-name">Tertiary</div>
+              <div class="swatch-value">#5e5954</div>
+            </div>
+          </div>
+          <div class="swatch">
+            <div
+              class="swatch-color"
+              style="background: #3a3632"
+            ></div>
+            <div class="swatch-label">
+              <div class="swatch-name">Ghost</div>
+              <div class="swatch-value">#3a3632</div>
+            </div>
+          </div>
+        </div>
 
-  <!-- TYPOGRAPHY -->
-  <div class="showcase-section">
-    <h2>Typography</h2>
-    
-    <div class="type-sample">
-      <div class="label">Display &mdash; Instrument Serif (Italic)</div>
-      <div class="type-display">Dispatch your code.</div>
-    </div>
-    <div class="type-sample">
-      <div class="label">Heading &mdash; DM Sans 600</div>
-      <div class="type-heading">feat: add streaming response handler</div>
-    </div>
-    <div class="type-sample">
-      <div class="label">Body &mdash; DM Sans 400</div>
-      <div class="type-body">The CI/CD-integrated code review experience. Review, verify, merge, and deploy without context-switching.</div>
-    </div>
-    <div class="type-sample">
-      <div class="label">Mono &mdash; JetBrains Mono 400</div>
-      <div class="type-mono">const stream = new ReadableStream({ async start(ctrl) { } });</div>
-    </div>
-    <div class="type-sample">
-      <div class="label">Label &mdash; DM Sans 600 Uppercase</div>
-      <div class="type-label">Required Checks (1/3 passing)</div>
-    </div>
-  </div>
-
-  <!-- COMPONENTS -->
-  <div class="showcase-section">
-    <h2>Components</h2>
-    
-    <h3 style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:12px;">Buttons</h3>
-    <div class="component-row">
-      <button class="btn btn-primary">Primary</button>
-      <button class="btn btn-secondary">Secondary</button>
-      <button class="btn btn-ghost">Ghost</button>
-      <button class="btn btn-success">Merge</button>
-      <button class="btn btn-sm btn-secondary">Small</button>
-    </div>
-
-    <h3 style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:12px;margin-top:20px;">Badges</h3>
-    <div class="component-row">
-      <span class="badge badge-success">Approved</span>
-      <span class="badge badge-danger">Failed</span>
-      <span class="badge badge-warning">Pending</span>
-      <span class="badge badge-info">4 files</span>
-      <span class="badge badge-purple">Review</span>
-      <span class="badge badge-neutral">Draft</span>
-    </div>
-
-    <h3 style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:12px;margin-top:20px;">Keyboard Shortcuts</h3>
-    <div class="component-row">
-      <span class="kbd">J</span> <span style="font-size:11px;color:var(--text-tertiary)">Next</span>
-      <span style="margin: 0 8px;color:var(--text-ghost)">|</span>
-      <span class="kbd">K</span> <span style="font-size:11px;color:var(--text-tertiary)">Prev</span>
-      <span style="margin: 0 8px;color:var(--text-ghost)">|</span>
-      <span class="kbd">&crarr;</span> <span style="font-size:11px;color:var(--text-tertiary)">Open</span>
-      <span style="margin: 0 8px;color:var(--text-ghost)">|</span>
-      <span class="kbd">A</span> <span style="font-size:11px;color:var(--text-tertiary)">Approve</span>
-      <span style="margin: 0 8px;color:var(--text-ghost)">|</span>
-      <span class="kbd">M</span> <span style="font-size:11px;color:var(--text-tertiary)">Merge</span>
-      <span style="margin: 0 8px;color:var(--text-ghost)">|</span>
-      <span class="kbd">/</span> <span style="font-size:11px;color:var(--text-tertiary)">Filter</span>
-    </div>
-
-    <h3 style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:12px;margin-top:20px;">Toggles</h3>
-    <div class="component-row">
-      <div class="toggle-group">
-        <div class="toggle-opt active">Unified</div>
-        <div class="toggle-opt">Split</div>
+        <h3
+          style="
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-bottom: 12px;
+          "
+        >
+          Accent & Semantic
+        </h3>
+        <div class="swatch-grid">
+          <div class="swatch">
+            <div
+              class="swatch-color"
+              style="background: #d4883a"
+            ></div>
+            <div class="swatch-label">
+              <div class="swatch-name">Accent (Copper)</div>
+              <div class="swatch-value">#d4883a</div>
+            </div>
+          </div>
+          <div class="swatch">
+            <div
+              class="swatch-color"
+              style="background: #3dd68c"
+            ></div>
+            <div class="swatch-label">
+              <div class="swatch-name">Success</div>
+              <div class="swatch-value">#3dd68c</div>
+            </div>
+          </div>
+          <div class="swatch">
+            <div
+              class="swatch-color"
+              style="background: #ef6461"
+            ></div>
+            <div class="swatch-label">
+              <div class="swatch-name">Danger</div>
+              <div class="swatch-value">#ef6461</div>
+            </div>
+          </div>
+          <div class="swatch">
+            <div
+              class="swatch-color"
+              style="background: #f0b449"
+            ></div>
+            <div class="swatch-label">
+              <div class="swatch-name">Warning</div>
+              <div class="swatch-value">#f0b449</div>
+            </div>
+          </div>
+          <div class="swatch">
+            <div
+              class="swatch-color"
+              style="background: #5ba4e6"
+            ></div>
+            <div class="swatch-label">
+              <div class="swatch-name">Info</div>
+              <div class="swatch-value">#5ba4e6</div>
+            </div>
+          </div>
+          <div class="swatch">
+            <div
+              class="swatch-color"
+              style="background: #a78bfa"
+            ></div>
+            <div class="swatch-label">
+              <div class="swatch-name">Purple</div>
+              <div class="swatch-value">#a78bfa</div>
+            </div>
+          </div>
+        </div>
       </div>
-      <div class="toggle-group">
-        <div class="toggle-opt active">All changes</div>
-        <div class="toggle-opt">Since last review</div>
+
+      <!-- TYPOGRAPHY -->
+      <div class="showcase-section">
+        <h2>Typography</h2>
+
+        <div class="type-sample">
+          <div class="label">Display &mdash; Instrument Serif (Italic)</div>
+          <div class="type-display">Dispatch your code.</div>
+        </div>
+        <div class="type-sample">
+          <div class="label">Heading &mdash; DM Sans 600</div>
+          <div class="type-heading">feat: add streaming response handler</div>
+        </div>
+        <div class="type-sample">
+          <div class="label">Body &mdash; DM Sans 400</div>
+          <div class="type-body">
+            The CI/CD-integrated code review experience. Review, verify, merge, and deploy without
+            context-switching.
+          </div>
+        </div>
+        <div class="type-sample">
+          <div class="label">Mono &mdash; JetBrains Mono 400</div>
+          <div class="type-mono">const stream = new ReadableStream({ async start(ctrl) { } });</div>
+        </div>
+        <div class="type-sample">
+          <div class="label">Label &mdash; DM Sans 600 Uppercase</div>
+          <div class="type-label">Required Checks (1/3 passing)</div>
+        </div>
+      </div>
+
+      <!-- COMPONENTS -->
+      <div class="showcase-section">
+        <h2>Components</h2>
+
+        <h3
+          style="
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-bottom: 12px;
+          "
+        >
+          Buttons
+        </h3>
+        <div class="component-row">
+          <button class="btn btn-primary">Primary</button>
+          <button class="btn btn-secondary">Secondary</button>
+          <button class="btn btn-ghost">Ghost</button>
+          <button class="btn btn-success">Merge</button>
+          <button class="btn btn-sm btn-secondary">Small</button>
+        </div>
+
+        <h3
+          style="
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-bottom: 12px;
+            margin-top: 20px;
+          "
+        >
+          Badges
+        </h3>
+        <div class="component-row">
+          <span class="badge badge-success">Approved</span>
+          <span class="badge badge-danger">Failed</span>
+          <span class="badge badge-warning">Pending</span>
+          <span class="badge badge-info">4 files</span>
+          <span class="badge badge-purple">Review</span>
+          <span class="badge badge-neutral">Draft</span>
+        </div>
+
+        <h3
+          style="
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-bottom: 12px;
+            margin-top: 20px;
+          "
+        >
+          Keyboard Shortcuts
+        </h3>
+        <div class="component-row">
+          <span class="kbd">J</span>
+          <span style="font-size: 11px; color: var(--text-tertiary)">Next</span>
+          <span style="margin: 0 8px; color: var(--text-ghost)">|</span>
+          <span class="kbd">K</span>
+          <span style="font-size: 11px; color: var(--text-tertiary)">Prev</span>
+          <span style="margin: 0 8px; color: var(--text-ghost)">|</span>
+          <span class="kbd">&crarr;</span>
+          <span style="font-size: 11px; color: var(--text-tertiary)">Open</span>
+          <span style="margin: 0 8px; color: var(--text-ghost)">|</span>
+          <span class="kbd">A</span>
+          <span style="font-size: 11px; color: var(--text-tertiary)">Approve</span>
+          <span style="margin: 0 8px; color: var(--text-ghost)">|</span>
+          <span class="kbd">M</span>
+          <span style="font-size: 11px; color: var(--text-tertiary)">Merge</span>
+          <span style="margin: 0 8px; color: var(--text-ghost)">|</span>
+          <span class="kbd">/</span>
+          <span style="font-size: 11px; color: var(--text-tertiary)">Filter</span>
+        </div>
+
+        <h3
+          style="
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-bottom: 12px;
+            margin-top: 20px;
+          "
+        >
+          Toggles
+        </h3>
+        <div class="component-row">
+          <div class="toggle-group">
+            <div class="toggle-opt active">Unified</div>
+            <div class="toggle-opt">Split</div>
+          </div>
+          <div class="toggle-group">
+            <div class="toggle-opt active">All changes</div>
+            <div class="toggle-opt">Since last review</div>
+          </div>
+        </div>
+
+        <h3
+          style="
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-bottom: 12px;
+            margin-top: 20px;
+          "
+        >
+          Info Card
+        </h3>
+        <div class="info-card">
+          <div class="info-card-title">Blame: handleStream</div>
+          <div class="info-card-meta">jake &middot; 3 days ago &middot; abc1234</div>
+          <div class="info-card-body">
+            Extracted the stream handling logic from the monolithic request handler into its own
+            module for better testability and reuse.
+          </div>
+        </div>
+      </div>
+
+      <!-- DESIGN PRINCIPLES -->
+      <div class="showcase-section">
+        <h2>Design Principles</h2>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px">
+          <div class="info-card">
+            <div
+              class="info-card-title"
+              style="color: var(--accent-text)"
+            >
+              Warm, not cold
+            </div>
+            <div class="info-card-body">
+              Better Hub uses cold zinc grays. We use warm tinted blacks and off-whites. The copper
+              accent adds life. Your tool should feel like a well-made workshop, not a hospital.
+            </div>
+          </div>
+          <div class="info-card">
+            <div
+              class="info-card-title"
+              style="color: var(--accent-text)"
+            >
+              Dense, not cramped
+            </div>
+            <div class="info-card-body">
+              Information-dense like a terminal, but with intentional whitespace. Every pixel earns
+              its place. The 42px navbar and 12px body text are deliberate — this is a power tool.
+            </div>
+          </div>
+          <div class="info-card">
+            <div
+              class="info-card-title"
+              style="color: var(--accent-text)"
+            >
+              Editorial serif meets engineering mono
+            </div>
+            <div class="info-card-body">
+              Instrument Serif for display type gives personality. JetBrains Mono for code. DM Sans
+              for everything between. The mix says "crafted by engineers with taste."
+            </div>
+          </div>
+          <div class="info-card">
+            <div
+              class="info-card-title"
+              style="color: var(--accent-text)"
+            >
+              Keyboard-first, always
+            </div>
+            <div class="info-card-body">
+              Every action has a keybinding. Navigation is j/k. Actions are single letters. The UI
+              shows shortcuts inline, not hidden in docs. This is a desktop app — act like it.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- VS BETTER HUB -->
+      <div class="showcase-section">
+        <h2>vs Better Hub's Design</h2>
+        <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.7">
+          <table style="width: 100%; border-collapse: collapse">
+            <thead>
+              <tr style="text-align: left; border-bottom: 1px solid var(--border)">
+                <th
+                  style="
+                    padding: 8px 12px;
+                    font-size: 11px;
+                    color: var(--text-tertiary);
+                    font-weight: 600;
+                  "
+                >
+                  Dimension
+                </th>
+                <th
+                  style="
+                    padding: 8px 12px;
+                    font-size: 11px;
+                    color: var(--text-tertiary);
+                    font-weight: 600;
+                  "
+                >
+                  Better Hub
+                </th>
+                <th
+                  style="
+                    padding: 8px 12px;
+                    font-size: 11px;
+                    color: var(--accent-text);
+                    font-weight: 600;
+                  "
+                >
+                  Dispatch
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style="border-bottom: 1px solid var(--border-subtle)">
+                <td style="padding: 8px 12px; color: var(--text-primary)">Background</td>
+                <td style="padding: 8px 12px">Cold #030304 (zinc-tinted black)</td>
+                <td style="padding: 8px 12px">Warm #08080a (warm-tinted)</td>
+              </tr>
+              <tr style="border-bottom: 1px solid var(--border-subtle)">
+                <td style="padding: 8px 12px; color: var(--text-primary)">Accent</td>
+                <td style="padding: 8px 12px">No hue. Primary is gray #e4e4e7</td>
+                <td style="padding: 8px 12px">Copper #d4883a. Distinctive and warm</td>
+              </tr>
+              <tr style="border-bottom: 1px solid var(--border-subtle)">
+                <td style="padding: 8px 12px; color: var(--text-primary)">Text</td>
+                <td style="padding: 8px 12px">Sterile #fafafa white</td>
+                <td style="padding: 8px 12px">Warm #f0ece6 off-white</td>
+              </tr>
+              <tr style="border-bottom: 1px solid var(--border-subtle)">
+                <td style="padding: 8px 12px; color: var(--text-primary)">Radius</td>
+                <td style="padding: 8px 12px">Near-zero (0.05rem/0.8px default)</td>
+                <td style="padding: 8px 12px">Confident 4-8px. Softened, not brutalist</td>
+              </tr>
+              <tr style="border-bottom: 1px solid var(--border-subtle)">
+                <td style="padding: 8px 12px; color: var(--text-primary)">Display font</td>
+                <td style="padding: 8px 12px">Geist Mono (monospace everywhere)</td>
+                <td style="padding: 8px 12px">Instrument Serif italic (editorial)</td>
+              </tr>
+              <tr style="border-bottom: 1px solid var(--border-subtle)">
+                <td style="padding: 8px 12px; color: var(--text-primary)">Body font</td>
+                <td style="padding: 8px 12px">Geist</td>
+                <td style="padding: 8px 12px">DM Sans (rounder, warmer)</td>
+              </tr>
+              <tr style="border-bottom: 1px solid var(--border-subtle)">
+                <td style="padding: 8px 12px; color: var(--text-primary)">Shadows</td>
+                <td style="padding: 8px 12px">Near-invisible (max 0.18 opacity)</td>
+                <td style="padding: 8px 12px">Present but subtle (0.3 opacity) + glow</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 12px; color: var(--text-primary)">Hero effect</td>
+                <td style="padding: 8px 12px">WebGL halftone shader (complex)</td>
+                <td style="padding: 8px 12px">Noise texture + copper gradient bar (subtle)</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div
+        style="
+          text-align: center;
+          padding: 40px 0;
+          color: var(--text-ghost);
+          font-family: var(--font-mono);
+          font-size: 11px;
+        "
+      >
+        dispatch v0.1 &middot; design system reference &middot; 2026
       </div>
     </div>
-
-    <h3 style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:12px;margin-top:20px;">Info Card</h3>
-    <div class="info-card">
-      <div class="info-card-title">Blame: handleStream</div>
-      <div class="info-card-meta">jake &middot; 3 days ago &middot; abc1234</div>
-      <div class="info-card-body">
-        Extracted the stream handling logic from the monolithic request handler into its own module for better testability and reuse.
-      </div>
-    </div>
-  </div>
-
-  <!-- DESIGN PRINCIPLES -->
-  <div class="showcase-section">
-    <h2>Design Principles</h2>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
-      <div class="info-card">
-        <div class="info-card-title" style="color:var(--accent-text)">Warm, not cold</div>
-        <div class="info-card-body">Better Hub uses cold zinc grays. We use warm tinted blacks and off-whites. The copper accent adds life. Your tool should feel like a well-made workshop, not a hospital.</div>
-      </div>
-      <div class="info-card">
-        <div class="info-card-title" style="color:var(--accent-text)">Dense, not cramped</div>
-        <div class="info-card-body">Information-dense like a terminal, but with intentional whitespace. Every pixel earns its place. The 42px navbar and 12px body text are deliberate — this is a power tool.</div>
-      </div>
-      <div class="info-card">
-        <div class="info-card-title" style="color:var(--accent-text)">Editorial serif meets engineering mono</div>
-        <div class="info-card-body">Instrument Serif for display type gives personality. JetBrains Mono for code. DM Sans for everything between. The mix says "crafted by engineers with taste."</div>
-      </div>
-      <div class="info-card">
-        <div class="info-card-title" style="color:var(--accent-text)">Keyboard-first, always</div>
-        <div class="info-card-body">Every action has a keybinding. Navigation is j/k. Actions are single letters. The UI shows shortcuts inline, not hidden in docs. This is a desktop app — act like it.</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- VS BETTER HUB -->
-  <div class="showcase-section">
-    <h2>vs Better Hub's Design</h2>
-    <div style="font-size:12px;color:var(--text-secondary);line-height:1.7;">
-      <table style="width:100%;border-collapse:collapse;">
-        <thead>
-          <tr style="text-align:left;border-bottom:1px solid var(--border);">
-            <th style="padding:8px 12px;font-size:11px;color:var(--text-tertiary);font-weight:600;">Dimension</th>
-            <th style="padding:8px 12px;font-size:11px;color:var(--text-tertiary);font-weight:600;">Better Hub</th>
-            <th style="padding:8px 12px;font-size:11px;color:var(--accent-text);font-weight:600;">Dispatch</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr style="border-bottom:1px solid var(--border-subtle);">
-            <td style="padding:8px 12px;color:var(--text-primary)">Background</td>
-            <td style="padding:8px 12px">Cold #030304 (zinc-tinted black)</td>
-            <td style="padding:8px 12px">Warm #08080a (warm-tinted)</td>
-          </tr>
-          <tr style="border-bottom:1px solid var(--border-subtle);">
-            <td style="padding:8px 12px;color:var(--text-primary)">Accent</td>
-            <td style="padding:8px 12px">No hue. Primary is gray #e4e4e7</td>
-            <td style="padding:8px 12px">Copper #d4883a. Distinctive and warm</td>
-          </tr>
-          <tr style="border-bottom:1px solid var(--border-subtle);">
-            <td style="padding:8px 12px;color:var(--text-primary)">Text</td>
-            <td style="padding:8px 12px">Sterile #fafafa white</td>
-            <td style="padding:8px 12px">Warm #f0ece6 off-white</td>
-          </tr>
-          <tr style="border-bottom:1px solid var(--border-subtle);">
-            <td style="padding:8px 12px;color:var(--text-primary)">Radius</td>
-            <td style="padding:8px 12px">Near-zero (0.05rem/0.8px default)</td>
-            <td style="padding:8px 12px">Confident 4-8px. Softened, not brutalist</td>
-          </tr>
-          <tr style="border-bottom:1px solid var(--border-subtle);">
-            <td style="padding:8px 12px;color:var(--text-primary)">Display font</td>
-            <td style="padding:8px 12px">Geist Mono (monospace everywhere)</td>
-            <td style="padding:8px 12px">Instrument Serif italic (editorial)</td>
-          </tr>
-          <tr style="border-bottom:1px solid var(--border-subtle);">
-            <td style="padding:8px 12px;color:var(--text-primary)">Body font</td>
-            <td style="padding:8px 12px">Geist</td>
-            <td style="padding:8px 12px">DM Sans (rounder, warmer)</td>
-          </tr>
-          <tr style="border-bottom:1px solid var(--border-subtle);">
-            <td style="padding:8px 12px;color:var(--text-primary)">Shadows</td>
-            <td style="padding:8px 12px">Near-invisible (max 0.18 opacity)</td>
-            <td style="padding:8px 12px">Present but subtle (0.3 opacity) + glow</td>
-          </tr>
-          <tr>
-            <td style="padding:8px 12px;color:var(--text-primary)">Hero effect</td>
-            <td style="padding:8px 12px">WebGL halftone shader (complex)</td>
-            <td style="padding:8px 12px">Noise texture + copper gradient bar (subtle)</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-  <div style="text-align: center; padding: 40px 0; color: var(--text-ghost); font-family: var(--font-mono); font-size: 11px;">
-    dispatch v0.1 &middot; design system reference &middot; 2026
-  </div>
-</div>
-
-</body>
+  </body>
 </html>

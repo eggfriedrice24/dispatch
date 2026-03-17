@@ -12,7 +12,7 @@ import { Bell, GitPullRequest, Settings } from "lucide-react";
 export function Navbar() {
   return (
     <header
-      className="flex h-10 shrink-0 items-center border-b border-border bg-bg-surface px-3"
+      className="border-border bg-bg-surface flex h-10 shrink-0 items-center border-b px-3"
       style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
     >
       {/* Logo (§ 8.1 Logo) */}
@@ -21,10 +21,10 @@ export function Navbar() {
         style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
       >
         {/* Logo mark: 20x20, copper background, rounded-sm, italic "d" */}
-        <div className="flex h-5 w-5 items-center justify-center rounded-sm bg-primary">
-          <span className="font-heading text-sm italic leading-none text-bg-root">d</span>
+        <div className="bg-primary flex h-5 w-5 items-center justify-center rounded-sm">
+          <span className="font-heading text-bg-root text-sm leading-none italic">d</span>
         </div>
-        <span className="text-[13px] font-semibold tracking-[-0.02em] text-text-primary">
+        <span className="text-text-primary text-[13px] font-semibold tracking-[-0.02em]">
           Dispatch
         </span>
       </div>
@@ -34,7 +34,11 @@ export function Navbar() {
         className="ml-8 flex items-center gap-1"
         style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
       >
-        <NavTab label="Review" icon={<GitPullRequest size={14} />} active />
+        <NavTab
+          label="Review"
+          icon={<GitPullRequest size={14} />}
+          active
+        />
       </nav>
 
       {/* Spacer */}
@@ -56,7 +60,7 @@ export function Navbar() {
             border: "1.5px solid var(--border-strong)",
           }}
         >
-          <span className="text-[10px] font-semibold text-bg-root">D</span>
+          <span className="text-bg-root text-[10px] font-semibold">D</span>
         </div>
       </div>
     </header>
@@ -77,16 +81,14 @@ function NavTab({
       type="button"
       className={`relative flex items-center gap-1.5 rounded-sm px-2.5 py-1.5 text-xs transition-colors ${
         active
-          ? "font-medium text-text-primary"
-          : "font-[450] text-text-secondary hover:bg-bg-raised hover:text-text-primary"
+          ? "text-text-primary font-medium"
+          : "text-text-secondary hover:bg-bg-raised hover:text-text-primary font-[450]"
       }`}
     >
       {icon}
       {label}
       {active && (
-        <div
-          className="absolute bottom-[-7px] left-1/2 h-[1.5px] w-4 -translate-x-1/2 rounded-[1px] bg-primary"
-        />
+        <div className="bg-primary absolute bottom-[-7px] left-1/2 h-[1.5px] w-4 -translate-x-1/2 rounded-[1px]" />
       )}
     </button>
   );
@@ -96,7 +98,7 @@ function IconButton({ icon }: { icon: React.ReactNode }) {
   return (
     <button
       type="button"
-      className="flex h-[30px] w-[30px] items-center justify-center rounded-sm text-text-secondary transition-colors hover:bg-bg-raised hover:text-text-primary"
+      className="text-text-secondary hover:bg-bg-raised hover:text-text-primary flex h-[30px] w-[30px] items-center justify-center rounded-sm transition-colors"
     >
       {icon}
     </button>

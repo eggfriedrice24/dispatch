@@ -1,12 +1,11 @@
+import type { AppRouter } from "../../main/trpc/router";
 import type { TRPCLink } from "@trpc/client";
-import { observable } from "@trpc/server/observable";
 
 import { QueryClient } from "@tanstack/react-query";
 import { createTRPCClient } from "@trpc/client";
+import { observable } from "@trpc/server/observable";
 import { createTRPCOptionsProxy } from "@trpc/tanstack-react-query";
 import superjson from "superjson";
-
-import type { AppRouter } from "../../main/trpc/router";
 
 /**
  * Custom tRPC link that routes calls through Electron's IPC bridge
@@ -21,14 +20,14 @@ function ipcLink(): TRPCLink<AppRouter> {
         window.api
           .trpc({ type, path, input: superjson.serialize(input) })
           .then((response) => {
-            const res = response as
-              | { result: { data: unknown } }
-              | { error: { shape: unknown } };
+            const res = response as { result: { data: unknown } } | { error: { shape: unknown } };
 
             if ("error" in res) {
               observer.error(res.error.shape);
             } else {
-              const data = superjson.deserialize(res.result.data as { json: unknown; meta?: unknown });
+              const data = superjson.deserialize(
+                res.result.data as { json: unknown; meta?: unknown },
+              );
               observer.next({ result: { type: "data", data } });
               observer.complete();
             }

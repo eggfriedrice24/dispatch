@@ -12,10 +12,7 @@ import { publicProcedure, router } from "./init";
 
 const envRouter = router({
   check: publicProcedure.query(async () => {
-    const [ghVersion, gitVersion] = await Promise.all([
-      whichVersion("gh"),
-      whichVersion("git"),
-    ]);
+    const [ghVersion, gitVersion] = await Promise.all([whichVersion("gh"), whichVersion("git")]);
 
     let ghAuth = false;
     if (ghVersion) {
@@ -135,11 +132,9 @@ const gitRouter = router({
       return gitCli.diff(input.cwd, input.fromRef, input.toRef);
     }),
 
-  repoRoot: publicProcedure
-    .input(z.object({ cwd: z.string() }))
-    .query(async ({ input }) => {
-      return gitCli.getRepoRoot(input.cwd);
-    }),
+  repoRoot: publicProcedure.input(z.object({ cwd: z.string() })).query(async ({ input }) => {
+    return gitCli.getRepoRoot(input.cwd);
+  }),
 });
 
 // ---------------------------------------------------------------------------

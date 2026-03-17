@@ -75,9 +75,9 @@ export function setFileViewed(
 
 export function getPreference(key: string): string | null {
   const db = getDatabase();
-  const row = db
-    .prepare("SELECT value FROM preferences WHERE key = ?")
-    .get(key) as { value: string } | undefined;
+  const row = db.prepare("SELECT value FROM preferences WHERE key = ?").get(key) as
+    | { value: string }
+    | undefined;
   return row?.value ?? null;
 }
 

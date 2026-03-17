@@ -1,8 +1,9 @@
 "use client";
 
-import { Fieldset as FieldsetPrimitive } from "@base-ui/react/fieldset";
 import type React from "react";
+
 import { cn } from "@/lib/utils";
+import { Fieldset as FieldsetPrimitive } from "@base-ui/react/fieldset";
 
 export function Fieldset({
   className,
@@ -22,7 +23,7 @@ export function FieldsetLegend({
 }: FieldsetPrimitive.Legend.Props): React.ReactElement {
   return (
     <FieldsetPrimitive.Legend
-      className={cn("font-semibold text-foreground", className)}
+      className={cn("text-foreground font-semibold", className)}
       data-slot="fieldset-legend"
       {...props}
     />

@@ -1,8 +1,8 @@
 import { useState } from "react";
 
 import { Navbar } from "./navbar";
-import { PrInbox } from "./pr-inbox";
 import { PrDetailView } from "./pr-detail-view";
+import { PrInbox } from "./pr-inbox";
 
 /**
  * Root layout matching DISPATCH-DESIGN-SYSTEM.md § 4.2:
@@ -19,7 +19,7 @@ export function AppLayout() {
   const [selectedPr, setSelectedPr] = useState<number | null>(null);
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-bg-root text-text-primary">
+    <div className="bg-bg-root text-text-primary flex h-screen flex-col overflow-hidden">
       {/* Accent bar — 2px copper gradient at the very top (§ 4.3) */}
       <div
         className="h-[2px] w-full shrink-0"
@@ -35,7 +35,10 @@ export function AppLayout() {
       {/* Main body: sidebar + content */}
       <div className="flex flex-1 overflow-hidden">
         {/* PR Inbox Sidebar (§ 8.4) — 260px */}
-        <PrInbox selectedPr={selectedPr} onSelectPr={setSelectedPr} />
+        <PrInbox
+          selectedPr={selectedPr}
+          onSelectPr={setSelectedPr}
+        />
 
         {/* Main content area */}
         <main className="flex flex-1 flex-col overflow-hidden">

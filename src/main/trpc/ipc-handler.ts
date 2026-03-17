@@ -1,7 +1,7 @@
-import { ipcMain } from "electron";
+import type { AnyTRPCRouter } from "@trpc/server";
 
 import { callTRPCProcedure, getTRPCErrorShape } from "@trpc/server";
-import type { AnyTRPCRouter } from "@trpc/server";
+import { ipcMain } from "electron";
 import superjson from "superjson";
 
 import { TRPC_IPC_CHANNEL } from "../../shared/ipc";

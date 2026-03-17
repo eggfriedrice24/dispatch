@@ -12,11 +12,7 @@ contextBridge.exposeInMainWorld("api", {
    * Send a tRPC request to the main process.
    * This is the only IPC method the renderer needs.
    */
-  trpc(payload: {
-    type: "query" | "mutation";
-    path: string;
-    input: unknown;
-  }): Promise<unknown> {
+  trpc(payload: { type: "query" | "mutation"; path: string; input: unknown }): Promise<unknown> {
     return ipcRenderer.invoke(TRPC_IPC_CHANNEL, payload);
   },
 

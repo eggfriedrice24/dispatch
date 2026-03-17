@@ -45,11 +45,11 @@ Before implementing any UI described in this spec, you **MUST** read [`DISPATCH-
 - **Layout:** Two-pane view. Left sidebar for the file tree; main area for the diff.
 - **Performance:** The diff view MUST use a virtualized DOM. We must support 50,000-line files smoothly.
 - **Local Git Integrations (The Moat):**
-  - *Blame on Hover:* When a user hovers over a line, the Main process runs `git blame -L <line>,<line> <commit> -- <file>` on the local clone and returns the author/commit msg.
-  - *File History:* Right-clicking a file triggers `git log --follow <path>`.
+  - _Blame on Hover:_ When a user hovers over a line, the Main process runs `git blame -L <line>,<line> <commit> -- <file>` on the local clone and returns the author/commit msg.
+  - _File History:_ Right-clicking a file triggers `git log --follow <path>`.
 - **Review Rounds (Incremental Diff):**
-  - *Logic:* When a user finishes reviewing a PR, save the current HEAD SHA of the PR branch to SQLite.
-  - *Next Visit:* If the PR has new commits, compute the diff *only* between the saved SHA and the new HEAD using local `git diff <saved_sha> <new_head>`.
+  - _Logic:_ When a user finishes reviewing a PR, save the current HEAD SHA of the PR branch to SQLite.
+  - _Next Visit:_ If the PR has new commits, compute the diff _only_ between the saved SHA and the new HEAD using local `git diff <saved_sha> <new_head>`.
 - **State:** Store "Viewed" checkbox status per file in SQLite.
 
 ### 3.3. CI/CD Panel
@@ -59,7 +59,7 @@ Before implementing any UI described in this spec, you **MUST** read [`DISPATCH-
 - **Log Viewer:** Fetch logs via `gh run view --log`. Parse ANSI color codes to HTML for terminal-like display in the UI. Allow `Cmd+F` text search within logs.
 - **Actions:**
   - Provide a "Re-run failed jobs" button executing `gh run rerun <id> --failed`.
-  - *Crucial Feature:* Parse log outputs for `::error file=X,line=Y::` syntax and pass these to the Renderer to draw red squiggly lines directly inside the Diff Viewer.
+  - _Crucial Feature:_ Parse log outputs for `::error file=X,line=Y::` syntax and pass these to the Renderer to draw red squiggly lines directly inside the Diff Viewer.
 
 ### 3.4. Merge & Ship
 

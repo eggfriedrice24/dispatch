@@ -22,18 +22,18 @@ Also see `dispatch-design-reference.html` for a living visual reference.
 
 ## Tech Stack
 
-| Layer | Tool | Version |
-|-------|------|---------|
-| Runtime | Electron | 41 |
-| Bundler | Vite | 8 |
-| UI Framework | React | 19 |
-| Component Library | coss ui (Base UI) | latest |
-| Styling | Tailwind CSS | 4 |
-| Language | TypeScript | 5.9 |
-| Testing | Vitest | 4 |
-| Linting | oxlint | latest |
-| Formatting | oxfmt | latest |
-| Package manager | Bun | latest |
+| Layer             | Tool              | Version |
+| ----------------- | ----------------- | ------- |
+| Runtime           | Electron          | 41      |
+| Bundler           | Vite              | 8       |
+| UI Framework      | React             | 19      |
+| Component Library | coss ui (Base UI) | latest  |
+| Styling           | Tailwind CSS      | 4       |
+| Language          | TypeScript        | 5.9     |
+| Testing           | Vitest            | 4       |
+| Linting           | oxlint            | latest  |
+| Formatting        | oxfmt             | latest  |
+| Package manager   | Bun               | latest  |
 
 ## Project Structure
 
@@ -52,17 +52,17 @@ src/
 
 Use `bun run <script>` for everything.
 
-| Script | Command | Purpose |
-|--------|---------|---------|
-| `dev` | `bun run dev` | Start Vite dev server + Electron with HMR |
-| `build` | `bun run build` | Production build |
-| `test` | `bun run test` | Run tests once (CI) |
-| `test:watch` | `bun run test:watch` | Run tests in watch mode |
-| `lint` | `bun run lint` | Lint with oxlint |
-| `lint:fix` | `bun run lint:fix` | Lint and auto-fix |
-| `format` | `bun run format` | Format all files with oxfmt |
-| `format:check` | `bun run format:check` | Check formatting without writing |
-| `typecheck` | `bun run typecheck` | TypeScript type checking |
+| Script         | Command                | Purpose                                   |
+| -------------- | ---------------------- | ----------------------------------------- |
+| `dev`          | `bun run dev`          | Start Vite dev server + Electron with HMR |
+| `build`        | `bun run build`        | Production build                          |
+| `test`         | `bun run test`         | Run tests once (CI)                       |
+| `test:watch`   | `bun run test:watch`   | Run tests in watch mode                   |
+| `lint`         | `bun run lint`         | Lint with oxlint                          |
+| `lint:fix`     | `bun run lint:fix`     | Lint and auto-fix                         |
+| `format`       | `bun run format`       | Format all files with oxfmt               |
+| `format:check` | `bun run format:check` | Check formatting without writing          |
+| `typecheck`    | `bun run typecheck`    | TypeScript type checking                  |
 
 ## Code Standards
 

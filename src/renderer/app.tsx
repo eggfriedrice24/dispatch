@@ -1,9 +1,9 @@
+import { Spinner } from "@/components/ui/spinner";
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 
-import { queryClient, trpc } from "./lib/trpc";
 import { AppLayout } from "./components/app-layout";
 import { EnvCheck } from "./components/env-check";
-import { Spinner } from "@/components/ui/spinner";
+import { queryClient, trpc } from "./lib/trpc";
 
 function AppContent() {
   const envQuery = useQuery(trpc.env.check.queryOptions());
@@ -11,8 +11,8 @@ function AppContent() {
   // Loading state
   if (envQuery.isLoading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-bg-root">
-        <Spinner className="h-6 w-6 text-primary" />
+      <div className="bg-bg-root flex h-screen items-center justify-center">
+        <Spinner className="text-primary h-6 w-6" />
       </div>
     );
   }
@@ -22,7 +22,11 @@ function AppContent() {
     const { ghVersion, gitVersion, ghAuth } = envQuery.data;
     if (!ghVersion || !gitVersion || !ghAuth) {
       return (
-        <EnvCheck ghVersion={ghVersion} gitVersion={gitVersion} ghAuth={ghAuth} />
+        <EnvCheck
+          ghVersion={ghVersion}
+          gitVersion={gitVersion}
+          ghAuth={ghAuth}
+        />
       );
     }
   }

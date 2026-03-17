@@ -17,8 +17,9 @@
  * --------------------------------------------------------------------------- */
 @theme {
   --font-sans: "DM Sans", system-ui, -apple-system, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco,
-    Consolas, "Liberation Mono", "Courier New", monospace;
+  --font-mono:
+    "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
 }
 
 /* ---------------------------------------------------------------------------
@@ -244,12 +245,12 @@
   --diff-hunk-bg: rgba(91, 164, 230, 0.06);
 
   /* ---- Dispatch semantic muted (§ 2.4) ---- */
-  --success-muted: rgba(61, 214, 140, 0.10);
-  --danger-muted: rgba(239, 100, 97, 0.10);
-  --warning-muted: rgba(240, 180, 73, 0.10);
-  --info-muted: rgba(91, 164, 230, 0.10);
+  --success-muted: rgba(61, 214, 140, 0.1);
+  --danger-muted: rgba(239, 100, 97, 0.1);
+  --warning-muted: rgba(240, 180, 73, 0.1);
+  --info-muted: rgba(91, 164, 230, 0.1);
   --purple: #a78bfa;
-  --purple-muted: rgba(167, 139, 250, 0.10);
+  --purple-muted: rgba(167, 139, 250, 0.1);
 
   /* ---- Dispatch scrollbar (§ 2.7) ---- */
   --scrollbar-thumb: #2a2824;
@@ -331,12 +332,12 @@
   --diff-del-bar: #ef6461;
   --diff-del-word: rgba(239, 100, 97, 0.22);
   --diff-hunk-bg: rgba(91, 164, 230, 0.06);
-  --success-muted: rgba(61, 214, 140, 0.10);
-  --danger-muted: rgba(239, 100, 97, 0.10);
-  --warning-muted: rgba(240, 180, 73, 0.10);
-  --info-muted: rgba(91, 164, 230, 0.10);
+  --success-muted: rgba(61, 214, 140, 0.1);
+  --danger-muted: rgba(239, 100, 97, 0.1);
+  --warning-muted: rgba(240, 180, 73, 0.1);
+  --info-muted: rgba(91, 164, 230, 0.1);
   --purple: #a78bfa;
-  --purple-muted: rgba(167, 139, 250, 0.10);
+  --purple-muted: rgba(167, 139, 250, 0.1);
   --scrollbar-thumb: #2a2824;
   --scrollbar-hover: #3a3632;
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
@@ -360,7 +361,7 @@
   }
 
   body {
-    @apply bg-background font-sans text-foreground antialiased;
+    @apply bg-background text-foreground font-sans antialiased;
   }
 
   code,
