@@ -13,12 +13,7 @@ export function Navbar({ selectedPr }: { selectedPr?: number | null }) {
   return (
     <header
       className="border-border bg-bg-surface flex h-10 shrink-0 items-center border-b pr-3"
-      style={
-        {
-          WebkitAppRegion: "drag",
-          paddingLeft: 78,
-        } as React.CSSProperties
-      }
+      style={{ WebkitAppRegion: "drag", paddingLeft: 80 } as React.CSSProperties}
     >
       {/* Logo (§ 8.1 Logo) — after traffic light safe zone */}
       <div

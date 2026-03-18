@@ -59,7 +59,7 @@ export function AppLayout() {
           }}
         />
 
-        {/* Navbar — 40px (42px total with accent bar) */}
+        {/* Navbar — doubles as titlebar drag region */}
         <Navbar selectedPr={selectedPr} />
 
         {/* Main body: sidebar + content */}

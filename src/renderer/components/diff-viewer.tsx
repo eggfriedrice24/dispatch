@@ -43,10 +43,10 @@ interface DiffViewerProps {
 type FlatLine = DiffLine & { pairIndex: number | null };
 
 type VirtualRow =
-  | { kind: "line"; line: FlatLine }
-  | { kind: "comment"; comments: ReviewComment[] }
-  | { kind: "annotation"; annotations: Annotation[] }
-  | { kind: "composer"; line: number };
+  | { kind: "line"; key: string; line: FlatLine }
+  | { kind: "comment"; key: string; comments: ReviewComment[] }
+  | { kind: "annotation"; key: string; annotations: Annotation[] }
+  | { kind: "composer"; key: string; line: number };
 
 function buildVirtualRows(
   file: DiffFile,
@@ -57,9 +57,11 @@ function buildVirtualRows(
   const rows: VirtualRow[] = [];
   const filePath = file.newPath || file.oldPath;
 
+  let hunkIndex = 0;
   for (const hunk of file.hunks) {
     rows.push({
       kind: "line",
+      key: `hunk-${hunkIndex}`,
       line: {
         type: "hunk-header",
         content: hunk.header,
@@ -80,27 +82,29 @@ function buildVirtualRows(
         pairIndex = rows.length - 1;
       }
 
-      rows.push({ kind: "line", line: { ...line, pairIndex } });
-
       const lineNum = line.newLineNumber ?? line.oldLineNumber;
+      const lineKey = `${line.type}-${line.oldLineNumber ?? "x"}-${line.newLineNumber ?? "x"}`;
+
+      rows.push({ kind: "line", key: lineKey, line: { ...line, pairIndex } });
 
       if (lineNum) {
-        const key = `${filePath}:${lineNum}`;
-        const lineAnnotations = annotations.get(key);
+        const posKey = `${filePath}:${lineNum}`;
+        const lineAnnotations = annotations.get(posKey);
         if (lineAnnotations && lineAnnotations.length > 0) {
-          rows.push({ kind: "annotation", annotations: lineAnnotations });
+          rows.push({ kind: "annotation", key: `ann-${posKey}`, annotations: lineAnnotations });
         }
 
-        const lineComments = comments.get(key);
+        const lineComments = comments.get(posKey);
         if (lineComments && lineComments.length > 0) {
-          rows.push({ kind: "comment", comments: lineComments });
+          rows.push({ kind: "comment", key: `cmt-${posKey}`, comments: lineComments });
         }
       }
 
       if (composerLine && lineNum === composerLine) {
-        rows.push({ kind: "composer", line: composerLine });
+        rows.push({ kind: "composer", key: `composer-${composerLine}`, line: composerLine });
       }
     }
+    hunkIndex++;
   }
 
   return rows;
@@ -179,7 +183,7 @@ export function DiffViewer({
 
           return (
             <div
-              key={item.index}
+              key={row.key}
               data-index={item.index}
               ref={virtualizer.measureElement}
               style={{
