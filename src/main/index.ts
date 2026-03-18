@@ -19,7 +19,7 @@ const WINDOW_CONFIG: BrowserWindowConstructorOptions = {
   trafficLightPosition: { x: 12, y: 12 },
   backgroundColor: "#08080a",
   webPreferences: {
-    preload: join(__dirname, "../preload/index.js"),
+    preload: join(__dirname, "preload.js"),
     contextIsolation: true,
     nodeIntegration: false,
     sandbox: true,

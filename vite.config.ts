@@ -28,6 +28,15 @@ export default defineConfig({
       },
       preload: {
         input: "src/preload/index.ts",
+        vite: {
+          build: {
+            rollupOptions: {
+              output: {
+                entryFileNames: "preload.js",
+              },
+            },
+          },
+        },
       },
     }),
   ],
