@@ -1,4 +1,4 @@
-import { dialog } from "electron";
+import { BrowserWindow, dialog } from "electron";
 import { z } from "zod/v4";
 
 import * as repo from "../db/repository";
@@ -260,11 +260,14 @@ const workspaceRouter = router({
   }),
 
   pickFolder: publicProcedure.mutation(async () => {
-    const result = await dialog.showOpenDialog({ properties: ["openDirectory"] });
+    const win = BrowserWindow.getFocusedWindow();
+    const result = win
+      ? await dialog.showOpenDialog(win, { properties: ["openDirectory"] })
+      : await dialog.showOpenDialog({ properties: ["openDirectory"] });
     if (result.canceled || result.filePaths.length === 0) {
       return null;
     }
-    return result.filePaths[0];
+    return result.filePaths[0] ?? null;
   }),
 });
 

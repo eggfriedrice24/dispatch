@@ -1,6 +1,6 @@
 import { ToastProvider } from "@/components/ui/toast";
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 import { AppLayout } from "./components/app-layout";
 import { EnvCheck } from "./components/env-check";
@@ -10,32 +10,40 @@ import { queryClient, trpc } from "./lib/trpc";
 import { WorkspaceProvider } from "./lib/workspace-context";
 
 /**
- * App boot flow (single splash screen):
+ * Boot flow:
  *
- * 1. Show splash while ALL initialization happens in parallel
- *    (env check + workspace queries fire immediately)
- * 2. Splash holds for a minimum of 1.2s (for the animation)
- * 3. Once splash is done AND data is loaded → route to the right screen
- *    - Missing gh/git → env error screen
- *    - No repos configured → onboarding
- *    - Ready → main app
- *
- * No intermediate loading screen. Ever.
+ * 1. Splash screen is ALWAYS mounted (never unmounts/remounts).
+ * 2. Queries fire immediately behind the splash.
+ * 3. Once the splash animation finishes AND data has loaded at least once,
+ *    we set `showApp = true` and the splash fades out.
+ * 4. `showApp` is a one-way latch — once true, splash never comes back.
  */
 
 function AppContent() {
-  const [splashDone, setSplashDone] = useState(false);
+  const [splashAnimDone, setSplashAnimDone] = useState(false);
+  const [showApp, setShowApp] = useState(false);
   const [onboardingComplete, setOnboardingComplete] = useState(false);
+  const dataLoadedOnce = useRef(false);
 
-  // Fire ALL queries immediately — they run during the splash
+  // Fire ALL queries immediately — they resolve during the splash
   const envQuery = useQuery(trpc.env.check.queryOptions());
   const activeQuery = useQuery(trpc.workspace.active.queryOptions());
   const workspacesQuery = useQuery(trpc.workspace.list.queryOptions());
 
   const dataReady = !envQuery.isLoading && !activeQuery.isLoading && !workspacesQuery.isLoading;
 
+  // One-way latch: once data has loaded, remember it forever
+  if (dataReady && !dataLoadedOnce.current) {
+    dataLoadedOnce.current = true;
+  }
+
+  // Transition from splash → app once both conditions are met
+  if (splashAnimDone && dataLoadedOnce.current && !showApp) {
+    setShowApp(true);
+  }
+
   const handleSplashComplete = useCallback(() => {
-    setSplashDone(true);
+    setSplashAnimDone(true);
   }, []);
 
   const handleOnboardingComplete = useCallback(() => {
@@ -43,12 +51,7 @@ function AppContent() {
     queryClient.invalidateQueries({ queryKey: ["workspace"] });
   }, []);
 
-  // Show splash until both the animation is done AND data is loaded
-  if (!splashDone || !dataReady) {
-    return <SplashScreen onComplete={handleSplashComplete} />;
-  }
-
-  // Route to the correct screen
+  // Determine which screen to show (only matters when showApp is true)
   const phase = resolvePhase({
     envData: envQuery.data ?? null,
     activeWorkspace: activeQuery.data ?? null,
@@ -56,29 +59,26 @@ function AppContent() {
     onboardingComplete,
   });
 
-  switch (phase) {
-    case "env-error": {
-      const data = envQuery.data;
-      return (
-        <EnvCheck
-          ghVersion={data?.ghVersion ?? null}
-          gitVersion={data?.gitVersion ?? null}
-          ghAuth={data?.ghAuth ?? false}
+  return (
+    <>
+      {/* Splash is always mounted — fades out via CSS, then hidden */}
+      <SplashScreen
+        onComplete={handleSplashComplete}
+        visible={!showApp}
+      />
+
+      {/* App content renders behind the splash, becomes visible when showApp */}
+      {showApp && (
+        <AppScreen
+          phase={phase}
+          envData={envQuery.data ?? null}
+          activeWorkspace={activeQuery.data ?? null}
+          workspaces={workspacesQuery.data ?? []}
+          onOnboardingComplete={handleOnboardingComplete}
         />
-      );
-    }
-    case "onboarding": {
-      return <Onboarding onComplete={handleOnboardingComplete} />;
-    }
-    case "ready": {
-      const cwd = activeQuery.data ?? workspacesQuery.data?.[0]?.path ?? "";
-      return (
-        <WorkspaceProvider cwd={cwd}>
-          <AppLayout />
-        </WorkspaceProvider>
-      );
-    }
-  }
+      )}
+    </>
+  );
 }
 
 type AppPhase = "env-error" | "onboarding" | "ready";
@@ -107,6 +107,43 @@ function resolvePhase({
   }
 
   return "onboarding";
+}
+
+function AppScreen({
+  phase,
+  envData,
+  activeWorkspace,
+  workspaces,
+  onOnboardingComplete,
+}: {
+  phase: AppPhase;
+  envData: { ghVersion: string | null; gitVersion: string | null; ghAuth: boolean } | null;
+  activeWorkspace: string | null;
+  workspaces: Array<{ path: string }>;
+  onOnboardingComplete: () => void;
+}) {
+  switch (phase) {
+    case "env-error": {
+      return (
+        <EnvCheck
+          ghVersion={envData?.ghVersion ?? null}
+          gitVersion={envData?.gitVersion ?? null}
+          ghAuth={envData?.ghAuth ?? false}
+        />
+      );
+    }
+    case "onboarding": {
+      return <Onboarding onComplete={onOnboardingComplete} />;
+    }
+    case "ready": {
+      const cwd = activeWorkspace ?? workspaces[0]?.path ?? "";
+      return (
+        <WorkspaceProvider cwd={cwd}>
+          <AppLayout />
+        </WorkspaceProvider>
+      );
+    }
+  }
 }
 
 export function App() {

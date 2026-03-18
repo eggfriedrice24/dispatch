@@ -44,6 +44,9 @@ export function Onboarding({ onComplete }: OnboardingProps) {
           addMutation.mutate({ path: result });
         }
       },
+      onError: () => {
+        // Error shown via pickFolderMutation.isError below
+      },
     }),
   );
 
@@ -106,16 +109,20 @@ export function Onboarding({ onComplete }: OnboardingProps) {
         <Button
           variant="outline"
           className="w-full gap-2 border-dashed"
-          onClick={() => pickFolderMutation.mutate({})}
+          onClick={() => pickFolderMutation.mutate()}
           disabled={pickFolderMutation.isPending || addMutation.isPending}
         >
           <FolderOpen size={14} />
           {pickFolderMutation.isPending ? "Opening..." : "Add a repository"}
         </Button>
 
-        {addMutation.isError && (
+        {(addMutation.isError || pickFolderMutation.isError) && (
           <p className="text-destructive mt-2 text-xs">
-            {String((addMutation.error as Error)?.message ?? "Not a valid git repository")}
+            {addMutation.isError
+              ? String(
+                  (addMutation.error as unknown as Error)?.message ?? "Not a valid git repository",
+                )
+              : "Failed to open folder picker"}
           </p>
         )}
       </div>

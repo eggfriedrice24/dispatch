@@ -30,7 +30,7 @@ export function registerTrpcIpcHandler(): void {
           current = current[segment];
         }
 
-        const result = await current(input);
+        const result = await current(input === undefined ? undefined : input);
 
         return { ok: true, data: result };
       } catch (error) {
