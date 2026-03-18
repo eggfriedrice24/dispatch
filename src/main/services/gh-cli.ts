@@ -329,3 +329,103 @@ export async function getCheckAnnotations(cwd: string, prNumber: number): Promis
 
   return annotations;
 }
+
+// ---------------------------------------------------------------------------
+// Workflows
+// ---------------------------------------------------------------------------
+
+export interface GhWorkflow {
+  id: number;
+  name: string;
+  state: "active" | "disabled_manually" | "disabled_inactivity";
+}
+
+export async function listWorkflows(cwd: string): Promise<GhWorkflow[]> {
+  const { stdout } = await exec(`gh workflow list --json id,name,state --limit 50`, { cwd });
+  return parseJsonOutput<GhWorkflow[]>(stdout);
+}
+
+export interface GhWorkflowRun {
+  databaseId: number;
+  displayTitle: string;
+  name: string;
+  status: string;
+  conclusion: string | null;
+  headBranch: string;
+  createdAt: string;
+  updatedAt: string;
+  event: string;
+  workflowName: string;
+  attempt: number;
+}
+
+export async function listWorkflowRuns(
+  cwd: string,
+  workflowId?: number,
+  limit = 20,
+): Promise<GhWorkflowRun[]> {
+  let cmd = `gh run list --json databaseId,displayTitle,name,status,conclusion,headBranch,createdAt,updatedAt,event,workflowName,attempt --limit ${limit}`;
+  if (workflowId) {
+    cmd += ` --workflow ${workflowId}`;
+  }
+  const { stdout } = await exec(cmd, { cwd });
+  return parseJsonOutput<GhWorkflowRun[]>(stdout);
+}
+
+export interface GhWorkflowRunJob {
+  name: string;
+  status: string;
+  conclusion: string | null;
+  startedAt: string;
+  completedAt: string;
+  steps: Array<{
+    name: string;
+    status: string;
+    conclusion: string | null;
+    number: number;
+  }>;
+}
+
+export interface GhWorkflowRunDetail extends GhWorkflowRun {
+  headSha: string;
+  jobs: GhWorkflowRunJob[];
+}
+
+export async function getWorkflowRunDetail(
+  cwd: string,
+  runId: number,
+): Promise<GhWorkflowRunDetail> {
+  const { stdout } = await exec(
+    `gh run view ${runId} --json databaseId,displayTitle,name,status,conclusion,headBranch,headSha,createdAt,updatedAt,event,workflowName,jobs,attempt`,
+    { cwd },
+  );
+  return parseJsonOutput<GhWorkflowRunDetail>(stdout);
+}
+
+export async function triggerWorkflow(
+  cwd: string,
+  workflowId: string,
+  ref: string,
+  inputs?: Record<string, string>,
+): Promise<void> {
+  let cmd = `gh workflow run ${workflowId} --ref ${ref}`;
+  if (inputs) {
+    for (const [key, value] of Object.entries(inputs)) {
+      cmd += ` -f ${key}=${value}`;
+    }
+  }
+  await exec(cmd, { cwd, timeout: 15_000 });
+}
+
+export async function cancelWorkflowRun(cwd: string, runId: number): Promise<void> {
+  await exec(`gh run cancel ${runId}`, { cwd });
+}
+
+export async function rerunWorkflowRun(cwd: string, runId: number): Promise<void> {
+  await exec(`gh run rerun ${runId}`, { cwd });
+}
+
+export async function getWorkflowYaml(cwd: string, workflowId: number): Promise<string> {
+  const { stdout } = await exec(`gh workflow view ${workflowId} --yaml`, { cwd });
+  return stdout;
+}

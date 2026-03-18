@@ -1,26 +1,31 @@
-import { Bell, GitPullRequest, Settings } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { ChevronDown, FolderOpen, GitBranch, GitPullRequest, Settings, Zap } from "lucide-react";
+import { useState } from "react";
+
+import { ipc } from "../lib/ipc";
+import { useRouter } from "../lib/router";
+import { queryClient } from "../lib/trpc";
+import { useWorkspace } from "../lib/workspace-context";
 
 /**
- * Top navbar matching DISPATCH-DESIGN-SYSTEM.md § 8.1:
+ * Navbar — DISPATCH-DESIGN-SYSTEM.md § 8.1
  *
- * - Height: 40px (42px including accent bar above)
- * - Background: --bg-surface
- * - Border: 1px solid --border on bottom
- * - -webkit-app-region: drag (Electron window dragging)
- * - Interactive elements: -webkit-app-region: no-drag
+ * Route-aware tabs: Review | Workflows
+ * Workspace switcher in the right area
  */
 export function Navbar({ selectedPr }: { selectedPr?: number | null }) {
+  const { route, navigate } = useRouter();
+
   return (
     <header
       className="border-border bg-bg-surface flex h-10 shrink-0 items-center border-b pr-3"
       style={{ WebkitAppRegion: "drag", paddingLeft: 80 } as React.CSSProperties}
     >
-      {/* Logo (§ 8.1 Logo) — after traffic light safe zone */}
+      {/* Logo */}
       <div
         className="flex items-center gap-[7px]"
         style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
       >
-        {/* Logo mark: 20x20, copper background, rounded-sm, italic "d" */}
         <div className="bg-primary flex h-5 w-5 items-center justify-center rounded-sm">
           <span className="font-heading text-bg-root text-sm leading-none italic">d</span>
         </div>
@@ -29,17 +34,24 @@ export function Navbar({ selectedPr }: { selectedPr?: number | null }) {
         </span>
       </div>
 
-      {/* Nav tabs + breadcrumb */}
+      {/* Nav tabs */}
       <nav
-        className="ml-8 flex items-center gap-1"
+        className="ml-6 flex items-center gap-0.5"
         style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
       >
         <NavTab
           label="Review"
           icon={<GitPullRequest size={14} />}
-          active
+          active={route.view === "review"}
+          onClick={() => navigate({ view: "review", prNumber: selectedPr ?? null })}
         />
-        {selectedPr && (
+        <NavTab
+          label="Workflows"
+          icon={<Zap size={14} />}
+          active={route.view === "workflows"}
+          onClick={() => navigate({ view: "workflows" })}
+        />
+        {route.view === "review" && selectedPr && (
           <>
             <span className="text-text-ghost mx-1 text-[11px]">/</span>
             <span className="text-text-tertiary font-mono text-[11px]">#{selectedPr}</span>
@@ -50,17 +62,24 @@ export function Navbar({ selectedPr }: { selectedPr?: number | null }) {
       {/* Spacer */}
       <div className="flex-1" />
 
-      {/* Right-side icon buttons (§ 8.1 Icon buttons) */}
+      {/* Workspace switcher + icons */}
       <div
-        className="flex items-center gap-1"
+        className="flex items-center gap-1.5"
         style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
       >
-        <IconButton icon={<Bell size={15} />} />
-        <IconButton icon={<Settings size={15} />} />
+        <WorkspaceSwitcher />
 
-        {/* Avatar (§ 8.1 Avatar) */}
+        <div className="bg-border mx-1 h-4 w-px" />
+
+        <IconButton
+          icon={<Settings size={15} />}
+          onClick={() => navigate({ view: "settings" })}
+          active={route.view === "settings"}
+        />
+
+        {/* Avatar */}
         <div
-          className="ml-2 flex h-6 w-6 items-center justify-center rounded-full"
+          className="ml-1 flex h-6 w-6 items-center justify-center rounded-full"
           style={{
             background: "linear-gradient(135deg, var(--primary), #7c5a2a)",
             border: "1.5px solid var(--border-strong)",
@@ -73,18 +92,113 @@ export function Navbar({ selectedPr }: { selectedPr?: number | null }) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Workspace switcher
+// ---------------------------------------------------------------------------
+
+function WorkspaceSwitcher() {
+  const { cwd } = useWorkspace();
+  const [open, setOpen] = useState(false);
+  const repoName = cwd.split("/").pop() ?? "—";
+
+  const workspacesQuery = useQuery({
+    queryKey: ["workspace", "list"],
+    queryFn: () => ipc("workspace.list"),
+    staleTime: 60_000,
+  });
+  const workspaces = workspacesQuery.data ?? [];
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="text-text-secondary hover:bg-bg-raised hover:text-text-primary flex items-center gap-1.5 rounded-sm px-2 py-1 text-xs"
+      >
+        <GitBranch
+          size={12}
+          className="text-primary"
+        />
+        <span className="max-w-[120px] truncate font-mono text-[11px]">{repoName}</span>
+        <ChevronDown
+          size={10}
+          className="text-text-ghost"
+        />
+      </button>
+      {open && (
+        <div className="border-border bg-bg-elevated absolute top-full right-0 z-20 mt-1 w-56 rounded-md border p-1 shadow-lg">
+          {workspaces.map((ws) => (
+            <button
+              key={ws.id}
+              type="button"
+              onClick={() => {
+                ipc("workspace.setActive", { path: ws.path }).then(() => {
+                  queryClient.invalidateQueries();
+                  setOpen(false);
+                  // Force reload to switch workspace context
+                  globalThis.location.reload();
+                });
+              }}
+              className={`flex w-full items-center gap-2 rounded-sm px-3 py-1.5 text-left text-xs transition-colors ${
+                ws.path === cwd
+                  ? "bg-accent-muted text-accent-text"
+                  : "text-text-secondary hover:bg-bg-raised"
+              }`}
+            >
+              <GitBranch
+                size={12}
+                className="text-primary shrink-0"
+              />
+              <div className="min-w-0 flex-1">
+                <p className="text-text-primary truncate font-medium">{ws.name}</p>
+                <p className="text-text-tertiary truncate font-mono text-[10px]">{ws.path}</p>
+              </div>
+            </button>
+          ))}
+          <div className="border-border mt-0.5 border-t pt-0.5">
+            <button
+              type="button"
+              onClick={() => {
+                ipc("workspace.pickFolder").then((result) => {
+                  if (result) {
+                    ipc("workspace.add", { path: result }).then(() => {
+                      queryClient.invalidateQueries({ queryKey: ["workspace"] });
+                    });
+                  }
+                });
+                setOpen(false);
+              }}
+              className="text-text-secondary hover:bg-bg-raised hover:text-text-primary flex w-full items-center gap-2 rounded-sm px-3 py-1.5 text-left text-xs"
+            >
+              <FolderOpen size={12} />
+              Add repository...
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Sub-components
+// ---------------------------------------------------------------------------
+
 function NavTab({
   label,
   icon,
   active = false,
+  onClick,
 }: {
   label: string;
   icon: React.ReactNode;
   active?: boolean;
+  onClick?: () => void;
 }) {
   return (
     <button
       type="button"
+      onClick={onClick}
       className={`relative flex items-center gap-1.5 rounded-sm px-2.5 py-1.5 text-xs transition-colors ${
         active
           ? "text-text-primary font-medium"
@@ -100,11 +214,24 @@ function NavTab({
   );
 }
 
-function IconButton({ icon }: { icon: React.ReactNode }) {
+function IconButton({
+  icon,
+  onClick,
+  active = false,
+}: {
+  icon: React.ReactNode;
+  onClick?: () => void;
+  active?: boolean;
+}) {
   return (
     <button
       type="button"
-      className="text-text-secondary hover:bg-bg-raised hover:text-text-primary flex h-[30px] w-[30px] items-center justify-center rounded-sm transition-colors"
+      onClick={onClick}
+      className={`flex h-[30px] w-[30px] items-center justify-center rounded-sm transition-colors ${
+        active
+          ? "bg-bg-raised text-text-primary"
+          : "text-text-secondary hover:bg-bg-raised hover:text-text-primary"
+      }`}
     >
       {icon}
     </button>

@@ -4,67 +4,68 @@ import { Button } from "@/components/ui/button";
 import { Component, useCallback, useState } from "react";
 
 import { useKeyboardShortcuts } from "../hooks/use-keyboard-shortcuts";
+import { RouterProvider, useRouter } from "../lib/router";
 import { Navbar } from "./navbar";
 import { PrDetailView } from "./pr-detail-view";
 import { PrInbox } from "./pr-inbox";
+import { SettingsView } from "./settings-view";
+import { WorkflowsDashboard } from "./workflows-dashboard";
 
 /**
- * Root layout matching DISPATCH-DESIGN-SYSTEM.md § 4.2:
+ * Root layout — DISPATCH-DESIGN-SYSTEM.md § 4.2
  *
- *  +--[ Accent Bar (2px) ]--+
- *  |      Navbar (42px)     |
- *  +------+-----------------+
- *  | Side |   Main Content  |
- *  | bar  |   (flex: 1)     |
- *  | 260px|                 |
- *  +------+-----------------+
+ * Now with client-side routing: Review | Workflows | Settings
  */
 export function AppLayout() {
-  const [selectedPr, setSelectedPr] = useState<number | null>(null);
+  return (
+    <RouterProvider>
+      <ErrorBoundary>
+        <AppShell />
+      </ErrorBoundary>
+    </RouterProvider>
+  );
+}
+
+function AppShell() {
+  const { route, navigate } = useRouter();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const toggleSidebar = useCallback(() => {
     setSidebarCollapsed((v) => !v);
   }, []);
 
-  // Global keyboard shortcuts
-  useKeyboardShortcuts([
-    {
-      key: "b",
-      modifiers: ["meta"],
-      handler: toggleSidebar,
-    },
-  ]);
+  useKeyboardShortcuts([{ key: "b", modifiers: ["meta"], handler: toggleSidebar }]);
+
+  const selectedPr = route.view === "review" ? route.prNumber : null;
 
   return (
-    <ErrorBoundary>
-      <div className="bg-bg-root text-text-primary relative flex h-screen flex-col overflow-hidden">
-        {/* Background noise texture (§ 4.4) */}
-        <div
-          className="pointer-events-none fixed inset-0 z-50"
-          style={{
-            opacity: 0.015,
-            backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`,
-            backgroundRepeat: "repeat",
-            backgroundSize: "256px 256px",
-          }}
-        />
+    <div className="bg-bg-root text-text-primary relative flex h-screen flex-col overflow-hidden">
+      {/* Background noise texture (§ 4.4) */}
+      <div
+        className="pointer-events-none fixed inset-0 z-50"
+        style={{
+          opacity: 0.015,
+          backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`,
+          backgroundRepeat: "repeat",
+          backgroundSize: "256px 256px",
+        }}
+      />
 
-        {/* Accent bar — 2px copper gradient at the very top (§ 4.3) */}
-        <div
-          className="h-[2px] w-full shrink-0"
-          style={{
-            background: "linear-gradient(90deg, transparent, var(--primary), transparent)",
-            opacity: 0.4,
-          }}
-        />
+      {/* Accent bar */}
+      <div
+        className="h-[2px] w-full shrink-0"
+        style={{
+          background: "linear-gradient(90deg, transparent, var(--primary), transparent)",
+          opacity: 0.4,
+        }}
+      />
 
-        {/* Navbar — doubles as titlebar drag region */}
-        <Navbar selectedPr={selectedPr} />
+      {/* Navbar */}
+      <Navbar selectedPr={selectedPr} />
 
-        {/* Main body: sidebar + content */}
+      {/* View content */}
+      {route.view === "review" && (
         <div className="flex flex-1 overflow-hidden">
-          {/* PR Inbox Sidebar (§ 8.4) — 260px, collapsible with Cmd+B (§ 10.4) */}
           <div
             className="shrink-0 overflow-hidden transition-[width]"
             style={{
@@ -75,17 +76,19 @@ export function AppLayout() {
           >
             <PrInbox
               selectedPr={selectedPr}
-              onSelectPr={setSelectedPr}
+              onSelectPr={(pr) => navigate({ view: "review", prNumber: pr })}
             />
           </div>
-
-          {/* Main content area */}
           <main className="flex flex-1 flex-col overflow-hidden">
             <PrDetailView prNumber={selectedPr} />
           </main>
         </div>
-      </div>
-    </ErrorBoundary>
+      )}
+
+      {route.view === "workflows" && <WorkflowsDashboard />}
+
+      {route.view === "settings" && <SettingsView />}
+    </div>
   );
 }
 

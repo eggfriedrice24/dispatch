@@ -84,6 +84,21 @@ const handlers: { [M in IpcMethod]: Handler<M> } = {
   "git.diff": async (args) => gitCli.diff(args.cwd, args.fromRef, args.toRef),
   "git.repoRoot": async (args) => gitCli.getRepoRoot(args.cwd),
 
+  // Workflows
+  "workflows.list": async (args) => ghCli.listWorkflows(args.cwd),
+  "workflows.runs": async (args) => ghCli.listWorkflowRuns(args.cwd, args.workflowId, args.limit),
+  "workflows.runDetail": async (args) => ghCli.getWorkflowRunDetail(args.cwd, args.runId),
+  "workflows.trigger": async (args) => {
+    await ghCli.triggerWorkflow(args.cwd, args.workflowId, args.ref, args.inputs);
+  },
+  "workflows.cancel": async (args) => {
+    await ghCli.cancelWorkflowRun(args.cwd, args.runId);
+  },
+  "workflows.rerunAll": async (args) => {
+    await ghCli.rerunWorkflowRun(args.cwd, args.runId);
+  },
+  "workflows.yaml": async (args) => ghCli.getWorkflowYaml(args.cwd, args.workflowId),
+
   // Review state
   "review.getLastSha": async (args) => repo.getLastReviewedSha(args.repo, args.prNumber),
   "review.saveSha": async (args) => {

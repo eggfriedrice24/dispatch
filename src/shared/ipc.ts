@@ -96,6 +96,45 @@ export interface GhAnnotation {
   checkName: string;
 }
 
+export interface GhWorkflow {
+  id: number;
+  name: string;
+  state: "active" | "disabled_manually" | "disabled_inactivity";
+}
+
+export interface GhWorkflowRun {
+  databaseId: number;
+  displayTitle: string;
+  name: string;
+  status: string;
+  conclusion: string | null;
+  headBranch: string;
+  createdAt: string;
+  updatedAt: string;
+  event: string;
+  workflowName: string;
+  attempt: number;
+}
+
+export interface GhWorkflowRunJob {
+  name: string;
+  status: string;
+  conclusion: string | null;
+  startedAt: string;
+  completedAt: string;
+  steps: Array<{
+    name: string;
+    status: string;
+    conclusion: string | null;
+    number: number;
+  }>;
+}
+
+export interface GhWorkflowRunDetail extends GhWorkflowRun {
+  headSha: string;
+  jobs: GhWorkflowRunJob[];
+}
+
 export interface BlameLine {
   sha: string;
   author: string;
@@ -177,6 +216,21 @@ export interface IpcApi {
   };
   "git.diff": { args: { cwd: string; fromRef: string; toRef: string }; result: string };
   "git.repoRoot": { args: { cwd: string }; result: string | null };
+
+  // Workflows
+  "workflows.list": { args: { cwd: string }; result: GhWorkflow[] };
+  "workflows.runs": {
+    args: { cwd: string; workflowId?: number; limit?: number };
+    result: GhWorkflowRun[];
+  };
+  "workflows.runDetail": { args: { cwd: string; runId: number }; result: GhWorkflowRunDetail };
+  "workflows.trigger": {
+    args: { cwd: string; workflowId: string; ref: string; inputs?: Record<string, string> };
+    result: void;
+  };
+  "workflows.cancel": { args: { cwd: string; runId: number }; result: void };
+  "workflows.rerunAll": { args: { cwd: string; runId: number }; result: void };
+  "workflows.yaml": { args: { cwd: string; workflowId: number }; result: string };
 
   "review.getLastSha": { args: { repo: string; prNumber: number }; result: string | null };
   "review.saveSha": { args: { repo: string; prNumber: number; sha: string }; result: void };
