@@ -15,7 +15,7 @@ import { useSyntaxHighlighter } from "../hooks/use-syntax-highlight";
 import { parseDiff } from "../lib/diff-parser";
 import { inferLanguage } from "../lib/highlighter";
 import { ipc } from "../lib/ipc";
-import { queryClient } from "../lib/trpc";
+import { queryClient } from "../lib/query-client";
 import { useWorkspace } from "../lib/workspace-context";
 import { ChecksPanel } from "./checks-panel";
 import { DiffViewer } from "./diff-viewer";
@@ -410,7 +410,7 @@ function DiffToolbar({
         type="button"
         onClick={onPrev}
         disabled={currentIndex === 0}
-        className="text-text-secondary hover:bg-bg-raised hover:text-text-primary flex h-6 w-6 items-center justify-center rounded-sm disabled:opacity-30"
+        className="text-text-secondary hover:bg-bg-raised hover:text-text-primary flex h-6 w-6 cursor-pointer items-center justify-center rounded-sm disabled:cursor-not-allowed disabled:opacity-30"
       >
         <ChevronLeft size={13} />
       </button>
@@ -418,7 +418,7 @@ function DiffToolbar({
         type="button"
         onClick={onNext}
         disabled={currentIndex >= totalFiles - 1}
-        className="text-text-secondary hover:bg-bg-raised hover:text-text-primary flex h-6 w-6 items-center justify-center rounded-sm disabled:opacity-30"
+        className="text-text-secondary hover:bg-bg-raised hover:text-text-primary flex h-6 w-6 cursor-pointer items-center justify-center rounded-sm disabled:cursor-not-allowed disabled:opacity-30"
       >
         <ChevronRight size={13} />
       </button>
@@ -436,7 +436,7 @@ function DiffToolbar({
           <button
             type="button"
             onClick={() => onDiffModeChange("all")}
-            className={`rounded-sm px-2.5 py-1 text-[11px] ${
+            className={`cursor-pointer rounded-sm px-2.5 py-1 text-[11px] ${
               diffMode === "all"
                 ? "bg-bg-elevated text-text-primary shadow-sm"
                 : "text-text-tertiary"
@@ -447,7 +447,7 @@ function DiffToolbar({
           <button
             type="button"
             onClick={() => onDiffModeChange("since-review")}
-            className={`rounded-sm px-2.5 py-1 text-[11px] ${
+            className={`cursor-pointer rounded-sm px-2.5 py-1 text-[11px] ${
               diffMode === "since-review"
                 ? "bg-bg-elevated text-text-primary shadow-sm"
                 : "text-text-tertiary"
@@ -462,7 +462,7 @@ function DiffToolbar({
       <button
         type="button"
         onClick={onMarkReviewed}
-        className="text-text-secondary hover:bg-bg-raised hover:text-text-primary rounded-md px-2 py-1 text-[11px]"
+        className="text-text-secondary hover:bg-bg-raised hover:text-text-primary cursor-pointer rounded-md px-2 py-1 text-[11px]"
       >
         Mark reviewed
       </button>
@@ -506,7 +506,7 @@ function TabButton({
     <button
       type="button"
       onClick={onClick}
-      className={`relative px-3 pb-2.5 text-xs ${
+      className={`relative cursor-pointer px-3 pb-2.5 text-xs ${
         active
           ? "text-text-primary font-medium"
           : "text-text-secondary hover:text-text-primary font-[450]"
@@ -589,7 +589,9 @@ function MergeChecklist({
   };
 }) {
   const hasApproval = pr.reviewDecision === "APPROVED";
-  const allChecksPassing = pr.statusCheckRollup.every((c) => c.conclusion === "success");
+  const allChecksPassing =
+    pr.statusCheckRollup.length > 0 &&
+    pr.statusCheckRollup.every((c) => c.conclusion === "success");
   const noConflicts = pr.mergeable === "MERGEABLE";
 
   return (
@@ -600,7 +602,7 @@ function MergeChecklist({
           passed={hasApproval}
         />
         <ChecklistItem
-          label="CI checks passing"
+          label={pr.statusCheckRollup.length === 0 ? "No CI checks" : "CI checks passing"}
           passed={allChecksPassing}
         />
         <ChecklistItem
@@ -679,7 +681,9 @@ function MergeButton({
   });
 
   const hasApproval = pr.reviewDecision === "APPROVED";
-  const allChecksPassing = pr.statusCheckRollup.every((c) => c.conclusion === "success");
+  const allChecksPassing =
+    pr.statusCheckRollup.length > 0 &&
+    pr.statusCheckRollup.every((c) => c.conclusion === "success");
   const canMerge = hasApproval && allChecksPassing && pr.mergeable === "MERGEABLE";
 
   return (
@@ -713,7 +717,7 @@ function MergeButton({
                 setStrategy(s);
                 setMenuOpen(false);
               }}
-              className={`flex w-full items-center rounded-sm px-3 py-1.5 text-left text-xs transition-colors ${
+              className={`flex w-full cursor-pointer items-center rounded-sm px-3 py-1.5 text-left text-xs transition-colors ${
                 strategy === s
                   ? "bg-accent-muted text-accent-text"
                   : "text-text-secondary hover:bg-bg-raised hover:text-text-primary"
@@ -820,7 +824,7 @@ function RequestChangesButton({ cwd, prNumber }: { cwd: string; prNumber: number
             rows={3}
             className="border-border bg-bg-root text-text-primary placeholder:text-text-tertiary focus:border-primary w-full resize-none rounded-md border px-3 py-2 text-xs focus:outline-none"
             onKeyDown={(e) => {
-              if (e.key === "Enter" && e.metaKey && body.trim()) {
+              if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && body.trim()) {
                 e.preventDefault();
                 reviewMutation.mutate({
                   cwd,

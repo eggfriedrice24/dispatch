@@ -1,14 +1,11 @@
-import { exec, whichVersion } from "./shell";
+import { execFile } from "./shell";
 
 /**
  * Local Git CLI adapter.
  *
  * Provides blame, log, and diff operations on the user's local clone.
+ * All commands use `execFile` (argument arrays) to prevent shell injection.
  */
-
-export async function getGitVersion(): Promise<string | null> {
-  return whichVersion("git");
-}
 
 // ---------------------------------------------------------------------------
 // Blame
@@ -21,15 +18,17 @@ export interface BlameLine {
   summary: string;
 }
 
-export async function blame(
-  cwd: string,
-  file: string,
-  line: number,
-  ref: string,
-): Promise<BlameLine> {
-  const { stdout } = await exec(`git blame -L ${line},${line} ${ref} --porcelain -- "${file}"`, {
-    cwd,
-  });
+export async function blame(args: {
+  cwd: string;
+  file: string;
+  line: number;
+  ref: string;
+}): Promise<BlameLine> {
+  const { stdout } = await execFile(
+    "git",
+    ["blame", "-L", `${args.line},${args.line}`, args.ref, "--porcelain", "--", args.file],
+    { cwd: args.cwd },
+  );
 
   const lines = stdout.split("\n");
   const sha = lines[0]?.split(" ")[0] ?? "";
@@ -66,8 +65,9 @@ export async function fileHistory(cwd: string, filePath: string, limit = 20): Pr
   const separator = "---DISPATCH_LOG_SEP---";
   const format = `%H${separator}%an${separator}%aI${separator}%s`;
 
-  const { stdout } = await exec(
-    `git log --follow -n ${limit} --format="${format}" -- "${filePath}"`,
+  const { stdout } = await execFile(
+    "git",
+    ["log", "--follow", "-n", String(limit), `--format=${format}`, "--", filePath],
     { cwd },
   );
 
@@ -75,7 +75,7 @@ export async function fileHistory(cwd: string, filePath: string, limit = 20): Pr
     return [];
   }
 
-  return stdout.split("\n").map((line) => {
+  return stdout.split("\n").map((line: string) => {
     const [sha = "", author = "", date = "", message = ""] = line.split(separator);
     return { sha, author, date, message };
   });
@@ -86,12 +86,7 @@ export async function fileHistory(cwd: string, filePath: string, limit = 20): Pr
 // ---------------------------------------------------------------------------
 
 export async function diff(cwd: string, fromRef: string, toRef: string): Promise<string> {
-  const { stdout } = await exec(`git diff ${fromRef}..${toRef}`, { cwd });
-  return stdout;
-}
-
-export async function diffStat(cwd: string, fromRef: string, toRef: string): Promise<string> {
-  const { stdout } = await exec(`git diff --stat ${fromRef}..${toRef}`, { cwd });
+  const { stdout } = await execFile("git", ["diff", `${fromRef}..${toRef}`], { cwd });
   return stdout;
 }
 
@@ -101,14 +96,9 @@ export async function diffStat(cwd: string, fromRef: string, toRef: string): Pro
 
 export async function getRepoRoot(cwd: string): Promise<string | null> {
   try {
-    const { stdout } = await exec("git rev-parse --show-toplevel", { cwd });
+    const { stdout } = await execFile("git", ["rev-parse", "--show-toplevel"], { cwd });
     return stdout;
   } catch {
     return null;
   }
-}
-
-export async function getCurrentBranch(cwd: string): Promise<string> {
-  const { stdout } = await exec("git rev-parse --abbrev-ref HEAD", { cwd });
-  return stdout;
 }

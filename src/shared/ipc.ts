@@ -7,6 +7,7 @@
  */
 
 export const IPC_CHANNEL = "dispatch:ipc";
+export const BADGE_COUNT_CHANNEL = "set-badge-count";
 
 // ---------------------------------------------------------------------------
 // Service types shared across processes
@@ -121,7 +122,7 @@ export interface GhWorkflowRunJob {
   status: string;
   conclusion: string | null;
   startedAt: string;
-  completedAt: string;
+  completedAt: string | null;
   steps: Array<{
     name: string;
     status: string;
@@ -156,6 +157,20 @@ export interface Workspace {
   addedAt: string;
 }
 
+export interface GhUser {
+  login: string;
+  avatarUrl: string;
+  name: string | null;
+}
+
+export interface GhAccount {
+  login: string;
+  host: string;
+  active: boolean;
+  scopes: string;
+  gitProtocol: string;
+}
+
 export interface EnvStatus {
   ghVersion: string | null;
   gitVersion: string | null;
@@ -168,6 +183,9 @@ export interface EnvStatus {
 
 export interface IpcApi {
   "env.check": { args: void; result: EnvStatus };
+  "env.user": { args: void; result: GhUser | null };
+  "env.accounts": { args: void; result: GhAccount[] };
+  "env.switchAccount": { args: { host: string; login: string }; result: void };
 
   "workspace.list": { args: void; result: Workspace[] };
   "workspace.add": { args: { path: string }; result: { path: string; name: string } };
@@ -230,7 +248,7 @@ export interface IpcApi {
   };
   "workflows.cancel": { args: { cwd: string; runId: number }; result: void };
   "workflows.rerunAll": { args: { cwd: string; runId: number }; result: void };
-  "workflows.yaml": { args: { cwd: string; workflowId: number }; result: string };
+  "workflows.yaml": { args: { cwd: string; workflowId: string }; result: string };
 
   "review.getLastSha": { args: { repo: string; prNumber: number }; result: string | null };
   "review.saveSha": { args: { repo: string; prNumber: number; sha: string }; result: void };

@@ -9,7 +9,7 @@ import { CheckCircle2, ChevronDown, Clock, Play, RotateCcw, Square, XCircle } fr
 import { useMemo, useState } from "react";
 
 import { ipc } from "../lib/ipc";
-import { queryClient } from "../lib/trpc";
+import { queryClient } from "../lib/query-client";
 import { useWorkspace } from "../lib/workspace-context";
 import { RunDetail } from "./run-detail";
 
@@ -61,7 +61,7 @@ export function WorkflowsDashboard() {
           <button
             type="button"
             onClick={() => setWorkflowMenuOpen(!workflowMenuOpen)}
-            className="border-border bg-bg-raised text-text-primary hover:bg-bg-elevated flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs"
+            className="border-border bg-bg-raised text-text-primary hover:bg-bg-elevated flex cursor-pointer items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs"
           >
             {selectedWorkflowName}
             <ChevronDown
@@ -77,7 +77,7 @@ export function WorkflowsDashboard() {
                   setSelectedWorkflow(null);
                   setWorkflowMenuOpen(false);
                 }}
-                className={`flex w-full rounded-sm px-3 py-1.5 text-left text-xs transition-colors ${
+                className={`flex w-full cursor-pointer rounded-sm px-3 py-1.5 text-left text-xs transition-colors ${
                   !selectedWorkflow
                     ? "bg-accent-muted text-accent-text"
                     : "text-text-secondary hover:bg-bg-raised"
@@ -93,7 +93,7 @@ export function WorkflowsDashboard() {
                     setSelectedWorkflow(wf.id);
                     setWorkflowMenuOpen(false);
                   }}
-                  className={`flex w-full items-center gap-2 rounded-sm px-3 py-1.5 text-left text-xs transition-colors ${
+                  className={`flex w-full cursor-pointer items-center gap-2 rounded-sm px-3 py-1.5 text-left text-xs transition-colors ${
                     selectedWorkflow === wf.id
                       ? "bg-accent-muted text-accent-text"
                       : "text-text-secondary hover:bg-bg-raised"
@@ -270,7 +270,7 @@ function RunRow({
                 e.stopPropagation();
                 rerunMutation.mutate();
               }}
-              className="text-text-tertiary hover:bg-bg-raised hover:text-text-primary rounded-sm p-1"
+              className="text-text-tertiary hover:bg-bg-raised hover:text-text-primary cursor-pointer rounded-sm p-1"
               title="Re-run"
             >
               <RotateCcw
@@ -286,7 +286,7 @@ function RunRow({
                 e.stopPropagation();
                 cancelMutation.mutate();
               }}
-              className="text-text-tertiary hover:bg-bg-raised hover:text-destructive rounded-sm p-1"
+              className="text-text-tertiary hover:bg-bg-raised hover:text-destructive cursor-pointer rounded-sm p-1"
               title="Cancel"
             >
               <Square size={12} />

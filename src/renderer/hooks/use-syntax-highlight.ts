@@ -13,11 +13,16 @@ export function useSyntaxHighlighter(): Highlighter | null {
 
   useEffect(() => {
     let cancelled = false;
-    getHighlighter().then((h) => {
-      if (!cancelled) {
-        setHighlighter(h);
-      }
-    });
+    getHighlighter()
+      .then((h) => {
+        if (!cancelled) {
+          setHighlighter(h);
+        }
+      })
+      .catch(() => {
+        // Highlighter failed to load — fall back to plain text rendering.
+        // getHighlighter() resets its cache on failure, so a re-mount will retry.
+      });
     return () => {
       cancelled = true;
     };

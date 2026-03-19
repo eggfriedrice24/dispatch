@@ -8,7 +8,7 @@ import { CheckCircle2, ChevronDown, ChevronRight, Clock, RotateCcw, XCircle } fr
 import { useMemo, useState } from "react";
 
 import { ipc } from "../lib/ipc";
-import { queryClient } from "../lib/trpc";
+import { queryClient } from "../lib/query-client";
 import { LogViewer } from "./log-viewer";
 
 /**
@@ -129,7 +129,7 @@ export function RunDetail({ cwd, runId }: RunDetailProps) {
 function GanttTimeline({ jobs }: { jobs: GhWorkflowRunJob[] }) {
   const timeline = useMemo(() => {
     const starts = jobs.filter((j) => j.startedAt).map((j) => new Date(j.startedAt).getTime());
-    const ends = jobs.filter((j) => j.completedAt).map((j) => new Date(j.completedAt).getTime());
+    const ends = jobs.filter((j) => j.completedAt).map((j) => new Date(j.completedAt!).getTime());
 
     if (starts.length === 0) {
       return null;
@@ -204,7 +204,7 @@ function JobRow({ job, cwd, runId }: { job: GhWorkflowRunJob; cwd: string; runId
       <button
         type="button"
         onClick={() => setExpanded(!expanded)}
-        className="hover:bg-bg-raised flex w-full items-center gap-2 px-4 py-2 text-left"
+        className="hover:bg-bg-raised flex w-full cursor-pointer items-center gap-2 px-4 py-2 text-left"
       >
         {expanded ? (
           <ChevronDown

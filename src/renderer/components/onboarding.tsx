@@ -3,7 +3,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { FolderOpen, GitBranch, Trash2 } from "lucide-react";
 
 import { ipc } from "../lib/ipc";
-import { queryClient } from "../lib/trpc";
+import { queryClient } from "../lib/query-client";
 
 /**
  * Onboarding flow: shown when no workspaces are configured.
@@ -99,7 +99,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
                 <button
                   type="button"
                   onClick={() => removeMutation.mutate({ id: ws.id })}
-                  className="text-text-tertiary hover:bg-bg-elevated hover:text-destructive flex h-7 w-7 items-center justify-center rounded-md transition-colors"
+                  className="text-text-tertiary hover:bg-bg-elevated hover:text-destructive flex h-7 w-7 cursor-pointer items-center justify-center rounded-md transition-colors"
                 >
                   <Trash2 size={13} />
                 </button>

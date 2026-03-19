@@ -6,7 +6,7 @@ import { CheckCircle2, Clock, RotateCcw, XCircle } from "lucide-react";
 import { useState } from "react";
 
 import { ipc } from "../lib/ipc";
-import { queryClient } from "../lib/trpc";
+import { queryClient } from "../lib/query-client";
 import { useWorkspace } from "../lib/workspace-context";
 import { LogViewer } from "./log-viewer";
 
@@ -112,7 +112,7 @@ export function ChecksPanel({ prNumber }: ChecksPanelProps) {
             <button
               type="button"
               onClick={() => setExpandedCheck(isExpanded ? null : check.name)}
-              className="hover:bg-bg-raised flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left"
+              className="hover:bg-bg-raised flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left"
             >
               <span className={`flex h-4 w-4 shrink-0 items-center justify-center ${color}`}>
                 <Icon

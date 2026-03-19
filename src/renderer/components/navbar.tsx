@@ -1,25 +1,57 @@
-import { useQuery } from "@tanstack/react-query";
-import { ChevronDown, FolderOpen, GitBranch, GitPullRequest, Settings, Zap } from "lucide-react";
-import { useState } from "react";
+import type { GhAccount } from "@/shared/ipc";
+
+import {
+  Menu,
+  MenuGroup,
+  MenuGroupLabel,
+  MenuItem,
+  MenuPopup,
+  MenuSeparator,
+  MenuTrigger,
+} from "@/components/ui/menu";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import {
+  Check,
+  ChevronDown,
+  ExternalLink,
+  FolderOpen,
+  GitBranch,
+  GitPullRequest,
+  Keyboard,
+  LogOut,
+  RefreshCw,
+  Settings,
+  Users,
+  Zap,
+} from "lucide-react";
 
 import { ipc } from "../lib/ipc";
+import { queryClient } from "../lib/query-client";
 import { useRouter } from "../lib/router";
-import { queryClient } from "../lib/trpc";
 import { useWorkspace } from "../lib/workspace-context";
 
 /**
  * Navbar — DISPATCH-DESIGN-SYSTEM.md § 8.1
  *
  * Route-aware tabs: Review | Workflows
- * Workspace switcher in the right area
+ * Workspace switcher + user menu in the right area
  */
 export function Navbar({ selectedPr }: { selectedPr?: number | null }) {
   const { route, navigate } = useRouter();
 
+  // Fetch authenticated GitHub user for avatar
+  const userQuery = useQuery({
+    queryKey: ["env", "user"],
+    queryFn: () => ipc("env.user"),
+    staleTime: 300_000,
+    retry: 1,
+  });
+  const user = userQuery.data ?? null;
+
   return (
     <header
       className="border-border bg-bg-surface flex h-10 shrink-0 items-center border-b pr-3"
-      style={{ WebkitAppRegion: "drag", paddingLeft: 80 } as React.CSSProperties}
+      style={{ WebkitAppRegion: "drag", paddingLeft: 92 } as React.CSSProperties}
     >
       {/* Logo */}
       <div
@@ -75,20 +107,199 @@ export function Navbar({ selectedPr }: { selectedPr?: number | null }) {
           icon={<Settings size={15} />}
           onClick={() => navigate({ view: "settings" })}
           active={route.view === "settings"}
+          title="Settings"
         />
 
-        {/* Avatar */}
-        <div
-          className="ml-1 flex h-6 w-6 items-center justify-center rounded-full"
-          style={{
-            background: "linear-gradient(135deg, var(--primary), #7c5a2a)",
-            border: "1.5px solid var(--border-strong)",
-          }}
-        >
-          <span className="text-bg-root text-[10px] font-semibold">D</span>
-        </div>
+        {/* User menu */}
+        <UserMenu user={user} />
       </div>
     </header>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// User menu
+// ---------------------------------------------------------------------------
+
+function UserMenu({
+  user,
+}: {
+  user: { login: string; avatarUrl: string; name: string | null } | null;
+}) {
+  const { cwd } = useWorkspace();
+
+  const accountsQuery = useQuery({
+    queryKey: ["env", "accounts"],
+    queryFn: () => ipc("env.accounts"),
+    staleTime: 120_000,
+  });
+  const accounts = accountsQuery.data ?? [];
+
+  const switchMutation = useMutation({
+    mutationFn: (args: { host: string; login: string }) => ipc("env.switchAccount", args),
+    onSuccess: () => {
+      // Refresh everything after account switch
+      queryClient.invalidateQueries();
+    },
+  });
+
+  const activeAccount = accounts.find((a) => a.active);
+  const otherAccounts = accounts.filter((a) => !a.active);
+
+  return (
+    <Menu>
+      <MenuTrigger className="border-border-strong ml-1 h-6 w-6 shrink-0 cursor-pointer overflow-hidden rounded-full border-[1.5px] transition-opacity hover:opacity-80">
+        {user ? (
+          <img
+            src={`${user.avatarUrl}&s=48`}
+            alt={user.login}
+            className="h-full w-full object-cover"
+            loading="eager"
+          />
+        ) : (
+          <div
+            className="flex h-full w-full items-center justify-center"
+            style={{ background: "linear-gradient(135deg, var(--primary), #7c5a2a)" }}
+          >
+            <span className="text-bg-root text-[10px] font-semibold">?</span>
+          </div>
+        )}
+      </MenuTrigger>
+
+      <MenuPopup
+        side="bottom"
+        align="end"
+        sideOffset={6}
+      >
+        {/* Active account header */}
+        {user && (
+          <>
+            <div className="flex items-center gap-2.5 px-2 py-2">
+              <div className="border-border-strong h-8 w-8 shrink-0 overflow-hidden rounded-full border">
+                <img
+                  src={`${user.avatarUrl}&s=64`}
+                  alt={user.login}
+                  className="h-full w-full object-cover"
+                />
+              </div>
+              <div className="min-w-0 flex-1">
+                {user.name && (
+                  <p className="text-text-primary truncate text-sm font-medium">{user.name}</p>
+                )}
+                <p className="text-text-secondary truncate text-xs">{user.login}</p>
+              </div>
+            </div>
+            <MenuSeparator />
+          </>
+        )}
+
+        {/* Account switching */}
+        {otherAccounts.length > 0 && (
+          <>
+            <MenuGroup>
+              <MenuGroupLabel>
+                <span className="flex items-center gap-1.5">
+                  <Users size={12} />
+                  Switch account
+                </span>
+              </MenuGroupLabel>
+              {accounts.map((account) => (
+                <AccountMenuItem
+                  key={`${account.host}:${account.login}`}
+                  account={account}
+                  onSwitch={() =>
+                    switchMutation.mutate({ host: account.host, login: account.login })
+                  }
+                  isSwitching={switchMutation.isPending}
+                />
+              ))}
+            </MenuGroup>
+            <MenuSeparator />
+          </>
+        )}
+
+        {/* Quick actions */}
+        <MenuGroup>
+          <MenuItem
+            onClick={() => {
+              queryClient.invalidateQueries();
+            }}
+          >
+            <RefreshCw size={14} />
+            Refresh all data
+          </MenuItem>
+          <MenuItem
+            onClick={() => {
+              const repoUrl = `https://github.com/${cwd.split("/").slice(-2).join("/")}`;
+              globalThis.open(repoUrl, "_blank");
+            }}
+          >
+            <ExternalLink size={14} />
+            Open repo on GitHub
+          </MenuItem>
+          <MenuItem
+            onClick={() => {
+              globalThis.open("https://github.com/settings/tokens", "_blank");
+            }}
+          >
+            <Keyboard size={14} />
+            Manage tokens
+          </MenuItem>
+        </MenuGroup>
+
+        <MenuSeparator />
+
+        {/* Sign out / auth info */}
+        <MenuGroup>
+          {activeAccount && (
+            <MenuItem disabled>
+              <LogOut size={14} />
+              <span className="text-text-tertiary text-[11px]">
+                Signed in via <span className="font-mono">{activeAccount.host}</span>
+              </span>
+            </MenuItem>
+          )}
+        </MenuGroup>
+      </MenuPopup>
+    </Menu>
+  );
+}
+
+function AccountMenuItem({
+  account,
+  onSwitch,
+  isSwitching,
+}: {
+  account: GhAccount;
+  onSwitch: () => void;
+  isSwitching: boolean;
+}) {
+  return (
+    <MenuItem
+      onClick={() => {
+        if (!account.active) {
+          onSwitch();
+        }
+      }}
+      disabled={isSwitching}
+    >
+      <div className="flex w-full items-center gap-2">
+        <div className="flex min-w-0 flex-1 items-center gap-1.5">
+          <span
+            className={`text-xs ${account.active ? "text-text-primary font-medium" : "text-text-secondary"}`}
+          >
+            {account.login}
+          </span>
+          <span className="text-text-ghost font-mono text-[10px]">{account.host}</span>
+        </div>
+        {account.active && (
+          <Check
+            size={13}
+            className="text-success shrink-0"
+          />
+        )}
+      </div>
+    </MenuItem>
   );
 }
 
@@ -98,7 +309,6 @@ export function Navbar({ selectedPr }: { selectedPr?: number | null }) {
 
 function WorkspaceSwitcher() {
   const { cwd } = useWorkspace();
-  const [open, setOpen] = useState(false);
   const repoName = cwd.split("/").pop() ?? "—";
 
   const workspacesQuery = useQuery({
@@ -109,12 +319,8 @@ function WorkspaceSwitcher() {
   const workspaces = workspacesQuery.data ?? [];
 
   return (
-    <div className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="text-text-secondary hover:bg-bg-raised hover:text-text-primary flex items-center gap-1.5 rounded-sm px-2 py-1 text-xs"
-      >
+    <Menu>
+      <MenuTrigger className="text-text-secondary hover:bg-bg-raised hover:text-text-primary flex cursor-pointer items-center gap-1.5 rounded-sm px-2 py-1 text-xs">
         <GitBranch
           size={12}
           className="text-primary"
@@ -124,59 +330,69 @@ function WorkspaceSwitcher() {
           size={10}
           className="text-text-ghost"
         />
-      </button>
-      {open && (
-        <div className="border-border bg-bg-elevated absolute top-full right-0 z-20 mt-1 w-56 rounded-md border p-1 shadow-lg">
+      </MenuTrigger>
+
+      <MenuPopup
+        side="bottom"
+        align="end"
+        sideOffset={6}
+      >
+        <MenuGroup>
+          <MenuGroupLabel>Workspaces</MenuGroupLabel>
           {workspaces.map((ws) => (
-            <button
+            <MenuItem
               key={ws.id}
-              type="button"
               onClick={() => {
-                ipc("workspace.setActive", { path: ws.path }).then(() => {
-                  queryClient.invalidateQueries();
-                  setOpen(false);
-                  // Force reload to switch workspace context
-                  globalThis.location.reload();
-                });
+                ipc("workspace.setActive", { path: ws.path })
+                  .then(() => {
+                    queryClient.invalidateQueries();
+                    globalThis.location.reload();
+                  })
+                  .catch(() => {
+                    // Workspace switch failed
+                  });
               }}
-              className={`flex w-full items-center gap-2 rounded-sm px-3 py-1.5 text-left text-xs transition-colors ${
-                ws.path === cwd
-                  ? "bg-accent-muted text-accent-text"
-                  : "text-text-secondary hover:bg-bg-raised"
-              }`}
             >
               <GitBranch
                 size={12}
                 className="text-primary shrink-0"
               />
               <div className="min-w-0 flex-1">
-                <p className="text-text-primary truncate font-medium">{ws.name}</p>
+                <p className="text-text-primary truncate text-xs font-medium">{ws.name}</p>
                 <p className="text-text-tertiary truncate font-mono text-[10px]">{ws.path}</p>
               </div>
-            </button>
+              {ws.path === cwd && (
+                <Check
+                  size={13}
+                  className="text-success shrink-0"
+                />
+              )}
+            </MenuItem>
           ))}
-          <div className="border-border mt-0.5 border-t pt-0.5">
-            <button
-              type="button"
-              onClick={() => {
-                ipc("workspace.pickFolder").then((result) => {
-                  if (result) {
-                    ipc("workspace.add", { path: result }).then(() => {
-                      queryClient.invalidateQueries({ queryKey: ["workspace"] });
-                    });
-                  }
-                });
-                setOpen(false);
-              }}
-              className="text-text-secondary hover:bg-bg-raised hover:text-text-primary flex w-full items-center gap-2 rounded-sm px-3 py-1.5 text-left text-xs"
-            >
-              <FolderOpen size={12} />
-              Add repository...
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
+        </MenuGroup>
+
+        <MenuSeparator />
+
+        <MenuItem
+          onClick={() => {
+            ipc("workspace.pickFolder")
+              .then((result) => {
+                if (result) {
+                  return ipc("workspace.add", { path: result }).then(() => {
+                    queryClient.invalidateQueries({ queryKey: ["workspace"] });
+                  });
+                }
+              })
+              .catch(() => {
+                // Folder picker or workspace add failed
+              });
+          }}
+        >
+          <FolderOpen size={12} />
+          Add repository...
+        </MenuItem>
+      </MenuPopup>
+    </Menu>
   );
 }
 
@@ -199,7 +415,7 @@ function NavTab({
     <button
       type="button"
       onClick={onClick}
-      className={`relative flex items-center gap-1.5 rounded-sm px-2.5 py-1.5 text-xs transition-colors ${
+      className={`relative flex cursor-pointer items-center gap-1.5 rounded-sm px-2.5 py-1.5 text-xs transition-colors ${
         active
           ? "text-text-primary font-medium"
           : "text-text-secondary hover:bg-bg-raised hover:text-text-primary font-[450]"
@@ -218,16 +434,19 @@ function IconButton({
   icon,
   onClick,
   active = false,
+  title,
 }: {
   icon: React.ReactNode;
   onClick?: () => void;
   active?: boolean;
+  title?: string;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`flex h-[30px] w-[30px] items-center justify-center rounded-sm transition-colors ${
+      title={title}
+      className={`flex h-[30px] w-[30px] cursor-pointer items-center justify-center rounded-sm transition-colors ${
         active
           ? "bg-bg-raised text-text-primary"
           : "text-text-secondary hover:bg-bg-raised hover:text-text-primary"

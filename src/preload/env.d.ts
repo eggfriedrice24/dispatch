@@ -1,12 +1,14 @@
 /**
  * Type declarations for the preload API exposed via contextBridge.
  */
-interface ElectronApi {
-  invoke(method: string, args: unknown): Promise<unknown>;
-  setBadgeCount(count: number): void;
-  on(channel: string, callback: (...args: unknown[]) => void): () => void;
-}
+export {};
+declare global {
+  interface ElectronApi {
+    invoke(method: string, args: unknown): Promise<unknown>;
+    setBadgeCount(count: number): void;
+  }
 
-interface Window {
-  api: ElectronApi;
+  interface Window {
+    api: ElectronApi;
+  }
 }

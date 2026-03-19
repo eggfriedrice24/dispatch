@@ -45,7 +45,7 @@ export function SettingsView() {
                 key={s}
                 type="button"
                 onClick={() => setMergeStrategy(s)}
-                className={`flex-1 rounded-sm px-3 py-1.5 text-xs capitalize ${
+                className={`flex-1 cursor-pointer rounded-sm px-3 py-1.5 text-xs capitalize ${
                   mergeStrategy === s
                     ? "bg-bg-elevated text-text-primary shadow-sm"
                     : "text-text-tertiary hover:text-text-secondary"

@@ -135,7 +135,7 @@ function LogSection({ section }: { section: LogSectionData }) {
       <button
         type="button"
         onClick={() => setExpanded(!expanded)}
-        className="hover:bg-bg-raised flex w-full items-center gap-1 rounded-sm px-1 py-0.5 text-left"
+        className="hover:bg-bg-raised flex w-full cursor-pointer items-center gap-1 rounded-sm px-1 py-0.5 text-left"
       >
         {expanded ? (
           <ChevronDown

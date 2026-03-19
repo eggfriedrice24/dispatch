@@ -6,7 +6,7 @@ let highlighterPromise: Promise<Highlighter> | null = null;
 
 /**
  * Lazily initialize a shared Shiki highlighter instance (WASM-based).
- * Called once, cached forever.
+ * Called once, cached until successful. Resets on failure to allow retry.
  */
 export function getHighlighter(): Promise<Highlighter> {
   if (!highlighterPromise) {
@@ -37,6 +37,10 @@ export function getHighlighter(): Promise<Highlighter> {
         "c",
         "cpp",
       ],
+    }).catch((error) => {
+      // Reset so the next call retries instead of returning a cached rejection
+      highlighterPromise = null;
+      throw error;
     });
   }
   return highlighterPromise;

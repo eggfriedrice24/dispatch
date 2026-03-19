@@ -1,6 +1,6 @@
 import { Kbd } from "@/components/ui/kbd";
 import { Spinner } from "@/components/ui/spinner";
-import { relativeTime } from "@/shared/format";
+import { clamp, relativeTime } from "@/shared/format";
 import { useQuery } from "@tanstack/react-query";
 import { Inbox, Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -126,17 +126,24 @@ export function PrInbox({ selectedPr, onSelectPr }: PrInboxProps) {
     [focusIndex, onSelectPr, allPrs],
   );
 
+  // Clamp focusIndex when the list shrinks (e.g., PRs removed via polling)
   useEffect(() => {
-    window.addEventListener("keydown", handleKeyDown);
+    if (allPrs.length > 0 && focusIndex >= allPrs.length) {
+      setFocusIndex(clamp(focusIndex, 0, allPrs.length - 1));
+    }
+  }, [allPrs.length, focusIndex]);
+
+  useEffect(() => {
+    globalThis.addEventListener("keydown", handleKeyDown);
     return () => {
-      window.removeEventListener("keydown", handleKeyDown);
+      globalThis.removeEventListener("keydown", handleKeyDown);
     };
   }, [handleKeyDown]);
 
   const isLoading = reviewQuery.isLoading || authorQuery.isLoading;
 
   return (
-    <aside className="border-border bg-bg-surface flex w-[260px] shrink-0 flex-col border-r">
+    <aside className="border-border bg-bg-surface flex h-full w-[260px] shrink-0 flex-col border-r">
       {/* Header */}
       <div className="px-3 pt-3 pb-2">
         <h2 className="text-text-secondary text-[11px] font-semibold tracking-[0.06em] uppercase">
@@ -169,7 +176,7 @@ export function PrInbox({ selectedPr, onSelectPr }: PrInboxProps) {
             <button
               type="button"
               onClick={() => setSearchQuery("")}
-              className="text-text-tertiary hover:text-text-primary text-[10px]"
+              className="text-text-tertiary hover:text-text-primary cursor-pointer text-[10px]"
             >
               esc
             </button>

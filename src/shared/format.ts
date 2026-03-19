@@ -7,9 +7,18 @@ export function clamp(value: number, min: number, max: number): number {
 
 /**
  * Generate a human-readable relative time string (e.g. "3 minutes ago").
+ * Returns "just now" for future dates or invalid inputs.
  */
 export function relativeTime(date: Date, now = new Date()): string {
-  const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+  const dateMs = date.getTime();
+  const nowMs = now.getTime();
+
+  // Guard against NaN (invalid dates) or future dates
+  if (Number.isNaN(dateMs) || Number.isNaN(nowMs) || dateMs > nowMs) {
+    return "just now";
+  }
+
+  const seconds = Math.floor((nowMs - dateMs) / 1000);
 
   if (seconds < 60) {
     return "just now";

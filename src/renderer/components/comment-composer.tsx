@@ -5,7 +5,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
 import { ipc } from "../lib/ipc";
-import { queryClient } from "../lib/trpc";
+import { queryClient } from "../lib/query-client";
 import { useWorkspace } from "../lib/workspace-context";
 
 /**
@@ -44,6 +44,13 @@ export function CommentComposer({ prNumber, filePath, line, onClose }: CommentCo
       toastManager.add({ title: "Comment added", type: "success" });
       onClose();
     },
+    onError: (err: Error) => {
+      toastManager.add({
+        title: "Comment failed",
+        description: err.message,
+        type: "error",
+      });
+    },
   });
 
   function handleSubmit() {
@@ -54,7 +61,7 @@ export function CommentComposer({ prNumber, filePath, line, onClose }: CommentCo
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === "Enter" && e.metaKey) {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       handleSubmit();
     } else if (e.key === "Escape") {
@@ -75,7 +82,9 @@ export function CommentComposer({ prNumber, filePath, line, onClose }: CommentCo
         className="border-border bg-bg-root text-text-primary placeholder:text-text-tertiary focus:border-primary w-full resize-none rounded-md border px-3 py-2 text-xs focus:outline-none"
       />
       <div className="mt-2 flex items-center justify-between">
-        <span className="text-text-ghost text-[10px]">Cmd+Enter to submit · Escape to cancel</span>
+        <span className="text-text-ghost text-[10px]">
+          {navigator.platform.includes("Mac") ? "Cmd" : "Ctrl"}+Enter to submit · Escape to cancel
+        </span>
         <div className="flex items-center gap-1.5">
           <Button
             size="sm"

@@ -1,13 +1,13 @@
 import { ToastProvider } from "@/components/ui/toast";
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { AppLayout } from "./components/app-layout";
 import { EnvCheck } from "./components/env-check";
 import { Onboarding } from "./components/onboarding";
 import { SplashScreen } from "./components/splash-screen";
 import { ipc } from "./lib/ipc";
-import { queryClient } from "./lib/trpc";
+import { queryClient } from "./lib/query-client";
 import { WorkspaceProvider } from "./lib/workspace-context";
 
 /**
@@ -47,10 +47,12 @@ function AppContent() {
     dataLoadedOnce.current = true;
   }
 
-  // Transition from splash → app once both conditions are met
-  if (splashAnimDone && dataLoadedOnce.current && !showApp) {
-    setShowApp(true);
-  }
+  // Transition from splash → app once both conditions are met (via useEffect, not during render)
+  useEffect(() => {
+    if (splashAnimDone && dataLoadedOnce.current && !showApp) {
+      setShowApp(true);
+    }
+  }, [splashAnimDone, showApp]);
 
   const handleSplashComplete = useCallback(() => {
     setSplashAnimDone(true);

@@ -1,9 +1,11 @@
-import { exec as execCb } from "node:child_process";
+import { execFile as execFileCb } from "node:child_process";
 import { promisify } from "node:util";
 
-const execAsync = promisify(execCb);
+const execFileAsync = promisify(execFileCb);
 
 const DEFAULT_TIMEOUT = 30_000;
+// 10 MB for large diffs/logs
+const MAX_BUFFER = 10 * 1024 * 1024;
 
 export interface ExecResult {
   stdout: string;
@@ -11,17 +13,19 @@ export interface ExecResult {
 }
 
 /**
- * Execute a shell command and return stdout/stderr.
+ * Execute a command with an argument array (no shell interpretation).
+ * Uses `execFile` instead of `exec` to prevent shell injection.
  * Rejects if the process exits with a non-zero code.
  */
-export async function exec(
+export async function execFile(
   command: string,
+  args: string[],
   options: { cwd?: string; timeout?: number } = {},
 ): Promise<ExecResult> {
-  const { stdout, stderr } = await execAsync(command, {
+  const { stdout, stderr } = await execFileAsync(command, args, {
     cwd: options.cwd,
     timeout: options.timeout ?? DEFAULT_TIMEOUT,
-    maxBuffer: 10 * 1024 * 1024, // 10 MB for large diffs/logs
+    maxBuffer: MAX_BUFFER,
     env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
   });
 
@@ -34,7 +38,7 @@ export async function exec(
  */
 export async function whichVersion(tool: string): Promise<string | null> {
   try {
-    const { stdout } = await exec(`${tool} --version`, { timeout: 5_000 });
+    const { stdout } = await execFile(tool, ["--version"], { timeout: 5_000 });
     return stdout;
   } catch {
     return null;

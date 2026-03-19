@@ -33,10 +33,12 @@ export function FileTree({
 }: FileTreeProps) {
   const viewedCount = files.filter((f) => viewedFiles.has(f.newPath)).length;
 
-  const sortedFiles = useMemo(() => {
-    return [...files].sort((a, b) => {
-      const aPath = a.newPath || a.oldPath;
-      const bPath = b.newPath || b.oldPath;
+  // Pre-compute sorted files with their original indices to avoid O(n^2) indexOf
+  const sortedFilesWithIndex = useMemo(() => {
+    const indexed = files.map((file, i) => ({ file, originalIndex: i }));
+    return indexed.toSorted((a, b) => {
+      const aPath = a.file.newPath || a.file.oldPath;
+      const bPath = b.file.newPath || b.file.oldPath;
       const aDir = aPath.includes("/") ? aPath.slice(0, aPath.lastIndexOf("/")) : "";
       const bDir = bPath.includes("/") ? bPath.slice(0, bPath.lastIndexOf("/")) : "";
       if (aDir !== bDir) {
@@ -65,8 +67,7 @@ export function FileTree({
 
       {/* File list */}
       <div className="flex flex-col gap-0.5">
-        {sortedFiles.map((file) => {
-          const originalIndex = files.indexOf(file);
+        {sortedFilesWithIndex.map(({ file, originalIndex }) => {
           const filePath = file.newPath || file.oldPath;
           const fileName = filePath.split("/").pop() ?? filePath;
           const dirPath = filePath.includes("/")
@@ -80,20 +81,29 @@ export function FileTree({
               key={filePath}
               type="button"
               onClick={() => onSelectFile(originalIndex)}
-              className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors ${
+              className={`flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors ${
                 isActive
                   ? "border-l-primary bg-accent-muted border-l-2"
                   : "hover:bg-bg-raised border-l-2 border-l-transparent"
               }`}
             >
               {/* Viewed checkbox */}
-              <button
-                type="button"
+              <span
+                role="checkbox"
+                aria-checked={isViewed}
+                tabIndex={0}
                 onClick={(e) => {
                   e.stopPropagation();
                   onToggleViewed(filePath, !isViewed);
                 }}
-                className={`flex h-[14px] w-[14px] shrink-0 items-center justify-center rounded-xs border ${
+                onKeyDown={(e) => {
+                  if (e.key === " " || e.key === "Enter") {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    onToggleViewed(filePath, !isViewed);
+                  }
+                }}
+                className={`flex h-[14px] w-[14px] shrink-0 cursor-pointer items-center justify-center rounded-xs border ${
                   isViewed
                     ? "border-success bg-success text-bg-root"
                     : "border-border-strong hover:border-text-tertiary text-transparent"
@@ -107,7 +117,7 @@ export function FileTree({
                     className="opacity-0"
                   />
                 )}
-              </button>
+              </span>
 
               {/* Status dot */}
               <div

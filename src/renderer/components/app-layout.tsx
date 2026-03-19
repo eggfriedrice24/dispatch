@@ -44,7 +44,7 @@ function AppShell() {
     <div className="bg-bg-root text-text-primary relative flex h-screen flex-col overflow-hidden">
       {/* Background noise texture (§ 4.4) */}
       <div
-        className="pointer-events-none fixed inset-0 z-50"
+        className="pointer-events-none fixed inset-0 z-0"
         style={{
           opacity: 0.015,
           backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`,
@@ -69,7 +69,7 @@ function AppShell() {
       {route.view === "review" && (
         <div className="flex flex-1 overflow-hidden">
           <div
-            className="shrink-0 overflow-hidden transition-[width]"
+            className="h-full shrink-0 overflow-hidden transition-[width]"
             style={{
               width: sidebarCollapsed ? 0 : 260,
               transitionDuration: "400ms",
