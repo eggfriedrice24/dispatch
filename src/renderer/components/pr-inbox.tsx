@@ -97,6 +97,7 @@ export function PrInbox({ selectedPr, onSelectPr }: PrInboxProps) {
       }),
     refetchInterval: 30_000,
     enabled: multiRepo,
+    placeholderData: (prev) => prev, // Keep previous data while fetching new filter
   });
 
   const reviewPrs = multiRepo ? [] : (reviewQuery.data ?? []);
@@ -169,15 +170,16 @@ export function PrInbox({ selectedPr, onSelectPr }: PrInboxProps) {
     },
   ]);
 
-  const isLoading =
-    (activeFilter === "review" && reviewQuery.isLoading) ||
-    (activeFilter === "mine" && authorQuery.isLoading) ||
-    (activeFilter === "all" && allQuery.isLoading);
+  const isLoading = multiRepo
+    ? multiRepoQuery.isLoading
+    : (activeFilter === "review" && reviewQuery.isLoading) ||
+      (activeFilter === "mine" && authorQuery.isLoading) ||
+      (activeFilter === "all" && allQuery.isLoading);
 
-  // Tab counts
-  const reviewCount = reviewPrs.length;
-  const mineCount = authorPrs.length;
-  const allCount = allPrs.length;
+  // Tab counts — show multi-repo count when in that mode
+  const reviewCount = multiRepo ? multiRepoPrs.length : reviewPrs.length;
+  const mineCount = multiRepo ? 0 : authorPrs.length;
+  const allCount = multiRepo ? multiRepoPrs.length : allPrs.length;
 
   return (
     <aside className="border-border bg-bg-surface flex h-full flex-col">
