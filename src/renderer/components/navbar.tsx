@@ -29,6 +29,7 @@ import { ipc } from "../lib/ipc";
 import { queryClient } from "../lib/query-client";
 import { useRouter } from "../lib/router";
 import { useWorkspace } from "../lib/workspace-context";
+import { DispatchLogo } from "./dispatch-logo";
 
 /**
  * Navbar — DISPATCH-DESIGN-SYSTEM.md § 8.1
@@ -58,9 +59,7 @@ export function Navbar({ selectedPr }: { selectedPr?: number | null }) {
         className="flex items-center gap-[7px]"
         style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
       >
-        <div className="bg-primary flex h-5 w-5 items-center justify-center rounded-sm">
-          <span className="font-heading text-bg-root text-sm leading-none italic">d</span>
-        </div>
+        <DispatchLogo size={20} />
         <span className="text-text-primary text-[13px] font-semibold tracking-[-0.02em]">
           Dispatch
         </span>

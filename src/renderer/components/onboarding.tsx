@@ -4,6 +4,7 @@ import { FolderOpen, GitBranch, Trash2 } from "lucide-react";
 
 import { ipc } from "../lib/ipc";
 import { queryClient } from "../lib/query-client";
+import { DispatchLogo } from "./dispatch-logo";
 
 /**
  * Onboarding flow: shown when no workspaces are configured.
@@ -65,11 +66,8 @@ export function Onboarding({ onComplete }: OnboardingProps) {
       {/* Header */}
       <div className="flex flex-col items-center gap-3">
         {/* Logo mark */}
-        <div
-          className="bg-primary flex h-12 w-12 items-center justify-center rounded-lg"
-          style={{ boxShadow: "0 0 30px rgba(212, 136, 58, 0.12)" }}
-        >
-          <span className="font-heading text-bg-root text-3xl leading-none italic">d</span>
+        <div style={{ filter: "drop-shadow(0 0 30px rgba(212, 136, 58, 0.12))" }}>
+          <DispatchLogo size={48} />
         </div>
 
         <h1 className="font-heading text-text-primary text-4xl italic">Welcome to Dispatch</h1>

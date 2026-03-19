@@ -1,3 +1,5 @@
+import type { GhPrListItem } from "@/shared/ipc";
+
 import { Kbd } from "@/components/ui/kbd";
 import { Spinner } from "@/components/ui/spinner";
 import { clamp, relativeTime } from "@/shared/format";
@@ -7,20 +9,21 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ipc } from "../lib/ipc";
 import { useWorkspace } from "../lib/workspace-context";
+import { GitHubAvatar } from "./github-avatar";
 
 /**
  * PR Inbox sidebar — DISPATCH-DESIGN-SYSTEM.md § 8.4
  *
- * - Width: 260px, bg: --bg-surface, border-right: 1px solid --border
- * - Two sections: "Needs your review" + "Your pull requests"
- * - Keyboard-navigable (j/k/Enter)
- * - Real IPC data with 30s polling
+ * Filter tabs: Review | Mine | All
+ * Keyboard-navigable (j/k/Enter), search with /
  */
 
 interface PrInboxProps {
   selectedPr: number | null;
   onSelectPr: (pr: number) => void;
 }
+
+type FilterTab = "review" | "mine" | "all";
 
 // ---------------------------------------------------------------------------
 // Status dot color mapping
@@ -57,6 +60,7 @@ export function PrInbox({ selectedPr, onSelectPr }: PrInboxProps) {
   const { cwd } = useWorkspace();
   const [searchQuery, setSearchQuery] = useState("");
   const [focusIndex, setFocusIndex] = useState(0);
+  const [activeFilter, setActiveFilter] = useState<FilterTab>("review");
   const searchRef = useRef<HTMLInputElement>(null);
 
   // Real data queries with 30s polling
@@ -75,33 +79,43 @@ export function PrInbox({ selectedPr, onSelectPr }: PrInboxProps) {
   const reviewPrs = reviewQuery.data ?? [];
   const authorPrs = authorQuery.data ?? [];
 
-  // Client-side search filter (debounced via useMemo)
-  const filteredReview = useMemo(() => {
+  // Filter by active tab + search
+  const filteredPrs = useMemo(() => {
+    let prs: GhPrListItem[];
+    switch (activeFilter) {
+      case "review":
+        prs = reviewPrs;
+        break;
+      case "mine":
+        prs = authorPrs;
+        break;
+      case "all": {
+        // Merge and dedupe by PR number
+        const seen = new Set<number>();
+        prs = [];
+        for (const pr of [...reviewPrs, ...authorPrs]) {
+          if (!seen.has(pr.number)) {
+            seen.add(pr.number);
+            prs.push(pr);
+          }
+        }
+        break;
+      }
+    }
+
     if (!searchQuery) {
-      return reviewPrs;
+      return prs;
     }
     const q = searchQuery.toLowerCase();
-    return reviewPrs.filter(
-      (pr) => pr.title.toLowerCase().includes(q) || String(pr.number).includes(q),
+    return prs.filter(
+      (pr) =>
+        pr.title.toLowerCase().includes(q) ||
+        String(pr.number).includes(q) ||
+        pr.author.login.toLowerCase().includes(q),
     );
-  }, [reviewPrs, searchQuery]);
+  }, [reviewPrs, authorPrs, activeFilter, searchQuery]);
 
-  const filteredAuthor = useMemo(() => {
-    if (!searchQuery) {
-      return authorPrs;
-    }
-    const q = searchQuery.toLowerCase();
-    return authorPrs.filter(
-      (pr) => pr.title.toLowerCase().includes(q) || String(pr.number).includes(q),
-    );
-  }, [authorPrs, searchQuery]);
-
-  const allPrs = useMemo(
-    () => [...filteredReview, ...filteredAuthor],
-    [filteredReview, filteredAuthor],
-  );
-
-  // Keyboard navigation — ignore when typing in inputs
+  // Keyboard navigation
   const handleKeyDown = useCallback(
     (event: KeyboardEvent) => {
       const target = event.target as HTMLElement;
@@ -110,11 +124,11 @@ export function PrInbox({ selectedPr, onSelectPr }: PrInboxProps) {
       }
 
       if (event.key === "j") {
-        setFocusIndex((i) => Math.min(i + 1, allPrs.length - 1));
+        setFocusIndex((i) => Math.min(i + 1, filteredPrs.length - 1));
       } else if (event.key === "k") {
         setFocusIndex((i) => Math.max(i - 1, 0));
       } else if (event.key === "Enter") {
-        const pr = allPrs[focusIndex];
+        const pr = filteredPrs[focusIndex];
         if (pr) {
           onSelectPr(pr.number);
         }
@@ -123,15 +137,15 @@ export function PrInbox({ selectedPr, onSelectPr }: PrInboxProps) {
         searchRef.current?.focus();
       }
     },
-    [focusIndex, onSelectPr, allPrs],
+    [focusIndex, onSelectPr, filteredPrs],
   );
 
-  // Clamp focusIndex when the list shrinks (e.g., PRs removed via polling)
+  // Clamp focusIndex when the list shrinks
   useEffect(() => {
-    if (allPrs.length > 0 && focusIndex >= allPrs.length) {
-      setFocusIndex(clamp(focusIndex, 0, allPrs.length - 1));
+    if (filteredPrs.length > 0 && focusIndex >= filteredPrs.length) {
+      setFocusIndex(clamp(focusIndex, 0, filteredPrs.length - 1));
     }
-  }, [allPrs.length, focusIndex]);
+  }, [filteredPrs.length, focusIndex]);
 
   useEffect(() => {
     globalThis.addEventListener("keydown", handleKeyDown);
@@ -142,6 +156,17 @@ export function PrInbox({ selectedPr, onSelectPr }: PrInboxProps) {
 
   const isLoading = reviewQuery.isLoading || authorQuery.isLoading;
 
+  // Tab counts
+  const reviewCount = reviewPrs.length;
+  const mineCount = authorPrs.length;
+  const allCount = useMemo(() => {
+    const seen = new Set<number>();
+    for (const pr of [...reviewPrs, ...authorPrs]) {
+      seen.add(pr.number);
+    }
+    return seen.size;
+  }, [reviewPrs, authorPrs]);
+
   return (
     <aside className="border-border bg-bg-surface flex h-full w-[260px] shrink-0 flex-col border-r">
       {/* Header */}
@@ -151,8 +176,39 @@ export function PrInbox({ selectedPr, onSelectPr }: PrInboxProps) {
         </h2>
       </div>
 
+      {/* Filter tabs */}
+      <div className="border-border flex border-b px-3">
+        <FilterButton
+          label="Review"
+          count={reviewCount}
+          active={activeFilter === "review"}
+          onClick={() => {
+            setActiveFilter("review");
+            setFocusIndex(0);
+          }}
+        />
+        <FilterButton
+          label="Mine"
+          count={mineCount}
+          active={activeFilter === "mine"}
+          onClick={() => {
+            setActiveFilter("mine");
+            setFocusIndex(0);
+          }}
+        />
+        <FilterButton
+          label="All"
+          count={allCount}
+          active={activeFilter === "all"}
+          onClick={() => {
+            setActiveFilter("all");
+            setFocusIndex(0);
+          }}
+        />
+      </div>
+
       {/* Search box */}
-      <div className="px-3 pb-2">
+      <div className="px-3 py-2">
         <div className="border-border bg-bg-raised flex items-center gap-2 rounded-md border px-2 py-1.5">
           <Search
             size={13}
@@ -194,87 +250,40 @@ export function PrInbox({ selectedPr, onSelectPr }: PrInboxProps) {
       )}
 
       {/* Empty state */}
-      {!isLoading && allPrs.length === 0 && (
+      {!isLoading && filteredPrs.length === 0 && (
         <div className="flex flex-1 flex-col items-center justify-center gap-2 px-4">
           <Inbox
             size={24}
             className="text-text-ghost"
           />
           <p className="text-text-tertiary text-center text-xs">
-            {searchQuery ? "No PRs match your search" : "No pull requests found"}
+            {searchQuery
+              ? "No PRs match your search"
+              : activeFilter === "review"
+                ? "No PRs need your review"
+                : activeFilter === "mine"
+                  ? "You have no open PRs"
+                  : "No pull requests found"}
           </p>
         </div>
       )}
 
       {/* PR list */}
-      {!isLoading && allPrs.length > 0 && (
+      {!isLoading && filteredPrs.length > 0 && (
         <div className="flex-1 overflow-y-auto">
-          {/* Section: Needs your review */}
-          {filteredReview.length > 0 && (
-            <>
-              <SectionLabel
-                label="Needs your review"
-                dotColor="bg-purple"
-              />
-              {filteredReview.map((pr, index) => (
-                <PrItem
-                  key={pr.number}
-                  number={pr.number}
-                  title={pr.title}
-                  author={pr.author.login}
-                  statusColor={resolveStatusColor(
-                    pr.reviewDecision,
-                    pr.statusCheckRollup,
-                    pr.isDraft,
-                  )}
-                  updatedAt={relativeTime(new Date(pr.updatedAt))}
-                  additions={pr.additions}
-                  deletions={pr.deletions}
-                  isActive={selectedPr === pr.number}
-                  isFocused={focusIndex === index}
-                  onClick={() => {
-                    setFocusIndex(index);
-                    onSelectPr(pr.number);
-                  }}
-                />
-              ))}
-            </>
-          )}
-
-          {/* Section: Your pull requests */}
-          {filteredAuthor.length > 0 && (
-            <>
-              <SectionLabel
-                label="Your pull requests"
-                dotColor="bg-primary"
-              />
-              {filteredAuthor.map((pr, authorIndex) => {
-                const globalIndex = filteredReview.length + authorIndex;
-                return (
-                  <PrItem
-                    key={pr.number}
-                    number={pr.number}
-                    title={pr.title}
-                    author={pr.author.login}
-                    statusColor={resolveStatusColor(
-                      pr.reviewDecision,
-                      pr.statusCheckRollup,
-                      pr.isDraft,
-                    )}
-                    updatedAt={relativeTime(new Date(pr.updatedAt))}
-                    additions={pr.additions}
-                    deletions={pr.deletions}
-                    isActive={selectedPr === pr.number}
-                    isFocused={focusIndex === globalIndex}
-                    onClick={() => {
-                      setFocusIndex(globalIndex);
-                      onSelectPr(pr.number);
-                    }}
-                  />
-                );
-              })}
-            </>
-          )}
+          {filteredPrs.map((pr, index) => (
+            <PrItem
+              key={pr.number}
+              pr={pr}
+              statusColor={resolveStatusColor(pr.reviewDecision, pr.statusCheckRollup, pr.isDraft)}
+              isActive={selectedPr === pr.number}
+              isFocused={focusIndex === index}
+              onClick={() => {
+                setFocusIndex(index);
+                onSelectPr(pr.number);
+              }}
+            />
+          ))}
         </div>
       )}
 
@@ -292,14 +301,39 @@ export function PrInbox({ selectedPr, onSelectPr }: PrInboxProps) {
 // Sub-components
 // ---------------------------------------------------------------------------
 
-function SectionLabel({ label, dotColor }: { label: string; dotColor: string }) {
+function FilterButton({
+  label,
+  count,
+  active,
+  onClick,
+}: {
+  label: string;
+  count: number;
+  active: boolean;
+  onClick: () => void;
+}) {
   return (
-    <div className="flex items-center gap-1.5 px-3 pt-3 pb-1.5">
-      <div className={`h-[5px] w-[5px] rounded-full ${dotColor}`} />
-      <span className="text-text-tertiary text-[10px] font-semibold tracking-[0.08em] uppercase">
-        {label}
-      </span>
-    </div>
+    <button
+      type="button"
+      onClick={onClick}
+      className={`relative cursor-pointer px-2.5 pt-1 pb-2 text-[11px] transition-colors ${
+        active ? "text-text-primary font-medium" : "text-text-tertiary hover:text-text-secondary"
+      }`}
+    >
+      {label}
+      {count > 0 && (
+        <span
+          className={`ml-1 font-mono text-[10px] ${
+            active ? "text-accent-text" : "text-text-ghost"
+          }`}
+        >
+          {count}
+        </span>
+      )}
+      {active && (
+        <div className="bg-primary absolute bottom-0 left-1/2 h-[1.5px] w-4 -translate-x-1/2 rounded-[1px]" />
+      )}
+    </button>
   );
 }
 
@@ -318,35 +352,25 @@ function prSizeLabel(additions: number, deletions: number): { label: string; col
 }
 
 function PrItem({
-  number,
-  title,
-  author,
+  pr,
   statusColor,
-  updatedAt,
-  additions,
-  deletions,
   isActive,
   isFocused,
   onClick,
 }: {
-  number: number;
-  title: string;
-  author: string;
+  pr: GhPrListItem;
   statusColor: string;
-  updatedAt: string;
-  additions: number;
-  deletions: number;
   isActive: boolean;
   isFocused: boolean;
   onClick: () => void;
 }) {
-  const size = prSizeLabel(additions, deletions);
+  const size = prSizeLabel(pr.additions, pr.deletions);
 
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`flex w-full cursor-pointer items-start gap-2 border-l-2 px-3 py-2 text-left transition-colors ${
+      className={`flex w-full cursor-pointer items-start gap-2.5 border-l-2 px-3 py-2 text-left transition-colors ${
         isActive
           ? "border-l-primary bg-accent-muted"
           : isFocused
@@ -354,19 +378,35 @@ function PrItem({
             : "hover:bg-bg-raised border-l-transparent"
       }`}
     >
-      <div className={`mt-1 h-2 w-2 shrink-0 rounded-full ${statusColor}`} />
+      {/* Author avatar */}
+      <GitHubAvatar
+        login={pr.author.login}
+        size={20}
+        className="border-border mt-0.5 border"
+      />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
-          <p className="text-text-primary truncate text-xs font-medium">{title}</p>
+          <p className="text-text-primary truncate text-xs font-medium">{pr.title}</p>
           <span
             className={`bg-bg-raised shrink-0 rounded-sm px-1 font-mono text-[9px] font-medium ${size.color}`}
           >
             {size.label}
           </span>
         </div>
-        <p className="text-text-tertiary mt-0.5 font-mono text-[10px]">
-          #{number} · {author} · {updatedAt}
-        </p>
+        <div className="text-text-tertiary mt-0.5 flex items-center gap-1 font-mono text-[10px]">
+          <span className={`inline-block h-[6px] w-[6px] shrink-0 rounded-full ${statusColor}`} />
+          <span>#{pr.number}</span>
+          <span className="text-text-ghost">·</span>
+          <span className="truncate">{pr.author.login}</span>
+          <span className="text-text-ghost">·</span>
+          <span className="shrink-0">{relativeTime(new Date(pr.updatedAt))}</span>
+          {pr.isDraft && (
+            <>
+              <span className="text-text-ghost">·</span>
+              <span className="text-warning">Draft</span>
+            </>
+          )}
+        </div>
       </div>
     </button>
   );

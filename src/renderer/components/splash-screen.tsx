@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
+import { DispatchLogo } from "./dispatch-logo";
+
 /**
  * Splash screen — always mounted, controls its own visibility.
  *
@@ -48,15 +50,15 @@ export function SplashScreen({ onComplete, visible }: SplashScreenProps) {
     >
       {/* Logo mark */}
       <div
-        className={`bg-primary flex h-16 w-16 items-center justify-center rounded-lg transition-all duration-[600ms] ${
+        className={`transition-all duration-[600ms] ${
           showText ? "scale-100 opacity-100" : "scale-90 opacity-0"
         }`}
         style={{
-          boxShadow: "0 0 40px rgba(212, 136, 58, 0.15)",
+          filter: "drop-shadow(0 0 40px rgba(212, 136, 58, 0.15))",
           transitionTimingFunction: "cubic-bezier(0.34, 1.56, 0.64, 1)",
         }}
       >
-        <span className="font-heading text-bg-root text-4xl leading-none italic">d</span>
+        <DispatchLogo size={64} />
       </div>
 
       {/* App name */}

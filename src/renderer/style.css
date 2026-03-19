@@ -395,3 +395,136 @@
     background: var(--scrollbar-hover);
   }
 }
+
+/* ---------------------------------------------------------------------------
+ * 5. Markdown prose (PR body, comments)
+ * --------------------------------------------------------------------------- */
+.prose-dispatch {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  word-wrap: break-word;
+}
+
+.prose-dispatch h1,
+.prose-dispatch h2,
+.prose-dispatch h3,
+.prose-dispatch h4 {
+  color: var(--text-primary);
+  font-weight: 600;
+  margin-top: 16px;
+  margin-bottom: 8px;
+  line-height: 1.3;
+}
+.prose-dispatch h1 {
+  font-size: 16px;
+}
+.prose-dispatch h2 {
+  font-size: 14px;
+}
+.prose-dispatch h3 {
+  font-size: 13px;
+}
+.prose-dispatch h4 {
+  font-size: 12px;
+}
+.prose-dispatch h1:first-child,
+.prose-dispatch h2:first-child,
+.prose-dispatch h3:first-child {
+  margin-top: 0;
+}
+
+.prose-dispatch p {
+  margin: 8px 0;
+}
+.prose-dispatch p:first-child {
+  margin-top: 0;
+}
+.prose-dispatch p:last-child {
+  margin-bottom: 0;
+}
+
+.prose-dispatch a {
+  color: var(--accent-text);
+  text-decoration: none;
+}
+.prose-dispatch a:hover {
+  text-decoration: underline;
+}
+
+.prose-dispatch code {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+}
+
+.prose-dispatch pre {
+  margin: 8px 0;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  overflow-x: auto;
+}
+.prose-dispatch pre code {
+  padding: 0;
+  border: none;
+  background: none;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.prose-dispatch ul,
+.prose-dispatch ol {
+  margin: 8px 0;
+  padding-left: 20px;
+}
+.prose-dispatch li {
+  margin: 2px 0;
+}
+.prose-dispatch li input[type="checkbox"] {
+  margin-right: 6px;
+  accent-color: var(--accent);
+}
+
+.prose-dispatch blockquote {
+  margin: 8px 0;
+  padding: 4px 12px;
+  border-left: 3px solid var(--border-strong);
+  color: var(--text-tertiary);
+}
+
+.prose-dispatch hr {
+  margin: 12px 0;
+  border: none;
+  border-top: 1px solid var(--border);
+}
+
+.prose-dispatch table {
+  margin: 8px 0;
+  border-collapse: collapse;
+  font-size: 11px;
+  width: 100%;
+}
+.prose-dispatch th,
+.prose-dispatch td {
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  text-align: left;
+}
+.prose-dispatch th {
+  background: var(--bg-raised);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.prose-dispatch img {
+  max-width: 100%;
+  border-radius: 6px;
+  margin: 8px 0;
+}
