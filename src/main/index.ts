@@ -2,17 +2,20 @@ import { join } from "node:path";
 
 import {
   type BrowserWindowConstructorOptions,
+  BrowserWindow,
+  Menu,
   Tray,
   app,
   dialog,
+  globalShortcut,
   ipcMain,
   nativeImage,
-  BrowserWindow,
 } from "electron";
 
 import { BADGE_COUNT_CHANNEL } from "../shared/ipc";
 import { closeDatabase, initDatabase } from "./db/database";
 import { registerIpcHandler } from "./ipc-handler";
+import { type TrayState, startPolling, stopPolling } from "./services/tray-poller";
 
 // ---------------------------------------------------------------------------
 // Window configuration
@@ -40,8 +43,18 @@ const WINDOW_CONFIG: BrowserWindowConstructorOptions = {
 // App lifecycle
 // ---------------------------------------------------------------------------
 
+let isQuitting = false;
+
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow(WINDOW_CONFIG);
+
+  // macOS: hide instead of quit on close (tray keeps running)
+  win.on("close", (event) => {
+    if (process.platform === "darwin" && !isQuitting) {
+      event.preventDefault();
+      win.hide();
+    }
+  });
 
   win.once("ready-to-show", () => {
     win.show();
@@ -57,36 +70,195 @@ function createWindow(): BrowserWindow {
 }
 
 // ---------------------------------------------------------------------------
-// System tray (stored at module level to prevent GC)
+// System tray — dynamic menu with live PR data
 // ---------------------------------------------------------------------------
 
 let tray: Tray | null = null;
 
-function setupTray(): void {
+function setupTray(win: BrowserWindow): void {
   try {
     const icon = nativeImage.createFromPath(join(__dirname, "../resources/trayTemplate.png"));
 
     if (icon.isEmpty()) {
-      // eslint-disable-next-line no-console
-      console.warn("Tray icon loaded but is empty — check resources/trayTemplate.png");
+      console.warn("Tray icon loaded but is empty");
       return;
     }
 
-    // On macOS, template images auto-tint to match the menu bar (dark/light)
     if (process.platform === "darwin") {
       icon.setTemplateImage(true);
     }
 
     tray = new Tray(icon);
     tray.setToolTip("Dispatch");
+
+    // Build initial empty menu
+    updateTrayMenu(win, { reviewPrs: [], authorPrs: [], lastUpdated: new Date() });
+
+    // Start background polling — updates the menu every 60s
+    startPolling((state) => {
+      updateTrayMenu(win, state);
+      app.setBadgeCount(state.reviewPrs.length);
+    }, 60_000);
   } catch (error) {
-    // eslint-disable-next-line no-console
-    console.error("Failed to set up tray icon:", error);
+    console.error("Failed to set up tray:", error);
   }
 }
 
+function updateTrayMenu(win: BrowserWindow, state: TrayState): void {
+  if (!tray) {
+    return;
+  }
+
+  const { reviewPrs, authorPrs } = state;
+  const reviewCount = reviewPrs.length;
+
+  // macOS: show count next to tray icon
+  if (process.platform === "darwin") {
+    tray.setTitle(reviewCount > 0 ? `${reviewCount}` : "");
+  }
+
+  const menuItems: Electron.MenuItemConstructorOptions[] = [];
+
+  // Header
+  menuItems.push({ label: "Dispatch", enabled: false });
+  menuItems.push({
+    label:
+      reviewCount > 0
+        ? `${reviewCount} PR${reviewCount === 1 ? "" : "s"} need${reviewCount === 1 ? "s" : ""} your review`
+        : "No pending reviews",
+    enabled: false,
+  });
+  menuItems.push({ type: "separator" });
+
+  // Needs Review section
+  if (reviewPrs.length > 0) {
+    menuItems.push({ label: "NEEDS REVIEW", enabled: false });
+    for (const pr of reviewPrs.slice(0, 8)) {
+      const sizeLabel = prSize(pr.additions + pr.deletions);
+      menuItems.push({
+        label: `#${pr.number} ${truncate(pr.title, 40)}`,
+        sublabel: `${pr.author.login} · ${sizeLabel}`,
+        click: () => {
+          openPrInApp(win, pr.number);
+        },
+      });
+    }
+    if (reviewPrs.length > 8) {
+      menuItems.push({
+        label: `and ${reviewPrs.length - 8} more...`,
+        click: () => {
+          showAndFocusWindow(win);
+        },
+      });
+    }
+    menuItems.push({ type: "separator" });
+  }
+
+  // Your PRs section
+  if (authorPrs.length > 0) {
+    menuItems.push({ label: "YOUR PRS", enabled: false });
+    for (const pr of authorPrs.slice(0, 5)) {
+      const isFailing = pr.statusCheckRollup.some((c) => c.conclusion === "failure");
+      const isApproved = pr.reviewDecision === "APPROVED";
+      const allPassing = pr.statusCheckRollup.every(
+        (c) => c.conclusion === "success" || c.conclusion === null,
+      );
+
+      let status = "◌";
+      if (isFailing) {
+        status = "✕";
+      } else if (isApproved && allPassing) {
+        status = "✓";
+      } else if (isApproved) {
+        status = "●";
+      }
+
+      let sublabel = pr.headRefName;
+      if (isFailing) {
+        sublabel = "CI failing";
+      } else if (isApproved && allPassing) {
+        sublabel = "Ready to merge";
+      } else if (isApproved) {
+        sublabel = "Approved, CI pending";
+      }
+
+      menuItems.push({
+        label: `${status} #${pr.number} ${truncate(pr.title, 36)}`,
+        sublabel,
+        click: () => {
+          openPrInApp(win, pr.number);
+        },
+      });
+    }
+    menuItems.push({ type: "separator" });
+  }
+
+  // Actions
+  menuItems.push({
+    label: "Open Dispatch",
+    accelerator: "CommandOrControl+Shift+D",
+    click: () => {
+      showAndFocusWindow(win);
+    },
+  });
+  menuItems.push({
+    label: "Preferences...",
+    click: () => {
+      showAndFocusWindow(win);
+      win.webContents.send("navigate", { view: "settings" });
+    },
+  });
+  menuItems.push({ type: "separator" });
+  menuItems.push({
+    label: "Quit Dispatch",
+    accelerator: "CommandOrControl+Q",
+    click: () => {
+      app.quit();
+    },
+  });
+
+  const contextMenu = Menu.buildFromTemplate(menuItems);
+  tray.setContextMenu(contextMenu);
+}
+
+function showAndFocusWindow(win: BrowserWindow): void {
+  if (win.isMinimized()) {
+    win.restore();
+  }
+  if (!win.isVisible()) {
+    win.show();
+  }
+  win.focus();
+}
+
+function openPrInApp(win: BrowserWindow, prNumber: number): void {
+  showAndFocusWindow(win);
+  win.webContents.send("navigate", { view: "review", prNumber });
+}
+
+function truncate(str: string, max: number): string {
+  return str.length > max ? `${str.slice(0, max - 1)}…` : str;
+}
+
+function prSize(lines: number): string {
+  if (lines < 50) {
+    return "S";
+  }
+  if (lines < 200) {
+    return "M";
+  }
+  if (lines < 500) {
+    return "L";
+  }
+  return "XL";
+}
+
+// ---------------------------------------------------------------------------
+// App ready
+// ---------------------------------------------------------------------------
+
 app.whenReady().then(() => {
-  // Set dock icon on macOS (required for dev mode — production uses the .icns in the app bundle)
+  // Dock icon (macOS, dev mode)
   if (process.platform === "darwin") {
     const dockIcon = nativeImage.createFromPath(join(__dirname, "../resources/dock-icon.png"));
     if (!dockIcon.isEmpty()) {
@@ -94,15 +266,14 @@ app.whenReady().then(() => {
     }
   }
 
-  // Initialize infrastructure
+  // Initialize database
   try {
     initDatabase();
   } catch (error) {
-    // eslint-disable-next-line no-console
     console.error("Failed to initialize database:", error);
     dialog.showErrorBox(
       "Database Error",
-      `Dispatch failed to initialize its database. The app may not function correctly.\n\n${
+      `Dispatch failed to initialize its database.\n\n${
         error instanceof Error ? error.message : String(error)
       }`,
     );
@@ -111,21 +282,35 @@ app.whenReady().then(() => {
   registerIpcHandler();
 
   // Create main window
-  createWindow();
+  const win = createWindow();
 
-  // System tray (macOS dock badge is handled via app.setBadgeCount)
-  setupTray();
+  // System tray with live PR data
+  setupTray(win);
 
-  // Listen for badge count updates from renderer
+  // Badge count from renderer
   ipcMain.on(BADGE_COUNT_CHANNEL, (_event, count: unknown) => {
     if (typeof count === "number" && Number.isInteger(count) && count >= 0) {
       app.setBadgeCount(count);
     }
   });
 
+  // Global shortcut: Cmd+Shift+D to open/focus Dispatch from anywhere
+  globalShortcut.register("CommandOrControl+Shift+D", () => {
+    const activeWin = BrowserWindow.getAllWindows()[0];
+    if (activeWin) {
+      showAndFocusWindow(activeWin);
+    }
+  });
+
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();
+    } else {
+      // macOS: clicking dock icon shows the hidden window
+      const activeWin = BrowserWindow.getAllWindows()[0];
+      if (activeWin) {
+        showAndFocusWindow(activeWin);
+      }
     }
   });
 });
@@ -137,6 +322,9 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", () => {
+  isQuitting = true;
+  stopPolling();
+  globalShortcut.unregisterAll();
   closeDatabase();
 });
 

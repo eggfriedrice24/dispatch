@@ -2,7 +2,7 @@ import type { ErrorInfo, ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
-import { Component, useCallback, useState } from "react";
+import { Component, useCallback, useEffect, useState } from "react";
 
 import { useKeyboardShortcuts } from "../hooks/use-keyboard-shortcuts";
 import { useNotificationPolling } from "../hooks/use-notification-polling";
@@ -53,6 +53,19 @@ function AppShell() {
     { key: "4", handler: () => navigate({ view: "releases" }) },
   ]);
   useNotificationPolling();
+
+  // Listen for tray menu navigation events
+  useEffect(() => {
+    const cleanup = window.api.onNavigate((trayRoute) => {
+      if (trayRoute.view === "settings") {
+        navigate({ view: "settings" });
+      } else if (trayRoute.view === "review" && trayRoute.prNumber) {
+        setSelectedPrTitle("");
+        navigate({ view: "review", prNumber: trayRoute.prNumber });
+      }
+    });
+    return cleanup;
+  }, [navigate]);
 
   const selectedPr = route.view === "review" ? route.prNumber : null;
 

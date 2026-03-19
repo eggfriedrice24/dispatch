@@ -23,4 +23,21 @@ contextBridge.exposeInMainWorld("api", {
     }
     ipcRenderer.send(BADGE_COUNT_CHANNEL, count);
   },
+
+  /**
+   * Listen for navigation events from main process (tray menu clicks).
+   * Returns a cleanup function to remove the listener.
+   */
+  onNavigate(callback: (route: { view: string; prNumber?: number }) => void): () => void {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      route: { view: string; prNumber?: number },
+    ) => {
+      callback(route);
+    };
+    ipcRenderer.on("navigate", handler);
+    return () => {
+      ipcRenderer.removeListener("navigate", handler);
+    };
+  },
 });
