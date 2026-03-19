@@ -21,6 +21,7 @@ export function initDatabase(): Database.Database {
   db = new Database(getDbPath());
   db.pragma("journal_mode = WAL");
   db.pragma("foreign_keys = ON");
+  db.pragma("busy_timeout = 5000");
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS pr_cache (
