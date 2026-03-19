@@ -494,34 +494,8 @@ function OverviewTab({
         />
       </div>
 
-      {/* Review summary */}
-      {pr.reviews.length > 0 && (
-        <div className="border-border border-b px-4 py-3">
-          <h3 className="text-text-tertiary mb-2 text-[10px] font-semibold tracking-[0.06em] uppercase">
-            Reviews
-          </h3>
-          <div className="flex flex-col gap-1.5">
-            {pr.reviews.map((review, i) => (
-              <div
-                key={`${review.author.login}-${review.submittedAt}-${i}`}
-                className="flex items-center gap-2"
-              >
-                <GitHubAvatar
-                  login={review.author.login}
-                  size={16}
-                />
-                <span className="text-text-primary text-[11px] font-medium">
-                  {review.author.login}
-                </span>
-                <ReviewStateBadge state={review.state} />
-                <span className="text-text-ghost ml-auto font-mono text-[10px]">
-                  {relativeTime(new Date(review.submittedAt))}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Review summary — dedupe to latest per user */}
+      {pr.reviews.length > 0 && <OverviewReviewSummary reviews={pr.reviews} />}
 
       {/* Author-specific: ship status summary */}
       {isAuthor && (
@@ -584,6 +558,50 @@ function OverviewTab({
           <p className="text-text-tertiary text-xs">No conversation yet</p>
         </div>
       )}
+    </div>
+  );
+}
+
+function OverviewReviewSummary({
+  reviews,
+}: {
+  reviews: Array<{ author: { login: string }; state: string; submittedAt: string }>;
+}) {
+  const latestByUser = new Map<
+    string,
+    { author: { login: string }; state: string; submittedAt: string }
+  >();
+  for (const review of reviews) {
+    const existing = latestByUser.get(review.author.login);
+    if (!existing || new Date(review.submittedAt) > new Date(existing.submittedAt)) {
+      latestByUser.set(review.author.login, review);
+    }
+  }
+  const uniqueReviews = [...latestByUser.values()];
+
+  return (
+    <div className="border-border border-b px-4 py-3">
+      <h3 className="text-text-tertiary mb-2 text-[10px] font-semibold tracking-[0.06em] uppercase">
+        Reviews
+      </h3>
+      <div className="flex flex-col gap-1.5">
+        {uniqueReviews.map((review) => (
+          <div
+            key={review.author.login}
+            className="flex items-center gap-2"
+          >
+            <GitHubAvatar
+              login={review.author.login}
+              size={16}
+            />
+            <span className="text-text-primary text-[11px] font-medium">{review.author.login}</span>
+            <ReviewStateBadge state={review.state} />
+            <span className="text-text-ghost ml-auto font-mono text-[10px]">
+              {relativeTime(new Date(review.submittedAt))}
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
