@@ -435,6 +435,32 @@ export async function getPrReviewComments(
   return parseJsonOutput<GhReviewComment[]>(stdout);
 }
 
+export async function resolveReviewThread(cwd: string, threadId: string): Promise<void> {
+  await execFile(
+    "gh",
+    [
+      "api",
+      "graphql",
+      "-f",
+      `query=mutation { resolveReviewThread(input: { threadId: "${threadId}" }) { thread { isResolved } } }`,
+    ],
+    { cwd, timeout: 10_000 },
+  );
+}
+
+export async function unresolveReviewThread(cwd: string, threadId: string): Promise<void> {
+  await execFile(
+    "gh",
+    [
+      "api",
+      "graphql",
+      "-f",
+      `query=mutation { unresolveReviewThread(input: { threadId: "${threadId}" }) { thread { isResolved } } }`,
+    ],
+    { cwd, timeout: 10_000 },
+  );
+}
+
 export async function createReviewComment(args: {
   cwd: string;
   prNumber: number;

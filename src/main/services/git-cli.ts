@@ -94,6 +94,15 @@ export async function diff(cwd: string, fromRef: string, toRef: string): Promise
 // Repository info
 // ---------------------------------------------------------------------------
 
+export async function showFile(cwd: string, ref: string, filePath: string): Promise<string | null> {
+  try {
+    const { stdout } = await execFile("git", ["show", `${ref}:${filePath}`], { cwd });
+    return stdout;
+  } catch {
+    return null;
+  }
+}
+
 export async function getRepoRoot(cwd: string): Promise<string | null> {
   try {
     const { stdout } = await execFile("git", ["rev-parse", "--show-toplevel"], { cwd });

@@ -3,7 +3,7 @@ import type { Annotation } from "./ci-annotation";
 import type { ReviewComment } from "./inline-comment";
 import type { Highlighter } from "shiki";
 
-import { Plus } from "lucide-react";
+import { ChevronDown, ChevronUp, Plus, Search, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { computeWordDiff } from "../lib/diff-parser";
@@ -13,24 +13,19 @@ import { CommentComposer } from "./comment-composer";
 import { InlineComment } from "./inline-comment";
 
 /**
- * Table-based diff viewer with multi-line drag-to-select for comments.
- *
- * Columns:
- *  1. Color bar (3px) — green/red indicator, sticky left
- *  2. Line number (40px) — contains the "+" button, sticky
- *  3. Code content (flex) — marker + syntax-highlighted code
- *
- * Multi-line selection follows Better Hub's pattern:
- * - mouseDown on "+" button starts selection
- * - mouseover on rows extends the selection range
- * - mouseUp commits the range and opens the composer
- * - Shift+click extends an existing range
+ * Table-based diff viewer with:
+ * - Cmd+F search with match highlighting + navigation
+ * - Multi-line drag-to-select for comments
+ * - Full-file mode (shows entire file with changes highlighted)
+ * - Split/side-by-side diff mode
  */
 
 export interface CommentRange {
   startLine: number;
   endLine: number;
 }
+
+export type DiffMode = "unified" | "split";
 
 interface DiffViewerProps {
   file: DiffFile;
@@ -42,6 +37,9 @@ interface DiffViewerProps {
   activeComposer?: CommentRange | null;
   onCommentRange?: (range: CommentRange) => void;
   onCloseComposer?: () => void;
+  /** Full file content for "show full file" mode */
+  fullFileContent?: string | null;
+  diffMode?: DiffMode;
 }
 
 // ---------------------------------------------------------------------------
@@ -108,7 +106,6 @@ function buildRows(
         }
       }
 
-      // Composer goes after the LAST line in the range
       if (composerRange && lineNum === composerRange.endLine) {
         rows.push({
           kind: "composer",
@@ -125,6 +122,25 @@ function buildRows(
 }
 
 // ---------------------------------------------------------------------------
+// Search helpers
+// ---------------------------------------------------------------------------
+
+function countMatchesInText(text: string, query: string): number {
+  if (!query) {
+    return 0;
+  }
+  const q = query.toLowerCase();
+  const lower = text.toLowerCase();
+  let count = 0;
+  let idx = lower.indexOf(q);
+  while (idx !== -1) {
+    count++;
+    idx = lower.indexOf(q, idx + 1);
+  }
+  return count;
+}
+
+// ---------------------------------------------------------------------------
 // DiffViewer
 // ---------------------------------------------------------------------------
 
@@ -138,17 +154,25 @@ export function DiffViewer({
   activeComposer,
   onCommentRange,
   onCloseComposer,
+  fullFileContent,
+  diffMode = "unified",
 }: DiffViewerProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const { hoveredLine, anchorRect, onLineEnter, onLineLeave } = useBlameHover();
 
-  // Drag-to-select state (refs for real-time tracking, state for rendering)
+  // --- Search state ---
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchMatchIndex, setSearchMatchIndex] = useState(0);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const activeSearchRef = useRef<HTMLSpanElement>(null);
+
+  // --- Drag-to-select state ---
   const selectingFromRef = useRef<number | null>(null);
   const hoverLineRef = useRef<number | null>(null);
   const [selectingFrom, setSelectingFrom] = useState<number | null>(null);
   const [hoverLine, setHoverLine] = useState<number | null>(null);
 
-  // Visual selection range: either active drag or committed composer range
   const selectionRange = useMemo(() => {
     if (selectingFrom !== null && hoverLine !== null) {
       return {
@@ -162,24 +186,22 @@ export function DiffViewer({
     return null;
   }, [selectingFrom, hoverLine, activeComposer]);
 
-  // Global mouseUp listener to commit the selection
+  // Global mouseUp to commit selection
   useEffect(() => {
     function handleMouseUp() {
       if (selectingFromRef.current !== null) {
         const from = selectingFromRef.current;
         const to = hoverLineRef.current ?? from;
-        const startLine = Math.min(from, to);
-        const endLine = Math.max(from, to);
-
         selectingFromRef.current = null;
         hoverLineRef.current = null;
         setSelectingFrom(null);
         setHoverLine(null);
-
-        onCommentRange?.({ startLine, endLine });
+        onCommentRange?.({
+          startLine: Math.min(from, to),
+          endLine: Math.max(from, to),
+        });
       }
     }
-
     document.addEventListener("mouseup", handleMouseUp);
     return () => {
       document.removeEventListener("mouseup", handleMouseUp);
@@ -202,7 +224,6 @@ export function DiffViewer({
 
   const handleGutterClick = useCallback(
     (lineNum: number, shiftKey: boolean) => {
-      // Shift+click extends existing range
       if (shiftKey && activeComposer) {
         const allLines = [activeComposer.startLine, activeComposer.endLine, lineNum];
         onCommentRange?.({
@@ -211,18 +232,85 @@ export function DiffViewer({
         });
         return;
       }
-      // Single click opens single-line composer
       onCommentRange?.({ startLine: lineNum, endLine: lineNum });
     },
     [activeComposer, onCommentRange],
   );
 
+  // --- Build rows ---
   const rows = useMemo(
     () => buildRows(file, comments, annotations, activeComposer ?? null),
     [file, comments, annotations, activeComposer],
   );
 
-  if (rows.length === 0) {
+  // --- Search match counting (must be after rows) ---
+  const totalSearchMatches = useMemo(() => {
+    if (!searchQuery) {
+      return 0;
+    }
+    let count = 0;
+    for (const row of rows) {
+      if (row.kind === "line" && row.line.type !== "hunk-header") {
+        count += countMatchesInText(row.line.content, searchQuery);
+      }
+    }
+    return count;
+  }, [searchQuery, rows]);
+
+  // Clamp match index
+  useEffect(() => {
+    if (totalSearchMatches > 0 && searchMatchIndex >= totalSearchMatches) {
+      setSearchMatchIndex(0);
+    }
+  }, [totalSearchMatches, searchMatchIndex]);
+
+  // Scroll active match into view
+  useEffect(() => {
+    if (activeSearchRef.current) {
+      activeSearchRef.current.scrollIntoView({ block: "center", behavior: "smooth" });
+    }
+  }, [searchMatchIndex, searchQuery]);
+
+  // Cmd+F to open search
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key === "f") {
+        e.preventDefault();
+        setSearchOpen(true);
+        requestAnimationFrame(() => searchInputRef.current?.focus());
+      }
+    }
+    globalThis.addEventListener("keydown", handleKeyDown);
+    return () => {
+      globalThis.removeEventListener("keydown", handleKeyDown);
+    };
+  }, []);
+
+  // --- Full file mode: build context lines from file content ---
+  const fullFileRows = useMemo(() => {
+    if (!fullFileContent) {
+      return null;
+    }
+    const fileLines = fullFileContent.split("\n");
+    // Build a set of changed line numbers (new side)
+    const changedNewLines = new Set<number>();
+    const addedLines = new Set<number>();
+    const deletedOldLines = new Set<number>();
+    for (const hunk of file.hunks) {
+      for (const line of hunk.lines) {
+        if (line.type === "add" && line.newLineNumber) {
+          changedNewLines.add(line.newLineNumber);
+          addedLines.add(line.newLineNumber);
+        }
+        if (line.type === "del" && line.oldLineNumber) {
+          deletedOldLines.add(line.oldLineNumber);
+        }
+      }
+    }
+    return { fileLines, changedNewLines, addedLines, deletedOldLines };
+  }, [fullFileContent, file.hunks]);
+
+  if (rows.length === 0 && !fullFileRows) {
     return (
       <div className="flex flex-1 items-center justify-center">
         <p className="text-text-tertiary text-xs">No changes in this file</p>
@@ -233,101 +321,235 @@ export function DiffViewer({
   const filePath = file.newPath || file.oldPath;
   const isDragging = selectingFrom !== null;
 
+  // Track global match index across rows for search highlighting
+  let globalMatchIdx = 0;
+
   return (
     <div
       ref={scrollRef}
-      className={`bg-bg-root flex-1 overflow-auto ${isDragging ? "select-none" : ""}`}
+      className={`bg-bg-root relative flex-1 overflow-auto ${isDragging ? "select-none" : ""}`}
+      tabIndex={-1}
     >
-      <table className="w-full border-collapse font-mono text-[12.5px] leading-5">
-        <colgroup>
-          <col className="w-[3px]" />
-          <col className="w-10" />
-          <col />
-        </colgroup>
-        <tbody>
-          {rows.map((row) => {
-            if (row.kind === "line") {
-              const lineNum = row.line.newLineNumber ?? row.line.oldLineNumber;
-              const isSelected =
-                selectionRange !== null &&
-                lineNum !== null &&
-                lineNum >= selectionRange.start &&
-                lineNum <= selectionRange.end;
+      {/* Search bar — floating overlay top-right */}
+      {searchOpen && (
+        <div className="border-border bg-bg-elevated sticky top-0 right-0 z-10 ml-auto flex w-80 items-center gap-1.5 rounded-bl-md border-b border-l px-3 py-1.5 shadow-lg">
+          <Search
+            size={13}
+            className="text-text-tertiary shrink-0"
+          />
+          <input
+            ref={searchInputRef}
+            type="text"
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setSearchMatchIndex(0);
+            }}
+            placeholder="Find in diff..."
+            className="text-text-primary placeholder:text-text-tertiary min-w-0 flex-1 bg-transparent text-xs focus:outline-none"
+            onKeyDown={(e) => {
+              if (e.key === "Escape") {
+                setSearchOpen(false);
+                setSearchQuery("");
+              }
+              if (e.key === "Enter") {
+                if (e.shiftKey) {
+                  setSearchMatchIndex((i) => (i > 0 ? i - 1 : totalSearchMatches - 1));
+                } else {
+                  setSearchMatchIndex((i) => (i < totalSearchMatches - 1 ? i + 1 : 0));
+                }
+              }
+            }}
+          />
+          {searchQuery && totalSearchMatches > 0 && (
+            <>
+              <span className="text-text-tertiary font-mono text-[10px]">
+                {searchMatchIndex + 1}/{totalSearchMatches}
+              </span>
+              <button
+                type="button"
+                onClick={() => setSearchMatchIndex((i) => (i > 0 ? i - 1 : totalSearchMatches - 1))}
+                className="text-text-tertiary hover:text-text-primary cursor-pointer p-0.5"
+              >
+                <ChevronUp size={12} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setSearchMatchIndex((i) => (i < totalSearchMatches - 1 ? i + 1 : 0))}
+                className="text-text-tertiary hover:text-text-primary cursor-pointer p-0.5"
+              >
+                <ChevronDown size={12} />
+              </button>
+            </>
+          )}
+          {searchQuery && totalSearchMatches === 0 && (
+            <span className="text-text-ghost text-[10px]">No results</span>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              setSearchOpen(false);
+              setSearchQuery("");
+            }}
+            className="text-text-tertiary hover:text-text-primary cursor-pointer p-0.5"
+          >
+            <X size={12} />
+          </button>
+        </div>
+      )}
+
+      {/* Full file mode */}
+      {fullFileRows ? (
+        <table className="w-full border-collapse font-mono text-[12.5px] leading-5">
+          <colgroup>
+            <col className="w-[3px]" />
+            <col className="w-10" />
+            <col />
+          </colgroup>
+          <tbody>
+            {fullFileRows.fileLines.map((lineContent, i) => {
+              const lineNum = i + 1;
+              const isChanged = fullFileRows.addedLines.has(lineNum);
+              const barColor = isChanged ? "bg-success" : "";
+              const rowBg = isChanged ? "bg-diff-add-bg" : "";
 
               return (
-                <DiffLineRow
-                  key={row.key}
-                  line={row.line}
-                  allRows={rows}
-                  highlighter={highlighter ?? null}
-                  language={language ?? "text"}
-                  onLineEnter={onLineEnter}
-                  onLineLeave={onLineLeave}
-                  onStartSelect={handleStartSelect}
-                  onLineHover={handleLineHover}
-                  onGutterClick={handleGutterClick}
-                  isSelected={isSelected}
-                  isDragging={isDragging}
-                  isComposerActive={
-                    activeComposer !== undefined &&
-                    activeComposer !== null &&
-                    lineNum !== null &&
-                    lineNum >= activeComposer.startLine &&
-                    lineNum <= activeComposer.endLine
-                  }
-                />
-              );
-            }
-
-            if (row.kind === "comment") {
-              return (
-                <tr key={row.key}>
-                  <td
-                    colSpan={3}
-                    className="p-0"
-                  >
-                    <InlineComment comments={row.comments} />
+                <tr
+                  key={lineNum}
+                  className={`group/line ${rowBg} transition-[filter] duration-75 hover:brightness-110`}
+                >
+                  <td className={`sticky left-0 z-[1] w-[3px] p-0 ${barColor}`} />
+                  <td className="text-text-ghost border-r-border/40 bg-bg-root sticky left-[3px] z-[1] w-10 border-r p-0 pr-2 text-right text-[11px] select-none">
+                    <div className="flex h-5 items-center justify-end">
+                      <span className="leading-5">{lineNum}</span>
+                    </div>
+                  </td>
+                  <td className="p-0">
+                    <div className="flex h-5 items-center">
+                      <span className="inline-flex w-5 shrink-0 select-none" />
+                      <span
+                        className="text-text-primary flex-1 overflow-x-auto pr-3 pl-1 whitespace-pre"
+                        style={{ tabSize: 4 }}
+                      >
+                        {lineContent}
+                      </span>
+                    </div>
                   </td>
                 </tr>
               );
-            }
+            })}
+          </tbody>
+        </table>
+      ) : diffMode === "split" ? (
+        /* Split diff mode */
+        <SplitDiffView
+          rows={rows}
+          highlighter={highlighter ?? null}
+          language={language ?? "text"}
+        />
+      ) : (
+        /* Unified diff mode (default) */
+        <table className="w-full border-collapse font-mono text-[12.5px] leading-5">
+          <colgroup>
+            <col className="w-[3px]" />
+            <col className="w-10" />
+            <col />
+          </colgroup>
+          <tbody>
+            {rows.map((row) => {
+              if (row.kind === "line") {
+                const lineNum = row.line.newLineNumber ?? row.line.oldLineNumber;
+                const isSelected =
+                  selectionRange !== null &&
+                  lineNum !== null &&
+                  lineNum >= selectionRange.start &&
+                  lineNum <= selectionRange.end;
 
-            if (row.kind === "annotation") {
-              return (
-                <tr key={row.key}>
-                  <td
-                    colSpan={3}
-                    className="p-0"
-                  >
-                    <CiAnnotation annotations={row.annotations} />
-                  </td>
-                </tr>
-              );
-            }
+                // Track search matches for this line
+                const lineMatchOffset = globalMatchIdx;
+                if (searchQuery && row.line.type !== "hunk-header") {
+                  globalMatchIdx += countMatchesInText(row.line.content, searchQuery);
+                }
 
-            if (row.kind === "composer" && prNumber && onCloseComposer) {
-              return (
-                <tr key={row.key}>
-                  <td
-                    colSpan={3}
-                    className="p-0"
-                  >
-                    <CommentComposer
-                      prNumber={prNumber}
-                      filePath={filePath}
-                      line={row.endLine}
-                      startLine={row.startLine !== row.endLine ? row.startLine : undefined}
-                      onClose={onCloseComposer}
-                    />
-                  </td>
-                </tr>
-              );
-            }
+                return (
+                  <DiffLineRow
+                    key={row.key}
+                    line={row.line}
+                    allRows={rows}
+                    highlighter={highlighter ?? null}
+                    language={language ?? "text"}
+                    onLineEnter={onLineEnter}
+                    onLineLeave={onLineLeave}
+                    onStartSelect={handleStartSelect}
+                    onLineHover={handleLineHover}
+                    onGutterClick={handleGutterClick}
+                    isSelected={isSelected}
+                    isDragging={isDragging}
+                    isComposerActive={
+                      activeComposer !== undefined &&
+                      activeComposer !== null &&
+                      lineNum !== null &&
+                      lineNum >= activeComposer.startLine &&
+                      lineNum <= activeComposer.endLine
+                    }
+                    searchQuery={searchQuery}
+                    searchMatchOffset={lineMatchOffset}
+                    activeSearchIndex={searchMatchIndex}
+                    activeSearchRef={activeSearchRef}
+                  />
+                );
+              }
 
-            return null;
-          })}
-        </tbody>
-      </table>
+              if (row.kind === "comment") {
+                return (
+                  <tr key={row.key}>
+                    <td
+                      colSpan={3}
+                      className="p-0"
+                    >
+                      <InlineComment comments={row.comments} />
+                    </td>
+                  </tr>
+                );
+              }
+
+              if (row.kind === "annotation") {
+                return (
+                  <tr key={row.key}>
+                    <td
+                      colSpan={3}
+                      className="p-0"
+                    >
+                      <CiAnnotation annotations={row.annotations} />
+                    </td>
+                  </tr>
+                );
+              }
+
+              if (row.kind === "composer" && prNumber && onCloseComposer) {
+                return (
+                  <tr key={row.key}>
+                    <td
+                      colSpan={3}
+                      className="p-0"
+                    >
+                      <CommentComposer
+                        prNumber={prNumber}
+                        filePath={filePath}
+                        line={row.endLine}
+                        startLine={row.startLine !== row.endLine ? row.startLine : undefined}
+                        onClose={onCloseComposer}
+                      />
+                    </td>
+                  </tr>
+                );
+              }
+
+              return null;
+            })}
+          </tbody>
+        </table>
+      )}
 
       <BlamePopover
         file={filePath}
@@ -340,7 +562,159 @@ export function DiffViewer({
 }
 
 // ---------------------------------------------------------------------------
-// DiffLineRow
+// Split diff view (side-by-side)
+// ---------------------------------------------------------------------------
+
+function SplitDiffView({
+  rows,
+  highlighter,
+  language,
+}: {
+  rows: FlatRow[];
+  highlighter: Highlighter | null;
+  language: string;
+}) {
+  // Pair del+add lines for side-by-side display
+  const splitRows = useMemo(() => {
+    const result: Array<{ left: FlatLine | null; right: FlatLine | null }> = [];
+    const lineRows = rows.filter((r): r is FlatRow & { kind: "line" } => r.kind === "line");
+
+    let i = 0;
+    while (i < lineRows.length) {
+      const line = lineRows[i]!.line;
+      if (line.type === "hunk-header") {
+        result.push({ left: line, right: null });
+        i++;
+      } else if (line.type === "del") {
+        const next = lineRows[i + 1]?.line;
+        if (next?.type === "add") {
+          result.push({ left: line, right: next });
+          i += 2;
+        } else {
+          result.push({ left: line, right: null });
+          i++;
+        }
+      } else if (line.type === "add") {
+        result.push({ left: null, right: line });
+        i++;
+      } else {
+        result.push({ left: line, right: line });
+        i++;
+      }
+    }
+    return result;
+  }, [rows]);
+
+  return (
+    <table className="w-full border-collapse font-mono text-[12.5px] leading-5">
+      <colgroup>
+        <col className="w-10" />
+        <col />
+        <col className="w-px" />
+        <col className="w-10" />
+        <col />
+      </colgroup>
+      <tbody>
+        {splitRows.map((pair, i) => {
+          if (pair.left?.type === "hunk-header") {
+            return (
+              <tr key={`split-${i}`}>
+                <td
+                  colSpan={5}
+                  className="border-border-subtle bg-diff-hunk-bg text-info sticky top-0 z-[1] h-5 border-y px-3 text-[11px]"
+                >
+                  {pair.left.content}
+                </td>
+              </tr>
+            );
+          }
+
+          return (
+            <tr
+              key={`split-${i}`}
+              className="hover:brightness-110"
+            >
+              {/* Left side (old) */}
+              <td
+                className={`text-text-ghost border-r-border/40 border-r p-0 pr-2 text-right text-[11px] select-none ${
+                  pair.left?.type === "del" ? "bg-[rgba(239,100,97,0.04)]" : "bg-bg-root"
+                }`}
+              >
+                <span className="flex h-5 items-center justify-end leading-5">
+                  {pair.left?.oldLineNumber ?? ""}
+                </span>
+              </td>
+              <td className={`p-0 ${pair.left?.type === "del" ? "bg-diff-del-bg" : ""}`}>
+                <div className="flex h-5 items-center">
+                  <span
+                    className={`inline-flex w-5 shrink-0 items-center justify-center text-[11px] font-semibold select-none ${
+                      pair.left?.type === "del" ? "text-destructive/50" : "text-transparent"
+                    }`}
+                  >
+                    {pair.left?.type === "del" ? "-" : " "}
+                  </span>
+                  <span
+                    className="text-text-primary flex-1 overflow-x-auto pr-2 pl-1 whitespace-pre"
+                    style={{ tabSize: 4 }}
+                  >
+                    {pair.left ? renderLineContent(pair.left, highlighter, language) : ""}
+                  </span>
+                </div>
+              </td>
+
+              {/* Divider */}
+              <td className="bg-border w-px p-0" />
+
+              {/* Right side (new) */}
+              <td
+                className={`text-text-ghost border-r-border/40 border-r p-0 pr-2 text-right text-[11px] select-none ${
+                  pair.right?.type === "add" ? "bg-[rgba(61,214,140,0.04)]" : "bg-bg-root"
+                }`}
+              >
+                <span className="flex h-5 items-center justify-end leading-5">
+                  {pair.right?.newLineNumber ?? ""}
+                </span>
+              </td>
+              <td className={`p-0 ${pair.right?.type === "add" ? "bg-diff-add-bg" : ""}`}>
+                <div className="flex h-5 items-center">
+                  <span
+                    className={`inline-flex w-5 shrink-0 items-center justify-center text-[11px] font-semibold select-none ${
+                      pair.right?.type === "add" ? "text-success/50" : "text-transparent"
+                    }`}
+                  >
+                    {pair.right?.type === "add" ? "+" : " "}
+                  </span>
+                  <span
+                    className="text-text-primary flex-1 overflow-x-auto pr-2 pl-1 whitespace-pre"
+                    style={{ tabSize: 4 }}
+                  >
+                    {pair.right ? renderLineContent(pair.right, highlighter, language) : ""}
+                  </span>
+                </div>
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}
+
+function renderLineContent(
+  line: FlatLine,
+  highlighter: Highlighter | null,
+  language: string,
+): React.ReactNode {
+  const tokens =
+    highlighter && language !== "text" ? safeTokenize(highlighter, line.content, language) : null;
+  if (tokens) {
+    return <SyntaxContent tokens={tokens} />;
+  }
+  return line.content;
+}
+
+// ---------------------------------------------------------------------------
+// Unified diff line row with search highlighting
 // ---------------------------------------------------------------------------
 
 function DiffLineRow({
@@ -356,6 +730,10 @@ function DiffLineRow({
   isSelected,
   isDragging,
   isComposerActive,
+  searchQuery,
+  searchMatchOffset,
+  activeSearchIndex,
+  activeSearchRef,
 }: {
   line: FlatLine;
   allRows: FlatRow[];
@@ -369,6 +747,10 @@ function DiffLineRow({
   isSelected: boolean;
   isDragging: boolean;
   isComposerActive?: boolean;
+  searchQuery: string;
+  searchMatchOffset: number;
+  activeSearchIndex: number;
+  activeSearchRef: React.RefObject<HTMLSpanElement | null>;
 }) {
   if (line.type === "hunk-header") {
     return (
@@ -410,7 +792,6 @@ function DiffLineRow({
   const lineNum = line.newLineNumber ?? line.oldLineNumber;
   const isCommentable = !!line.newLineNumber;
 
-  // Row background: selected overrides add/del
   const rowBg = isSelected
     ? "!bg-[rgba(155,149,144,0.08)]"
     : line.type === "add"
@@ -443,10 +824,7 @@ function DiffLineRow({
       }}
       onMouseLeave={onLineLeave}
     >
-      {/* Column 1: Color bar */}
       <td className={`sticky left-0 z-[1] w-[3px] p-0 ${barColor}`} />
-
-      {/* Column 2: Line number + add-comment button */}
       <td
         className={`sticky left-[3px] z-[1] w-10 border-r p-0 pr-2 text-right text-[11px] select-none ${
           isSelected
@@ -488,8 +866,6 @@ function DiffLineRow({
           </span>
         </div>
       </td>
-
-      {/* Column 3: Marker + code content */}
       <td className="p-0">
         <div className="flex h-5 items-center">
           <span
@@ -512,6 +888,15 @@ function DiffLineRow({
                 segments={wordSegments}
                 type={line.type}
               />
+            ) : searchQuery ? (
+              <SearchHighlightedContent
+                text={line.content}
+                tokens={tokens}
+                query={searchQuery}
+                matchOffset={searchMatchOffset}
+                activeIndex={activeSearchIndex}
+                activeRef={activeSearchRef}
+              />
             ) : tokens ? (
               <SyntaxContent tokens={tokens} />
             ) : (
@@ -522,6 +907,117 @@ function DiffLineRow({
       </td>
     </tr>
   );
+}
+
+// ---------------------------------------------------------------------------
+// Search-highlighted content (overlays on plain text or tokens)
+// ---------------------------------------------------------------------------
+
+function SearchHighlightedContent({
+  text,
+  tokens,
+  query,
+  matchOffset,
+  activeIndex,
+  activeRef,
+}: {
+  text: string;
+  tokens: ShikiToken[] | null;
+  query: string;
+  matchOffset: number;
+  activeIndex: number;
+  activeRef: React.RefObject<HTMLSpanElement | null>;
+}) {
+  const q = query.toLowerCase();
+  let globalIdx = matchOffset;
+
+  // If we have syntax tokens, highlight within each token
+  if (tokens) {
+    return (
+      <>
+        {tokens.map((token, i) => {
+          const parts: React.ReactNode[] = [];
+          let remaining = token.content;
+          let lower = remaining.toLowerCase();
+          let matchPos = lower.indexOf(q);
+          let partKey = 0;
+
+          while (matchPos !== -1) {
+            if (matchPos > 0) {
+              parts.push(
+                <span
+                  key={`${i}-${partKey++}`}
+                  style={{ color: token.color }}
+                >
+                  {remaining.slice(0, matchPos)}
+                </span>,
+              );
+            }
+            const isActive = globalIdx === activeIndex;
+            parts.push(
+              <span
+                key={`${i}-${partKey++}`}
+                ref={isActive ? activeRef : undefined}
+                className={`rounded-xs ${
+                  isActive ? "bg-primary text-bg-root" : "bg-warning/40 text-text-primary"
+                }`}
+              >
+                {remaining.slice(matchPos, matchPos + q.length)}
+              </span>,
+            );
+            globalIdx++;
+            remaining = remaining.slice(matchPos + q.length);
+            lower = remaining.toLowerCase();
+            matchPos = lower.indexOf(q);
+          }
+          if (remaining) {
+            parts.push(
+              <span
+                key={`${i}-${partKey++}`}
+                style={{ color: token.color }}
+              >
+                {remaining}
+              </span>,
+            );
+          }
+          return parts;
+        })}
+      </>
+    );
+  }
+
+  // Plain text fallback
+  const parts: React.ReactNode[] = [];
+  let remaining = text;
+  let lower = remaining.toLowerCase();
+  let matchPos = lower.indexOf(q);
+  let partKey = 0;
+
+  while (matchPos !== -1) {
+    if (matchPos > 0) {
+      parts.push(<span key={partKey++}>{remaining.slice(0, matchPos)}</span>);
+    }
+    const isActive = globalIdx === activeIndex;
+    parts.push(
+      <span
+        key={partKey++}
+        ref={isActive ? activeRef : undefined}
+        className={`rounded-xs ${
+          isActive ? "bg-primary text-bg-root" : "bg-warning/40 text-text-primary"
+        }`}
+      >
+        {remaining.slice(matchPos, matchPos + q.length)}
+      </span>,
+    );
+    globalIdx++;
+    remaining = remaining.slice(matchPos + q.length);
+    lower = remaining.toLowerCase();
+    matchPos = lower.indexOf(q);
+  }
+  if (remaining) {
+    parts.push(<span key={partKey++}>{remaining}</span>);
+  }
+  return <>{parts}</>;
 }
 
 // ---------------------------------------------------------------------------

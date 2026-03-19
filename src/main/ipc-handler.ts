@@ -70,6 +70,12 @@ const handlers: { [M in IpcMethod]: Handler<M> } = {
     await ghCli.mergePr(args.cwd, args.prNumber, args.strategy);
   },
   "pr.comments": async (args) => ghCli.getPrReviewComments(args.cwd, args.prNumber),
+  "pr.resolveThread": async (args) => {
+    await ghCli.resolveReviewThread(args.cwd, args.threadId);
+  },
+  "pr.unresolveThread": async (args) => {
+    await ghCli.unresolveReviewThread(args.cwd, args.threadId);
+  },
   "pr.createComment": async (args) => {
     await ghCli.createReviewComment(args);
   },
@@ -89,6 +95,7 @@ const handlers: { [M in IpcMethod]: Handler<M> } = {
   "git.blame": async (args) => gitCli.blame(args),
   "git.fileHistory": async (args) => gitCli.fileHistory(args.cwd, args.filePath, args.limit),
   "git.diff": async (args) => gitCli.diff(args.cwd, args.fromRef, args.toRef),
+  "git.showFile": async (args) => gitCli.showFile(args.cwd, args.ref, args.filePath),
   "git.repoRoot": async (args) => gitCli.getRepoRoot(args.cwd),
 
   // Workflows

@@ -85,6 +85,8 @@ export interface GhReviewComment {
   created_at: string;
   updated_at: string;
   in_reply_to_id?: number;
+  /** GraphQL node ID for thread resolution (only on root comments) */
+  node_id?: string;
 }
 
 export interface GhAnnotation {
@@ -217,6 +219,8 @@ export interface IpcApi {
     args: { cwd: string; prNumber: number; body: string; path: string; line: number };
     result: void;
   };
+  "pr.resolveThread": { args: { cwd: string; threadId: string }; result: void };
+  "pr.unresolveThread": { args: { cwd: string; threadId: string }; result: void };
   "pr.submitReview": {
     args: {
       cwd: string;
@@ -241,6 +245,7 @@ export interface IpcApi {
     result: LogEntry[];
   };
   "git.diff": { args: { cwd: string; fromRef: string; toRef: string }; result: string };
+  "git.showFile": { args: { cwd: string; ref: string; filePath: string }; result: string | null };
   "git.repoRoot": { args: { cwd: string }; result: string | null };
 
   // Workflows

@@ -1,12 +1,12 @@
 import type { DiffFile } from "../lib/diff-parser";
 
-import { Check, Square } from "lucide-react";
+import { Check, MessageCircle, Square } from "lucide-react";
 import { useMemo } from "react";
 
 /**
  * File tree sidebar — DISPATCH-DESIGN-SYSTEM.md § 8.7 (Files tab)
  *
- * Flat list of changed files with viewed state + navigation.
+ * Flat list of changed files with viewed state, comment counts, + navigation.
  */
 
 interface FileTreeProps {
@@ -15,6 +15,8 @@ interface FileTreeProps {
   onSelectFile: (index: number) => void;
   viewedFiles: Set<string>;
   onToggleViewed: (filePath: string, viewed: boolean) => void;
+  /** Map of filePath -> comment count for showing badges */
+  commentCounts?: Map<string, number>;
 }
 
 const STATUS_DOT_COLOR: Record<string, string> = {
@@ -30,6 +32,7 @@ export function FileTree({
   onSelectFile,
   viewedFiles,
   onToggleViewed,
+  commentCounts = new Map(),
 }: FileTreeProps) {
   const viewedCount = files.filter((f) => viewedFiles.has(f.newPath)).length;
 
@@ -133,6 +136,14 @@ export function FileTree({
                 )}
                 <p className="text-text-primary truncate font-mono text-xs">{fileName}</p>
               </div>
+
+              {/* Comment count badge */}
+              {(commentCounts.get(filePath) ?? 0) > 0 && (
+                <span className="text-warning flex items-center gap-0.5 font-mono text-[10px]">
+                  <MessageCircle size={10} />
+                  {commentCounts.get(filePath)}
+                </span>
+              )}
 
               {/* Stats */}
               <div className="flex items-center gap-1">

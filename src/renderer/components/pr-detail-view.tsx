@@ -1,6 +1,6 @@
 import type { DiffFile } from "../lib/diff-parser";
 import type { Annotation } from "./ci-annotation";
-import type { CommentRange } from "./diff-viewer";
+import type { CommentRange, DiffMode } from "./diff-viewer";
 import type { ReviewComment } from "./inline-comment";
 
 import { Badge } from "@/components/ui/badge";
@@ -23,10 +23,13 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Columns2,
   Dices,
   ExternalLink,
+  FileCode,
   GitMerge,
   MessageSquare,
+  Rows2,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -72,6 +75,8 @@ function PrDetail({ prNumber }: { prNumber: number }) {
     "overview",
   );
   const [diffMode, setDiffMode] = useState<"all" | "since-review">("all");
+  const [viewMode, setViewMode] = useState<DiffMode>("unified");
+  const [showFullFile, setShowFullFile] = useState(false);
   const [activeComposer, setActiveComposer] = useState<CommentRange | null>(null);
 
   const highlighter = useSyntaxHighlighter();
@@ -173,6 +178,17 @@ function PrDetail({ prNumber }: { prNumber: number }) {
     return map;
   }, [commentsQuery.data]);
 
+  // Per-file comment counts for file tree badges
+  const fileCommentCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const c of commentsQuery.data ?? []) {
+      if (c.path) {
+        counts.set(c.path, (counts.get(c.path) ?? 0) + 1);
+      }
+    }
+    return counts;
+  }, [commentsQuery.data]);
+
   // CI annotations
   const annotationsQuery = useQuery({
     queryKey: ["checks", "annotations", cwd, prNumber],
@@ -194,6 +210,15 @@ function PrDetail({ prNumber }: { prNumber: number }) {
   }, [annotationsQuery.data]);
 
   const currentFile = files[currentFileIndex] ?? null;
+  const currentFilePath = currentFile?.newPath || currentFile?.oldPath || "";
+
+  // Full file content (for "show full file" mode)
+  const fullFileQuery = useQuery({
+    queryKey: ["git", "showFile", cwd, headSha, currentFilePath],
+    queryFn: () => ipc("git.showFile", { cwd, ref: headSha || "HEAD", filePath: currentFilePath }),
+    enabled: showFullFile && !!currentFilePath,
+    staleTime: 120_000,
+  });
 
   // State for visually highlighting a comment after navigation
   const [highlightedComment, setHighlightedComment] = useState<{
@@ -392,6 +417,10 @@ function PrDetail({ prNumber }: { prNumber: number }) {
                 saveShaMutation.mutate({ repo: repoName, prNumber, sha: headSha });
               }
             }}
+            viewMode={viewMode}
+            onViewModeChange={setViewMode}
+            showFullFile={showFullFile}
+            onShowFullFileChange={setShowFullFile}
           />
 
           {diffQuery.isLoading ? (
@@ -409,6 +438,8 @@ function PrDetail({ prNumber }: { prNumber: number }) {
               activeComposer={activeComposer}
               onCommentRange={setActiveComposer}
               onCloseComposer={() => setActiveComposer(null)}
+              fullFileContent={showFullFile ? (fullFileQuery.data ?? null) : null}
+              diffMode={viewMode}
             />
           ) : (
             <div className="flex flex-1 items-center justify-center">
@@ -464,6 +495,7 @@ function PrDetail({ prNumber }: { prNumber: number }) {
                   currentFileIndex={currentFileIndex}
                   onSelectFile={setCurrentFileIndex}
                   viewedFiles={viewedFiles}
+                  commentCounts={fileCommentCounts}
                   onToggleViewed={(filePath, viewed) => {
                     setViewedMutation.mutate({
                       repo: repoName,
@@ -711,6 +743,10 @@ function DiffToolbar({
   onDiffModeChange,
   hasLastReview,
   onMarkReviewed,
+  viewMode,
+  onViewModeChange,
+  showFullFile,
+  onShowFullFileChange,
 }: {
   currentFile: DiffFile | null;
   currentIndex: number;
@@ -721,6 +757,10 @@ function DiffToolbar({
   onDiffModeChange: (mode: "all" | "since-review") => void;
   hasLastReview: boolean;
   onMarkReviewed: () => void;
+  viewMode: DiffMode;
+  onViewModeChange: (mode: DiffMode) => void;
+  showFullFile: boolean;
+  onShowFullFileChange: (show: boolean) => void;
 }) {
   const filePath = currentFile?.newPath ?? currentFile?.oldPath ?? "";
   const fileName = filePath.split("/").pop() ?? "";
@@ -785,6 +825,35 @@ function DiffToolbar({
         className="text-text-secondary hover:bg-bg-raised hover:text-text-primary cursor-pointer rounded-md px-2 py-1 text-[11px]"
       >
         Mark reviewed
+      </button>
+
+      <div className="bg-border h-4 w-px" />
+
+      {/* View mode toggles */}
+      <button
+        type="button"
+        onClick={() => onViewModeChange(viewMode === "unified" ? "split" : "unified")}
+        title={viewMode === "unified" ? "Split view" : "Unified view"}
+        className={`flex h-6 w-6 cursor-pointer items-center justify-center rounded-sm transition-colors ${
+          viewMode === "split"
+            ? "bg-bg-raised text-text-primary"
+            : "text-text-tertiary hover:bg-bg-raised hover:text-text-primary"
+        }`}
+      >
+        {viewMode === "unified" ? <Columns2 size={13} /> : <Rows2 size={13} />}
+      </button>
+
+      <button
+        type="button"
+        onClick={() => onShowFullFileChange(!showFullFile)}
+        title={showFullFile ? "Show diff only" : "Show full file"}
+        className={`flex h-6 w-6 cursor-pointer items-center justify-center rounded-sm transition-colors ${
+          showFullFile
+            ? "bg-bg-raised text-text-primary"
+            : "text-text-tertiary hover:bg-bg-raised hover:text-text-primary"
+        }`}
+      >
+        <FileCode size={13} />
       </button>
 
       {currentFile && (
