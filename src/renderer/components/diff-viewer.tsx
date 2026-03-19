@@ -3,7 +3,6 @@ import type { Annotation } from "./ci-annotation";
 import type { ReviewComment } from "./inline-comment";
 import type { Highlighter } from "shiki";
 
-import { useVirtualizer } from "@tanstack/react-virtual";
 import { ChevronDown, ChevronUp, Plus, Search, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -446,10 +445,9 @@ export function DiffViewer({
           language={language ?? "text"}
         />
       ) : (
-        /* Unified diff mode (default) — VIRTUALIZED */
-        <VirtualizedUnifiedDiff
+        /* Unified diff mode — plain DOM (like Better Hub, one file at a time) */
+        <UnifiedDiffView
           rows={rows}
-          scrollRef={scrollRef}
           highlighter={highlighter ?? null}
           language={language ?? "text"}
           filePath={filePath}
@@ -636,17 +634,11 @@ function renderLineContent(
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
-// Virtualized unified diff table
+// Unified diff view — plain DOM rendering (one file at a time, like Better Hub)
 // ---------------------------------------------------------------------------
 
-const ROW_HEIGHT_LINE = 20;
-const ROW_HEIGHT_COMMENT = 80;
-const ROW_HEIGHT_ANNOTATION = 48;
-const ROW_HEIGHT_COMPOSER = 140;
-
-function VirtualizedUnifiedDiff({
+function UnifiedDiffView({
   rows,
-  scrollRef,
   highlighter,
   language,
   filePath,
@@ -665,7 +657,6 @@ function VirtualizedUnifiedDiff({
   onCloseComposer,
 }: {
   rows: FlatRow[];
-  scrollRef: React.RefObject<HTMLDivElement | null>;
   highlighter: Highlighter | null;
   language: string;
   filePath: string;
@@ -683,28 +674,6 @@ function VirtualizedUnifiedDiff({
   onGutterClick: (lineNum: number, shiftKey: boolean) => void;
   onCloseComposer?: () => void;
 }) {
-  const virtualizer = useVirtualizer({
-    count: rows.length,
-    getScrollElement: () => scrollRef.current,
-    estimateSize: (index) => {
-      const row = rows[index];
-      if (!row) {
-        return ROW_HEIGHT_LINE;
-      }
-      switch (row.kind) {
-        case "line":
-          return ROW_HEIGHT_LINE;
-        case "comment":
-          return ROW_HEIGHT_COMMENT;
-        case "annotation":
-          return ROW_HEIGHT_ANNOTATION;
-        case "composer":
-          return ROW_HEIGHT_COMPOSER;
-      }
-    },
-    overscan: 30,
-  });
-
   // Precompute search match offsets for all rows
   const searchMatchOffsets = useMemo(() => {
     const offsets: number[] = [];
@@ -718,106 +687,79 @@ function VirtualizedUnifiedDiff({
     return offsets;
   }, [rows, searchQuery]);
 
-  const virtualItems = virtualizer.getVirtualItems();
-
   return (
-    <div
-      className="relative w-full font-mono text-[12.5px] leading-5"
-      style={{ height: virtualizer.getTotalSize(), contain: "strict", overflowAnchor: "none" }}
-    >
-      <div
-        className="absolute top-0 left-0 w-full"
-        style={{ transform: `translateY(${virtualItems[0]?.start ?? 0}px)` }}
-      >
-        {virtualItems.map((virtualRow) => {
-          const row = rows[virtualRow.index]!;
+    <div className="w-full font-mono text-[12.5px] leading-5">
+      {rows.map((row, index) => {
+        if (row.kind === "line") {
+          const lineNum = row.line.newLineNumber ?? row.line.oldLineNumber;
+          const isSelected =
+            selectionRange !== null &&
+            lineNum !== null &&
+            lineNum >= selectionRange.start &&
+            lineNum <= selectionRange.end;
 
-          if (row.kind === "line") {
-            const lineNum = row.line.newLineNumber ?? row.line.oldLineNumber;
-            const isSelected =
-              selectionRange !== null &&
-              lineNum !== null &&
-              lineNum >= selectionRange.start &&
-              lineNum <= selectionRange.end;
+          return (
+            <DiffLineRow
+              key={row.key}
+              line={row.line}
+              allRows={rows}
+              highlighter={highlighter}
+              language={language}
+              onLineEnter={onLineEnter}
+              onLineLeave={onLineLeave}
+              onStartSelect={onStartSelect}
+              onLineHover={onLineHover}
+              onGutterClick={onGutterClick}
+              isSelected={isSelected}
+              isDragging={isDragging}
+              isComposerActive={
+                activeComposer !== null &&
+                lineNum !== null &&
+                lineNum >= activeComposer.startLine &&
+                lineNum <= activeComposer.endLine
+              }
+              searchQuery={searchQuery}
+              searchMatchOffset={searchMatchOffsets[index] ?? 0}
+              activeSearchIndex={searchMatchIndex}
+              activeSearchRef={activeSearchRef}
+            />
+          );
+        }
 
-            return (
-              <DiffLineRow
-                key={row.key}
-                dataIndex={virtualRow.index}
-                measureRef={virtualizer.measureElement}
-                line={row.line}
-                allRows={rows}
-                highlighter={highlighter}
-                language={language}
-                onLineEnter={onLineEnter}
-                onLineLeave={onLineLeave}
-                onStartSelect={onStartSelect}
-                onLineHover={onLineHover}
-                onGutterClick={onGutterClick}
-                isSelected={isSelected}
-                isDragging={isDragging}
-                isComposerActive={
-                  activeComposer !== null &&
-                  lineNum !== null &&
-                  lineNum >= activeComposer.startLine &&
-                  lineNum <= activeComposer.endLine
-                }
-                searchQuery={searchQuery}
-                searchMatchOffset={searchMatchOffsets[virtualRow.index] ?? 0}
-                activeSearchIndex={searchMatchIndex}
-                activeSearchRef={activeSearchRef}
-              />
-            );
-          }
+        if (row.kind === "comment") {
+          return (
+            <InlineComment
+              key={row.key}
+              comments={row.comments}
+              prNumber={prNumber}
+            />
+          );
+        }
 
-          if (row.kind === "comment") {
-            return (
-              <div
-                key={row.key}
-                data-index={virtualRow.index}
-                ref={virtualizer.measureElement}
-              >
-                <InlineComment
-                  comments={row.comments}
-                  prNumber={prNumber}
-                />
-              </div>
-            );
-          }
+        if (row.kind === "annotation") {
+          return (
+            <CiAnnotation
+              key={row.key}
+              annotations={row.annotations}
+            />
+          );
+        }
 
-          if (row.kind === "annotation") {
-            return (
-              <div
-                key={row.key}
-                data-index={virtualRow.index}
-                ref={virtualizer.measureElement}
-              >
-                <CiAnnotation annotations={row.annotations} />
-              </div>
-            );
-          }
+        if (row.kind === "composer" && prNumber && onCloseComposer) {
+          return (
+            <CommentComposer
+              key={row.key}
+              prNumber={prNumber}
+              filePath={filePath}
+              line={row.endLine}
+              startLine={row.startLine !== row.endLine ? row.startLine : undefined}
+              onClose={onCloseComposer}
+            />
+          );
+        }
 
-          if (row.kind === "composer" && prNumber && onCloseComposer) {
-            return (
-              <div
-                key={row.key}
-                data-index={virtualRow.index}
-                ref={virtualizer.measureElement}
-              >
-                <CommentComposer
-                  prNumber={prNumber}
-                  filePath={filePath}
-                  line={row.endLine}
-                  startLine={row.startLine !== row.endLine ? row.startLine : undefined}
-                  onClose={onCloseComposer}
-                />
-              </div>
-            );
-          }
-
-          return null;
-        })}
-      </div>
+        return null;
+      })}
     </div>
   );
 }
@@ -839,8 +781,6 @@ function DiffLineRow({
   searchMatchOffset,
   activeSearchIndex,
   activeSearchRef,
-  dataIndex,
-  measureRef,
 }: {
   line: FlatLine;
   allRows: FlatRow[];
@@ -858,16 +798,10 @@ function DiffLineRow({
   searchMatchOffset: number;
   activeSearchIndex: number;
   activeSearchRef: React.RefObject<HTMLSpanElement | null>;
-  dataIndex?: number;
-  measureRef?: (node: Element | null) => void;
 }) {
   if (line.type === "hunk-header") {
     return (
-      <div
-        data-index={dataIndex}
-        ref={measureRef}
-        className="border-border-subtle bg-diff-hunk-bg text-info flex h-5 items-center border-y px-3 text-[11px]"
-      >
+      <div className="border-border-subtle bg-diff-hunk-bg text-info flex h-5 items-center border-y px-3 text-[11px]">
         {line.content}
       </div>
     );
@@ -918,8 +852,6 @@ function DiffLineRow({
 
   return (
     <div
-      data-index={dataIndex}
-      ref={measureRef}
       className={`group/line flex ${rowBg} transition-[filter] duration-75 ${
         !isSelected && !isDragging ? "hover:brightness-110" : ""
       }`}
