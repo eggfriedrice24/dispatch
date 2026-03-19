@@ -4,15 +4,24 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { toastManager } from "@/components/ui/toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { CheckCircle2, ChevronDown, ChevronRight, Clock, RotateCcw, XCircle } from "lucide-react";
-import { useMemo, useState } from "react";
+import {
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  ChevronUp,
+  Clock,
+  RotateCcw,
+  Search,
+  XCircle,
+} from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ipc } from "../lib/ipc";
 import { queryClient } from "../lib/query-client";
 import { LogViewer } from "./log-viewer";
 
 /**
- * Run detail panel — Gantt-style job timeline + step viewer.
+ * Run detail panel — Gantt-style job timeline + step viewer + log search.
  */
 
 interface RunDetailProps {
@@ -21,6 +30,20 @@ interface RunDetailProps {
 }
 
 export function RunDetail({ cwd, runId }: RunDetailProps) {
+  const [logSearch, setLogSearch] = useState("");
+  const [matchIndex, setMatchIndex] = useState(0);
+  const [matchCount, setMatchCount] = useState(0);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Reset search when run changes
+  const prevRunId = useRef(runId);
+  if (prevRunId.current !== runId) {
+    prevRunId.current = runId;
+    setLogSearch("");
+    setMatchIndex(0);
+    setMatchCount(0);
+  }
+
   const detailQuery = useQuery({
     queryKey: ["workflows", "runDetail", cwd, runId],
     queryFn: () => ipc("workflows.runDetail", { cwd, runId }),
@@ -42,6 +65,25 @@ export function RunDetail({ cwd, runId }: RunDetailProps) {
       toastManager.add({ title: "Failed jobs re-running", type: "success" });
     },
   });
+
+  // Cmd/Ctrl+F to focus search
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key === "f") {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+    }
+    globalThis.addEventListener("keydown", handleKeyDown);
+    return () => {
+      globalThis.removeEventListener("keydown", handleKeyDown);
+    };
+  }, []);
+
+  const handleMatchCountChange = useCallback((count: number) => {
+    setMatchCount(count);
+    setMatchIndex(0);
+  }, []);
 
   if (detailQuery.isLoading) {
     return (
@@ -102,6 +144,59 @@ export function RunDetail({ cwd, runId }: RunDetailProps) {
         </div>
       </div>
 
+      {/* Log search bar */}
+      <div className="border-border flex items-center gap-2 border-b px-4 py-2">
+        <Search
+          size={13}
+          className="text-text-tertiary shrink-0"
+        />
+        <input
+          ref={searchInputRef}
+          type="text"
+          value={logSearch}
+          onChange={(e) => setLogSearch(e.target.value)}
+          placeholder="Search logs..."
+          className="text-text-primary placeholder:text-text-tertiary min-w-0 flex-1 bg-transparent text-xs focus:outline-none"
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              setLogSearch("");
+              (e.target as HTMLElement).blur();
+            }
+            if (e.key === "Enter") {
+              if (e.shiftKey) {
+                setMatchIndex((i) => (i > 0 ? i - 1 : matchCount - 1));
+              } else {
+                setMatchIndex((i) => (i < matchCount - 1 ? i + 1 : 0));
+              }
+            }
+          }}
+        />
+        {logSearch && matchCount > 0 && (
+          <div className="flex items-center gap-1">
+            <span className="text-text-tertiary font-mono text-[10px]">
+              {matchIndex + 1}/{matchCount}
+            </span>
+            <button
+              type="button"
+              onClick={() => setMatchIndex((i) => (i > 0 ? i - 1 : matchCount - 1))}
+              className="text-text-tertiary hover:text-text-primary cursor-pointer rounded-sm p-0.5"
+            >
+              <ChevronUp size={12} />
+            </button>
+            <button
+              type="button"
+              onClick={() => setMatchIndex((i) => (i < matchCount - 1 ? i + 1 : 0))}
+              className="text-text-tertiary hover:text-text-primary cursor-pointer rounded-sm p-0.5"
+            >
+              <ChevronDown size={12} />
+            </button>
+          </div>
+        )}
+        {logSearch && matchCount === 0 && (
+          <span className="text-text-ghost text-[10px]">No matches</span>
+        )}
+      </div>
+
       {/* Gantt timeline */}
       <div className="border-border border-b px-4 py-3">
         <GanttTimeline jobs={run.jobs} />
@@ -115,6 +210,9 @@ export function RunDetail({ cwd, runId }: RunDetailProps) {
             job={job}
             cwd={cwd}
             runId={runId}
+            searchQuery={logSearch}
+            activeMatchIndex={matchIndex}
+            onMatchCountChange={handleMatchCountChange}
           />
         ))}
       </div>
@@ -192,12 +290,33 @@ function GanttTimeline({ jobs }: { jobs: GhWorkflowRunJob[] }) {
 }
 
 // ---------------------------------------------------------------------------
-// Job row with expandable steps
+// Job row with expandable steps + log search
 // ---------------------------------------------------------------------------
 
-function JobRow({ job, cwd, runId }: { job: GhWorkflowRunJob; cwd: string; runId: number }) {
+function JobRow({
+  job,
+  cwd,
+  runId,
+  searchQuery,
+  activeMatchIndex,
+  onMatchCountChange,
+}: {
+  job: GhWorkflowRunJob;
+  cwd: string;
+  runId: number;
+  searchQuery: string;
+  activeMatchIndex: number;
+  onMatchCountChange: (count: number) => void;
+}) {
   const [expanded, setExpanded] = useState(false);
   const statusIcon = resolveStatusIcon(job.conclusion);
+
+  // Auto-expand failed jobs
+  useEffect(() => {
+    if (job.conclusion === "failure") {
+      setExpanded(true);
+    }
+  }, [job.conclusion]);
 
   return (
     <div className="border-border-subtle border-b">
@@ -247,6 +366,9 @@ function JobRow({ job, cwd, runId }: { job: GhWorkflowRunJob; cwd: string; runId
             <LogViewer
               cwd={cwd}
               runId={runId}
+              searchQuery={searchQuery}
+              activeMatchIndex={activeMatchIndex}
+              onMatchCountChange={onMatchCountChange}
             />
           </div>
         </div>

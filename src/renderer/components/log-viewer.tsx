@@ -1,7 +1,7 @@
 import { Spinner } from "@/components/ui/spinner";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, ChevronRight } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { ipc } from "../lib/ipc";
 
@@ -10,14 +10,24 @@ import { ipc } from "../lib/ipc";
  *
  * Fetches and renders CI logs with ANSI color parsing.
  * Collapsible group sections for GitHub Actions logs.
+ * Supports search with match highlighting and navigation.
  */
 
 interface LogViewerProps {
   cwd: string;
   runId: number;
+  searchQuery?: string;
+  activeMatchIndex?: number;
+  onMatchCountChange?: (count: number) => void;
 }
 
-export function LogViewer({ cwd, runId }: LogViewerProps) {
+export function LogViewer({
+  cwd,
+  runId,
+  searchQuery = "",
+  activeMatchIndex = 0,
+  onMatchCountChange,
+}: LogViewerProps) {
   const logQuery = useQuery({
     queryKey: ["checks", "logs", cwd, runId],
     queryFn: () => ipc("checks.logs", { cwd, runId }),
@@ -42,11 +52,69 @@ export function LogViewer({ cwd, runId }: LogViewerProps) {
     );
   }
 
-  return <LogContent raw={logQuery.data ?? ""} />;
+  return (
+    <LogContent
+      raw={logQuery.data ?? ""}
+      searchQuery={searchQuery}
+      activeMatchIndex={activeMatchIndex}
+      onMatchCountChange={onMatchCountChange}
+    />
+  );
 }
 
-function LogContent({ raw }: { raw: string }) {
+function LogContent({
+  raw,
+  searchQuery,
+  activeMatchIndex,
+  onMatchCountChange,
+}: {
+  raw: string;
+  searchQuery: string;
+  activeMatchIndex: number;
+  onMatchCountChange?: (count: number) => void;
+}) {
   const sections = useMemo(() => parseLogSections(raw), [raw]);
+  const activeMatchRef = useRef<HTMLSpanElement>(null);
+
+  // Count total matches across all sections and report to parent
+  const allLines = useMemo(() => {
+    const lines: string[] = [];
+    for (const section of sections) {
+      for (const line of section.lines) {
+        lines.push(line);
+      }
+    }
+    return lines;
+  }, [sections]);
+
+  const matchCount = useMemo(() => {
+    if (!searchQuery) {
+      return 0;
+    }
+    const q = searchQuery.toLowerCase();
+    let count = 0;
+    for (const line of allLines) {
+      // Strip ANSI codes for matching
+      // eslint-disable-next-line no-control-regex
+      const clean = line.replace(/\x1b\[\d+(?:;\d+)*m/g, "");
+      const lower = clean.toLowerCase();
+      let idx = lower.indexOf(q);
+      while (idx !== -1) {
+        count++;
+        idx = lower.indexOf(q, idx + 1);
+      }
+    }
+    return count;
+  }, [allLines, searchQuery]);
+
+  useEffect(() => {
+    onMatchCountChange?.(matchCount);
+  }, [matchCount, onMatchCountChange]);
+
+  // Scroll active match into view
+  useEffect(() => {
+    activeMatchRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [activeMatchIndex]);
 
   return (
     <div className="bg-bg-root max-h-[400px] overflow-y-auto rounded-md p-3">
@@ -57,10 +125,46 @@ function LogContent({ raw }: { raw: string }) {
         <LogSection
           key={`${section.name}-${i}`}
           section={section}
+          searchQuery={searchQuery}
+          activeMatchIndex={activeMatchIndex}
+          activeMatchRef={activeMatchRef}
+          globalOffset={computeSectionOffset(sections, i, searchQuery)}
         />
       ))}
     </div>
   );
+}
+
+/** Compute the global match offset for a section (how many matches come before it) */
+function computeSectionOffset(
+  sections: LogSectionData[],
+  sectionIndex: number,
+  query: string,
+): number {
+  let offset = 0;
+  for (let i = 0; i < sectionIndex; i++) {
+    const section = sections[i]!;
+    for (const line of section.lines) {
+      offset += countMatchesInLine(line, query);
+    }
+  }
+  return offset;
+}
+
+function countMatchesInLine(line: string, query: string): number {
+  if (!query) {
+    return 0;
+  }
+  // eslint-disable-next-line no-control-regex
+  const clean = line.replace(/\x1b\[\d+(?:;\d+)*m/g, "").toLowerCase();
+  const q = query.toLowerCase();
+  let count = 0;
+  let idx = clean.indexOf(q);
+  while (idx !== -1) {
+    count++;
+    idx = clean.indexOf(q, idx + 1);
+  }
+  return count;
 }
 
 // ---------------------------------------------------------------------------
@@ -79,7 +183,6 @@ function parseLogSections(raw: string): LogSectionData[] {
   let currentGroup: LogSectionData | null = null;
 
   for (const line of lines) {
-    // GitHub Actions group markers
     if (line.includes("##[group]")) {
       const name = line.replace(/.*##\[group\]/, "").trim();
       currentGroup = { name: name || "Group", lines: [], isGroup: true };
@@ -96,7 +199,6 @@ function parseLogSections(raw: string): LogSectionData[] {
     if (currentGroup) {
       currentGroup.lines.push(line);
     } else {
-      // Lines outside groups go into a default section
       const lastSection = sections[sections.length - 1];
       if (lastSection && !lastSection.isGroup) {
         lastSection.lines.push(line);
@@ -106,7 +208,6 @@ function parseLogSections(raw: string): LogSectionData[] {
     }
   }
 
-  // Close any unclosed group
   if (currentGroup) {
     sections.push(currentGroup);
   }
@@ -114,18 +215,62 @@ function parseLogSections(raw: string): LogSectionData[] {
   return sections;
 }
 
-function LogSection({ section }: { section: LogSectionData }) {
-  const [expanded, setExpanded] = useState(!section.isGroup);
+function LogSection({
+  section,
+  searchQuery,
+  activeMatchIndex,
+  activeMatchRef,
+  globalOffset,
+}: {
+  section: LogSectionData;
+  searchQuery: string;
+  activeMatchIndex: number;
+  activeMatchRef: React.RefObject<HTMLSpanElement | null>;
+  globalOffset: number;
+}) {
+  // Auto-expand sections that contain search matches
+  const hasMatches = useMemo(() => {
+    if (!searchQuery) {
+      return false;
+    }
+    const q = searchQuery.toLowerCase();
+    return section.lines.some((line) => {
+      // eslint-disable-next-line no-control-regex
+      const clean = line.replace(/\x1b\[\d+(?:;\d+)*m/g, "").toLowerCase();
+      return clean.includes(q);
+    });
+  }, [section.lines, searchQuery]);
+
+  const defaultExpanded = !section.isGroup || hasMatches;
+  const [expandedState, setExpandedState] = useState<boolean | null>(null);
+  const expanded = expandedState ?? defaultExpanded;
+
+  // Force-expand when search finds matches in a collapsed group
+  useEffect(() => {
+    if (hasMatches && section.isGroup) {
+      setExpandedState(true);
+    }
+  }, [hasMatches, section.isGroup]);
+
+  let lineMatchOffset = globalOffset;
 
   if (!section.isGroup) {
     return (
       <pre className="text-text-secondary font-mono text-[11px] leading-4">
-        {section.lines.map((line, i) => (
-          <LogLine
-            key={i}
-            text={line}
-          />
-        ))}
+        {section.lines.map((line, i) => {
+          const matchesBefore = lineMatchOffset;
+          lineMatchOffset += countMatchesInLine(line, searchQuery);
+          return (
+            <LogLine
+              key={`${i}-${line.slice(0, 10)}`}
+              text={line}
+              searchQuery={searchQuery}
+              matchOffset={matchesBefore}
+              activeMatchIndex={activeMatchIndex}
+              activeMatchRef={activeMatchRef}
+            />
+          );
+        })}
       </pre>
     );
   }
@@ -134,7 +279,7 @@ function LogSection({ section }: { section: LogSectionData }) {
     <div className="mb-0.5">
       <button
         type="button"
-        onClick={() => setExpanded(!expanded)}
+        onClick={() => setExpandedState(!expanded)}
         className="hover:bg-bg-raised flex w-full cursor-pointer items-center gap-1 rounded-sm px-1 py-0.5 text-left"
       >
         {expanded ? (
@@ -149,15 +294,28 @@ function LogSection({ section }: { section: LogSectionData }) {
           />
         )}
         <span className="text-text-primary font-mono text-[11px] font-medium">{section.name}</span>
+        {hasMatches && !expanded && (
+          <span className="bg-primary/20 text-primary ml-1 rounded-sm px-1 text-[9px]">
+            matches
+          </span>
+        )}
       </button>
       {expanded && (
         <pre className="text-text-secondary ml-3 font-mono text-[11px] leading-4">
-          {section.lines.map((line, i) => (
-            <LogLine
-              key={i}
-              text={line}
-            />
-          ))}
+          {section.lines.map((line, i) => {
+            const matchesBefore = lineMatchOffset;
+            lineMatchOffset += countMatchesInLine(line, searchQuery);
+            return (
+              <LogLine
+                key={`${i}-${line.slice(0, 10)}`}
+                text={line}
+                searchQuery={searchQuery}
+                matchOffset={matchesBefore}
+                activeMatchIndex={activeMatchIndex}
+                activeMatchRef={activeMatchRef}
+              />
+            );
+          })}
         </pre>
       )}
     </div>
@@ -165,29 +323,103 @@ function LogSection({ section }: { section: LogSectionData }) {
 }
 
 /**
- * Render a single log line with basic ANSI color support.
- * Strips ANSI codes and applies color classes.
+ * Render a single log line with ANSI color + search highlighting.
  */
-function LogLine({ text }: { text: string }) {
+function LogLine({
+  text,
+  searchQuery,
+  matchOffset,
+  activeMatchIndex,
+  activeMatchRef,
+}: {
+  text: string;
+  searchQuery: string;
+  matchOffset: number;
+  activeMatchIndex: number;
+  activeMatchRef: React.RefObject<HTMLSpanElement | null>;
+}) {
   const segments = useMemo(() => parseAnsi(text), [text]);
+
+  if (!searchQuery) {
+    return (
+      <div className="min-h-4">
+        {segments.map((seg, i) => (
+          <span
+            key={`${i}-${seg.text.slice(0, 5)}`}
+            className={seg.className}
+          >
+            {seg.text}
+          </span>
+        ))}
+        {"\n"}
+      </div>
+    );
+  }
+
+  // Highlight search matches within ANSI segments
+  let globalMatchIdx = matchOffset;
+  const q = searchQuery.toLowerCase();
 
   return (
     <div className="min-h-4">
-      {segments.map((seg, i) => (
-        <span
-          key={i}
-          className={seg.className}
-        >
-          {seg.text}
-        </span>
-      ))}
+      {segments.map((seg, i) => {
+        const parts: React.ReactNode[] = [];
+        let remaining = seg.text;
+        let lower = remaining.toLowerCase();
+        let matchPos = lower.indexOf(q);
+
+        while (matchPos !== -1) {
+          // Text before match
+          if (matchPos > 0) {
+            parts.push(
+              <span
+                key={`${i}-pre-${matchPos}`}
+                className={seg.className}
+              >
+                {remaining.slice(0, matchPos)}
+              </span>,
+            );
+          }
+          // The match
+          const isActive = globalMatchIdx === activeMatchIndex;
+          parts.push(
+            <span
+              key={`${i}-match-${matchPos}`}
+              ref={isActive ? activeMatchRef : undefined}
+              className={`rounded-xs ${
+                isActive ? "bg-primary text-bg-root" : "bg-warning/40 text-text-primary"
+              }`}
+            >
+              {remaining.slice(matchPos, matchPos + q.length)}
+            </span>,
+          );
+          globalMatchIdx++;
+          remaining = remaining.slice(matchPos + q.length);
+          lower = remaining.toLowerCase();
+          matchPos = lower.indexOf(q);
+        }
+
+        // Remaining text after last match
+        if (remaining) {
+          parts.push(
+            <span
+              key={`${i}-rest`}
+              className={seg.className}
+            >
+              {remaining}
+            </span>,
+          );
+        }
+
+        return parts;
+      })}
       {"\n"}
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Minimal ANSI parser (no external deps)
+// Minimal ANSI parser
 // ---------------------------------------------------------------------------
 
 interface AnsiSegment {
@@ -223,12 +455,10 @@ function parseAnsi(text: string): AnsiSegment[] {
 
   let match: RegExpExecArray | null = ansiRegex.exec(text);
   while (match !== null) {
-    // Text before this escape
     if (match.index > lastIndex) {
       segments.push({ text: text.slice(lastIndex, match.index), className: currentClass });
     }
 
-    // Parse codes
     const codes = match[1]?.split(";").map(Number) ?? [];
     for (const code of codes) {
       if (code === 0) {
@@ -246,7 +476,6 @@ function parseAnsi(text: string): AnsiSegment[] {
     match = ansiRegex.exec(text);
   }
 
-  // Remaining text
   if (lastIndex < text.length) {
     segments.push({ text: text.slice(lastIndex), className: currentClass });
   }

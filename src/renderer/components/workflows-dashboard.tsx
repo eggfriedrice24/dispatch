@@ -247,11 +247,20 @@ export function WorkflowsDashboard() {
         {/* Resizable run detail panel */}
         {selectedRun && (
           <>
-            {/* Resize handle */}
+            {/* Resize handle — wider hit area with visible 1px line */}
             <div
-              className="bg-border hover:bg-primary/40 active:bg-primary/60 w-[3px] shrink-0 cursor-col-resize transition-colors"
+              className="group/resize relative w-2 shrink-0 cursor-col-resize"
               onMouseDown={handleResizeStart}
-            />
+            >
+              {/* Visible border line */}
+              <div className="bg-border group-hover/resize:bg-primary/50 group-active/resize:bg-primary absolute top-0 right-0 bottom-0 w-px transition-colors" />
+              {/* Grip dots — appear on hover */}
+              <div className="absolute top-1/2 left-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col gap-[3px] opacity-0 transition-opacity group-hover/resize:opacity-100">
+                <div className="bg-text-ghost h-[3px] w-[3px] rounded-full" />
+                <div className="bg-text-ghost h-[3px] w-[3px] rounded-full" />
+                <div className="bg-text-ghost h-[3px] w-[3px] rounded-full" />
+              </div>
+            </div>
             <div
               className="bg-bg-surface shrink-0 overflow-y-auto"
               style={{ width: detailWidth }}
