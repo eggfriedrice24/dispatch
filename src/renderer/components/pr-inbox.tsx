@@ -64,23 +64,26 @@ export function PrInbox({ selectedPr, onSelectPr }: PrInboxProps) {
   const [activeFilter, setActiveFilter] = useState<FilterTab>("review");
   const searchRef = useRef<HTMLInputElement>(null);
 
-  // Data queries with 30s polling — each tab has its own query
+  // Only fetch the active tab's data (lazy — no wasted requests on mount)
   const reviewQuery = useQuery({
     queryKey: ["pr", "list", cwd, "reviewRequested"],
     queryFn: () => ipc("pr.list", { cwd, filter: "reviewRequested" }),
     refetchInterval: 30_000,
+    enabled: activeFilter === "review",
   });
 
   const authorQuery = useQuery({
     queryKey: ["pr", "list", cwd, "authored"],
     queryFn: () => ipc("pr.list", { cwd, filter: "authored" }),
     refetchInterval: 30_000,
+    enabled: activeFilter === "mine",
   });
 
   const allQuery = useQuery({
     queryKey: ["pr", "list", cwd, "all"],
     queryFn: () => ipc("pr.list", { cwd, filter: "all" }),
     refetchInterval: 30_000,
+    enabled: activeFilter === "all",
   });
 
   const reviewPrs = reviewQuery.data ?? [];
@@ -314,8 +317,8 @@ function FilterButton({
       {label}
       {count > 0 && (
         <span
-          className={`ml-1 font-mono text-[10px] ${
-            active ? "text-accent-text" : "text-text-ghost"
+          className={`ml-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 font-mono text-[9px] font-medium ${
+            active ? "bg-primary/15 text-accent-text" : "bg-bg-raised text-text-ghost"
           }`}
         >
           {count}
@@ -385,7 +388,7 @@ function PrItem({
           </span>
         </div>
         <div className="text-text-tertiary mt-0.5 flex items-center gap-1 font-mono text-[10px]">
-          <span className={`inline-block h-[6px] w-[6px] shrink-0 rounded-full ${statusColor}`} />
+          <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${statusColor}`} />
           <span>#{pr.number}</span>
           <span className="text-text-ghost">·</span>
           <span className="truncate">{pr.author.login}</span>

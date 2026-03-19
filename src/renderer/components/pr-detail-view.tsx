@@ -37,7 +37,7 @@ import { useKeyboardShortcuts } from "../hooks/use-keyboard-shortcuts";
 import { useSyntaxHighlighter } from "../hooks/use-syntax-highlight";
 import { parseDiff } from "../lib/diff-parser";
 import { useFileNav } from "../lib/file-nav-context";
-import { inferLanguage } from "../lib/highlighter";
+import { ensureLanguage, inferLanguage } from "../lib/highlighter";
 import { ipc } from "../lib/ipc";
 import { queryClient } from "../lib/query-client";
 import { useWorkspace } from "../lib/workspace-context";
@@ -45,6 +45,7 @@ import { ChecksPanel } from "./checks-panel";
 import { DiffViewer } from "./diff-viewer";
 import { GitHubAvatar } from "./github-avatar";
 import { MarkdownBody } from "./markdown-body";
+import { MentionTextarea } from "./mention-textarea";
 
 /**
  * PR detail view — DISPATCH-DESIGN-SYSTEM.md § 8.5, 8.6, 8.7, 8.8
@@ -152,10 +153,17 @@ function PrDetail({ prNumber }: { prNumber: number }) {
     return parseDiff(rawDiff);
   }, [rawDiff]);
 
-  // PR comments
+  // PR review comments (inline on code)
   const commentsQuery = useQuery({
     queryKey: ["pr", "comments", cwd, prNumber],
     queryFn: () => ipc("pr.comments", { cwd, prNumber }),
+    staleTime: 30_000,
+  });
+
+  // PR issue comments (general conversation)
+  const issueCommentsQuery = useQuery({
+    queryKey: ["pr", "issueComments", cwd, prNumber],
+    queryFn: () => ipc("pr.issueComments", { cwd, prNumber }),
     staleTime: 30_000,
   });
 
@@ -195,6 +203,12 @@ function PrDetail({ prNumber }: { prNumber: number }) {
 
   const currentFile = files[currentFileIndex] ?? null;
   const currentFilePath = currentFile?.newPath || currentFile?.oldPath || "";
+  const currentLanguage = inferLanguage(currentFilePath);
+
+  // Ensure the language is loaded for the current file (lazy-load non-core langs)
+  if (highlighter && currentLanguage !== "text") {
+    ensureLanguage(currentLanguage);
+  }
 
   // Full file content (for "show full file" mode)
   const fullFileQuery = useQuery({
@@ -447,7 +461,8 @@ function PrDetail({ prNumber }: { prNumber: number }) {
             {activeTab === "overview" && (
               <OverviewTab
                 pr={pr}
-                comments={commentsQuery.data ?? []}
+                prNumber={prNumber}
+                issueComments={issueCommentsQuery.data ?? []}
                 repo={repoSlug}
                 highlightedLogin={highlightedComment?.login ?? null}
                 onReviewClick={handleReviewClick}
@@ -476,7 +491,8 @@ function PrDetail({ prNumber }: { prNumber: number }) {
 
 function OverviewTab({
   pr,
-  comments,
+  prNumber,
+  issueComments,
   repo,
   highlightedLogin,
   onReviewClick,
@@ -489,14 +505,12 @@ function OverviewTab({
     updatedAt: string;
     url: string;
   };
-  comments: Array<{ id: number; body: string; user: { login: string }; created_at: string }>;
+  prNumber: number;
+  issueComments: Array<{ id: string; body: string; author: { login: string }; createdAt: string }>;
   repo: string;
   highlightedLogin: string | null;
   onReviewClick: (login: string) => void;
 }) {
-  // General (non-inline) comments — those without a path/line
-  const generalComments = comments.filter((c) => !("path" in c) || !(c as { line?: unknown }).line);
-
   return (
     <div className="flex flex-col gap-0">
       {/* PR description */}
@@ -524,33 +538,34 @@ function OverviewTab({
         />
       )}
 
-      {/* Conversation — general comments (not inline) */}
-      {generalComments.length > 0 && (
+      {/* Conversation — issue comments (general, not inline on code) */}
+      {issueComments.length > 0 && (
         <div className="px-4 py-3">
           <h3 className="text-text-tertiary mb-2 text-[10px] font-semibold tracking-[0.06em] uppercase">
             Conversation
           </h3>
           <div className="flex flex-col gap-2">
-            {generalComments.map((comment) => (
+            {issueComments.map((comment) => (
               <div
                 key={comment.id}
                 className="border-border rounded-md border p-2.5"
               >
                 <div className="mb-1.5 flex items-center gap-2">
                   <GitHubAvatar
-                    login={comment.user.login}
+                    login={comment.author.login}
                     size={16}
                   />
                   <span className="text-text-primary text-[11px] font-medium">
-                    {comment.user.login}
+                    {comment.author.login}
                   </span>
                   <span className="text-text-ghost ml-auto font-mono text-[10px]">
-                    {relativeTime(new Date(comment.created_at))}
+                    {relativeTime(new Date(comment.createdAt))}
                   </span>
                 </div>
-                <p className="text-text-secondary text-xs leading-relaxed whitespace-pre-wrap">
-                  {comment.body}
-                </p>
+                <MarkdownBody
+                  content={comment.body}
+                  repo={repo}
+                />
               </div>
             ))}
           </div>
@@ -558,7 +573,7 @@ function OverviewTab({
       )}
 
       {/* Empty conversation state */}
-      {generalComments.length === 0 && pr.reviews.length === 0 && (
+      {issueComments.length === 0 && pr.reviews.length === 0 && (
         <div className="flex flex-col items-center gap-1.5 px-4 py-8">
           <MessageSquare
             size={20}
@@ -567,6 +582,96 @@ function OverviewTab({
           <p className="text-text-tertiary text-xs">No conversation yet</p>
         </div>
       )}
+
+      {/* General comment composer */}
+      <GeneralCommentComposer prNumber={prNumber} />
+    </div>
+  );
+}
+
+function GeneralCommentComposer({ prNumber }: { prNumber: number }) {
+  const { cwd } = useWorkspace();
+  const [body, setBody] = useState("");
+  const [expanded, setExpanded] = useState(false);
+
+  const commentMutation = useMutation({
+    mutationFn: (args: { cwd: string; prNumber: number; body: string }) => ipc("pr.comment", args),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pr", "issueComments"] });
+      toastManager.add({ title: "Comment added", type: "success" });
+      setBody("");
+      setExpanded(false);
+    },
+    onError: (err: Error) => {
+      toastManager.add({
+        title: "Comment failed",
+        description: err.message,
+        type: "error",
+      });
+    },
+  });
+
+  if (!expanded) {
+    return (
+      <div className="border-border border-t px-4 py-3">
+        <button
+          type="button"
+          onClick={() => setExpanded(true)}
+          className="border-border bg-bg-root text-text-tertiary hover:border-primary/40 w-full cursor-pointer rounded-md border px-3 py-2 text-left text-xs"
+        >
+          Leave a comment...
+        </button>
+      </div>
+    );
+  }
+
+  const isMac = navigator.platform.includes("Mac");
+
+  return (
+    <div className="border-border border-t px-4 py-3">
+      <MentionTextarea
+        value={body}
+        onChange={setBody}
+        placeholder="Leave a comment on this PR... (@ to mention, # to reference)"
+        rows={3}
+        prNumber={prNumber}
+        autoFocus
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && body.trim()) {
+            e.preventDefault();
+            commentMutation.mutate({ cwd, prNumber, body: body.trim() });
+          }
+          if (e.key === "Escape") {
+            setExpanded(false);
+            setBody("");
+          }
+        }}
+      />
+      <div className="mt-2 flex items-center justify-between">
+        <span className="text-text-ghost text-[10px]">{isMac ? "⌘" : "Ctrl"}+Enter to submit</span>
+        <div className="flex gap-1.5">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              setExpanded(false);
+              setBody("");
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            size="sm"
+            className="bg-primary text-primary-foreground hover:bg-accent-hover"
+            disabled={!body.trim() || commentMutation.isPending}
+            onClick={() => {
+              commentMutation.mutate({ cwd, prNumber, body: body.trim() });
+            }}
+          >
+            {commentMutation.isPending ? <Spinner className="h-3 w-3" /> : "Comment"}
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

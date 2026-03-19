@@ -5,45 +5,53 @@ import { createHighlighter } from "shiki";
 let highlighterPromise: Promise<Highlighter> | null = null;
 
 /**
+ * Core languages loaded upfront. Others are loaded on-demand
+ * via highlighter.loadLanguage() when first encountered.
+ */
+const CORE_LANGS = [
+  "typescript",
+  "javascript",
+  "tsx",
+  "jsx",
+  "json",
+  "yaml",
+  "css",
+  "html",
+  "markdown",
+  "shell",
+] as const;
+
+/**
  * Lazily initialize a shared Shiki highlighter instance (WASM-based).
- * Called once, cached until successful. Resets on failure to allow retry.
+ * Loads only core languages upfront. Others are loaded on-demand.
+ * Resets on failure to allow retry.
  */
 export function getHighlighter(): Promise<Highlighter> {
   if (!highlighterPromise) {
     highlighterPromise = createHighlighter({
       themes: ["github-dark-default"],
-      langs: [
-        "typescript",
-        "javascript",
-        "tsx",
-        "jsx",
-        "json",
-        "yaml",
-        "toml",
-        "css",
-        "html",
-        "markdown",
-        "python",
-        "go",
-        "rust",
-        "java",
-        "ruby",
-        "shell",
-        "sql",
-        "dockerfile",
-        "graphql",
-        "swift",
-        "kotlin",
-        "c",
-        "cpp",
-      ],
+      langs: [...CORE_LANGS],
     }).catch((error) => {
-      // Reset so the next call retries instead of returning a cached rejection
       highlighterPromise = null;
       throw error;
     });
   }
   return highlighterPromise;
+}
+
+/**
+ * Ensure a language is loaded in the highlighter.
+ * No-op if already loaded. Safe to call repeatedly.
+ */
+export async function ensureLanguage(lang: string): Promise<void> {
+  const h = await getHighlighter();
+  if (!h.getLoadedLanguages().includes(lang)) {
+    try {
+      await h.loadLanguage(lang as Parameters<Highlighter["loadLanguage"]>[0]);
+    } catch {
+      // Language not supported by Shiki — will fall back to plain text
+    }
+  }
 }
 
 /**

@@ -532,3 +532,16 @@
   border-radius: 6px;
   margin: 8px 0;
 }
+
+/* Primary button glow on hover */
+[data-slot="button"].bg-primary:hover,
+button.bg-primary:hover {
+  box-shadow: var(--shadow-glow);
+}
+
+/* Tab indicator slide animation (§ 6.3) */
+.tab-indicator {
+  transition:
+    left 200ms var(--ease-out),
+    width 200ms var(--ease-out);
+}

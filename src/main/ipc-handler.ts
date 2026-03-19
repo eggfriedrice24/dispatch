@@ -83,6 +83,12 @@ const handlers: { [M in IpcMethod]: Handler<M> } = {
     await ghCli.mergePr(args.cwd, args.prNumber, args.strategy);
   },
   "pr.comments": async (args) => ghCli.getPrReviewComments(args.cwd, args.prNumber),
+  "pr.comment": async (args) => {
+    await ghCli.createPrComment(args.cwd, args.prNumber, args.body);
+  },
+  "pr.issueComments": async (args) => ghCli.getIssueComments(args.cwd, args.prNumber),
+  "pr.contributors": async (args) => ghCli.getPrContributors(args.cwd, args.prNumber),
+  "pr.issuesList": async (args) => ghCli.listIssuesAndPrs(args.cwd, args.limit),
   "pr.resolveThread": async (args) => {
     await ghCli.resolveReviewThread(args.cwd, args.threadId);
   },

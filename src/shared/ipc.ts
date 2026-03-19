@@ -227,6 +227,29 @@ export interface IpcApi {
     args: { cwd: string; prNumber: number; body: string; path: string; line: number };
     result: void;
   };
+  "pr.comment": { args: { cwd: string; prNumber: number; body: string }; result: void };
+  "pr.issueComments": {
+    args: { cwd: string; prNumber: number };
+    result: Array<{
+      id: string;
+      body: string;
+      author: { login: string };
+      createdAt: string;
+    }>;
+  };
+  "pr.contributors": {
+    args: { cwd: string; prNumber: number };
+    result: string[];
+  };
+  "pr.issuesList": {
+    args: { cwd: string; limit?: number };
+    result: Array<{
+      number: number;
+      title: string;
+      state: string;
+      isPr: boolean;
+    }>;
+  };
   "pr.resolveThread": { args: { cwd: string; threadId: string }; result: void };
   "pr.unresolveThread": { args: { cwd: string; threadId: string }; result: void };
   "pr.submitReview": {

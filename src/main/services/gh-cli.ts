@@ -1,3 +1,17 @@
+import type {
+  GhAccount,
+  GhAnnotation,
+  GhCheckRun,
+  GhPrDetail,
+  GhPrListItem,
+  GhReviewComment,
+  GhUser,
+  RepoInfo,
+  GhWorkflow,
+  GhWorkflowRun,
+  GhWorkflowRunDetail,
+} from "../../shared/ipc";
+
 import { execFile } from "./shell";
 
 /**
@@ -7,13 +21,9 @@ import { execFile } from "./shell";
  * It shells out to `gh` which uses the user's existing auth token.
  *
  * All commands use `execFile` (argument arrays) to prevent shell injection.
+ *
+ * Types are imported from shared/ipc.ts — single source of truth.
  */
-
-export interface GhUser {
-  login: string;
-  avatarUrl: string;
-  name: string | null;
-}
 
 export async function getAuthenticatedUser(): Promise<GhUser | null> {
   try {
@@ -26,14 +36,6 @@ export async function getAuthenticatedUser(): Promise<GhUser | null> {
   } catch {
     return null;
   }
-}
-
-export interface GhAccount {
-  login: string;
-  host: string;
-  active: boolean;
-  scopes: string;
-  gitProtocol: string;
 }
 
 export async function listAccounts(): Promise<GhAccount[]> {
@@ -84,12 +86,6 @@ export async function switchAccount(host: string, login: string): Promise<void> 
 // ---------------------------------------------------------------------------
 // Repo info (fork detection)
 // ---------------------------------------------------------------------------
-
-export interface RepoInfo {
-  nameWithOwner: string;
-  isFork: boolean;
-  parent: string | null;
-}
 
 export async function getRepoInfo(cwd: string): Promise<RepoInfo> {
   const { stdout } = await execFile(
@@ -159,25 +155,6 @@ function parseJsonOutput<T>(stdout: string): T {
 // PR operations
 // ---------------------------------------------------------------------------
 
-export interface GhPrListItem {
-  number: number;
-  title: string;
-  author: { login: string };
-  headRefName: string;
-  baseRefName: string;
-  reviewDecision: string;
-  statusCheckRollup: Array<{
-    name: string;
-    status: string;
-    conclusion: string | null;
-  }>;
-  updatedAt: string;
-  url: string;
-  isDraft: boolean;
-  additions: number;
-  deletions: number;
-}
-
 const PR_LIST_FIELDS = [
   "number",
   "title",
@@ -225,39 +202,6 @@ export async function listPrs(
   return parseJsonOutput<GhPrListItem[]>(stdout);
 }
 
-export interface GhPrDetail {
-  number: number;
-  title: string;
-  body: string;
-  author: { login: string };
-  headRefName: string;
-  baseRefName: string;
-  headRefOid: string;
-  reviewDecision: string;
-  mergeable: string;
-  statusCheckRollup: Array<{
-    name: string;
-    status: string;
-    conclusion: string | null;
-    detailsUrl: string;
-  }>;
-  reviews: Array<{
-    author: { login: string };
-    state: string;
-    submittedAt: string;
-  }>;
-  files: Array<{
-    path: string;
-    additions: number;
-    deletions: number;
-  }>;
-  updatedAt: string;
-  url: string;
-  isDraft: boolean;
-  additions: number;
-  deletions: number;
-}
-
 const PR_DETAIL_FIELDS = [
   "number",
   "title",
@@ -299,15 +243,6 @@ export async function getPrDiff(cwd: string, prNumber: number): Promise<string> 
 // ---------------------------------------------------------------------------
 // CI/CD checks
 // ---------------------------------------------------------------------------
-
-export interface GhCheckRun {
-  name: string;
-  status: string;
-  conclusion: string | null;
-  detailsUrl: string;
-  startedAt: string;
-  completedAt: string | null;
-}
 
 /**
  * Fetch PR checks. The `gh pr checks --json` fields are:
@@ -365,19 +300,6 @@ function mapBucketToConclusion(bucket: string): string | null {
   }
 }
 
-export interface GhRunLog {
-  jobs: Array<{
-    name: string;
-    steps: Array<{
-      name: string;
-      status: string;
-      conclusion: string | null;
-      number: number;
-      log: string;
-    }>;
-  }>;
-}
-
 export async function getRunLogs(cwd: string, runId: number): Promise<string> {
   const { stdout } = await execFile("gh", ["run", "view", String(runId), "--log"], {
     cwd,
@@ -410,19 +332,6 @@ export async function mergePr(
 // Review comments
 // ---------------------------------------------------------------------------
 
-export interface GhReviewComment {
-  id: number;
-  body: string;
-  path: string;
-  line: number | null;
-  original_line: number | null;
-  side: "LEFT" | "RIGHT";
-  user: { login: string; avatar_url: string };
-  created_at: string;
-  updated_at: string;
-  in_reply_to_id?: number;
-}
-
 export async function getPrReviewComments(
   cwd: string,
   prNumber: number,
@@ -433,6 +342,112 @@ export async function getPrReviewComments(
     { cwd, timeout: 30_000 },
   );
   return parseJsonOutput<GhReviewComment[]>(stdout);
+}
+
+export async function createPrComment(cwd: string, prNumber: number, body: string): Promise<void> {
+  await execFile("gh", ["pr", "comment", String(prNumber), "--body", body], {
+    cwd,
+    timeout: 15_000,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Issue/conversation comments (different from review comments)
+// ---------------------------------------------------------------------------
+
+export async function getIssueComments(
+  cwd: string,
+  prNumber: number,
+): Promise<Array<{ id: string; body: string; author: { login: string }; createdAt: string }>> {
+  const { stdout } = await execFile(
+    "gh",
+    ["pr", "view", String(prNumber), "--json", "comments", "--jq", ".comments"],
+    { cwd, timeout: 15_000 },
+  );
+  return parseJsonOutput<
+    Array<{ id: string; body: string; author: { login: string }; createdAt: string }>
+  >(stdout);
+}
+
+// ---------------------------------------------------------------------------
+// Contributors (for @ mention autocomplete)
+// ---------------------------------------------------------------------------
+
+export async function getPrContributors(cwd: string, prNumber: number): Promise<string[]> {
+  // Gather unique logins from: PR author, reviewers, commenters
+  const { stdout } = await execFile(
+    "gh",
+    [
+      "pr",
+      "view",
+      String(prNumber),
+      "--json",
+      "author,reviews,comments",
+      "--jq",
+      "[.author.login] + [.reviews[].author.login] + [.comments[].author.login] | unique | .[]",
+    ],
+    { cwd, timeout: 10_000 },
+  );
+  const logins = stdout.split("\n").filter(Boolean);
+
+  // Also get repo contributors (recent, limited)
+  try {
+    const { stdout: contribOut } = await execFile(
+      "gh",
+      ["api", "repos/{owner}/{repo}/contributors", "--jq", ".[].login", "-q", "--paginate"],
+      { cwd, timeout: 10_000 },
+    );
+    const repoContribs = contribOut.split("\n").filter(Boolean).slice(0, 30);
+    const all = new Set([...logins, ...repoContribs]);
+    return [...all].sort();
+  } catch {
+    return logins.sort();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Issues + PRs list (for # autocomplete)
+// ---------------------------------------------------------------------------
+
+export async function listIssuesAndPrs(
+  cwd: string,
+  limit = 50,
+): Promise<Array<{ number: number; title: string; state: string; isPr: boolean }>> {
+  // Fetch recent issues (includes PRs on GitHub)
+  const { stdout } = await execFile(
+    "gh",
+    ["issue", "list", "--json", "number,title,state", "--limit", String(limit), "--state", "all"],
+    { cwd, timeout: 15_000 },
+  );
+  const issues = parseJsonOutput<Array<{ number: number; title: string; state: string }>>(stdout);
+
+  // Also fetch PRs (since gh issue list may not include all PRs)
+  const { stdout: prOut } = await execFile(
+    "gh",
+    ["pr", "list", "--json", "number,title,state", "--limit", String(limit), "--state", "all"],
+    { cwd, timeout: 15_000 },
+  );
+  const prs = parseJsonOutput<Array<{ number: number; title: string; state: string }>>(prOut);
+
+  // Merge and dedupe
+  const seen = new Set<number>();
+  const result: Array<{ number: number; title: string; state: string; isPr: boolean }> = [];
+
+  for (const pr of prs) {
+    if (!seen.has(pr.number)) {
+      seen.add(pr.number);
+      result.push({ ...pr, isPr: true });
+    }
+  }
+  for (const issue of issues) {
+    if (!seen.has(issue.number)) {
+      seen.add(issue.number);
+      result.push({ ...issue, isPr: false });
+    }
+  }
+
+  result.sort((a, b) => b.number - a.number);
+  return result;
 }
 
 export async function resolveReviewThread(cwd: string, threadId: string): Promise<void> {
@@ -533,16 +548,6 @@ export async function submitReview(args: {
 // CI Annotations
 // ---------------------------------------------------------------------------
 
-export interface GhAnnotation {
-  path: string;
-  startLine: number;
-  endLine: number;
-  level: "notice" | "warning" | "failure";
-  message: string;
-  title: string;
-  checkName: string;
-}
-
 export async function getCheckAnnotations(cwd: string, prNumber: number): Promise<GhAnnotation[]> {
   const checks = await getPrChecks(cwd, prNumber);
   const failingChecks = checks.filter((c) => c.conclusion === "failure");
@@ -593,12 +598,6 @@ export async function getCheckAnnotations(cwd: string, prNumber: number): Promis
 // Workflows
 // ---------------------------------------------------------------------------
 
-export interface GhWorkflow {
-  id: number;
-  name: string;
-  state: "active" | "disabled_manually" | "disabled_inactivity";
-}
-
 export async function listWorkflows(cwd: string): Promise<GhWorkflow[]> {
   const { stdout } = await execFile(
     "gh",
@@ -606,20 +605,6 @@ export async function listWorkflows(cwd: string): Promise<GhWorkflow[]> {
     { cwd },
   );
   return parseJsonOutput<GhWorkflow[]>(stdout);
-}
-
-export interface GhWorkflowRun {
-  databaseId: number;
-  displayTitle: string;
-  name: string;
-  status: string;
-  conclusion: string | null;
-  headBranch: string;
-  createdAt: string;
-  updatedAt: string;
-  event: string;
-  workflowName: string;
-  attempt: number;
 }
 
 export async function listWorkflowRuns(
@@ -640,25 +625,6 @@ export async function listWorkflowRuns(
   }
   const { stdout } = await execFile("gh", ghArgs, { cwd });
   return parseJsonOutput<GhWorkflowRun[]>(stdout);
-}
-
-export interface GhWorkflowRunJob {
-  name: string;
-  status: string;
-  conclusion: string | null;
-  startedAt: string;
-  completedAt: string | null;
-  steps: Array<{
-    name: string;
-    status: string;
-    conclusion: string | null;
-    number: number;
-  }>;
-}
-
-export interface GhWorkflowRunDetail extends GhWorkflowRun {
-  headSha: string;
-  jobs: GhWorkflowRunJob[];
 }
 
 export async function getWorkflowRunDetail(
