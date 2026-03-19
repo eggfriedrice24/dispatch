@@ -35,13 +35,13 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useSyntaxHighlighter } from "../hooks/use-syntax-highlight";
 import { parseDiff } from "../lib/diff-parser";
+import { useFileNav } from "../lib/file-nav-context";
 import { inferLanguage } from "../lib/highlighter";
 import { ipc } from "../lib/ipc";
 import { queryClient } from "../lib/query-client";
 import { useWorkspace } from "../lib/workspace-context";
 import { ChecksPanel } from "./checks-panel";
 import { DiffViewer } from "./diff-viewer";
-import { FileTree } from "./file-tree";
 import { GitHubAvatar } from "./github-avatar";
 import { MarkdownBody } from "./markdown-body";
 
@@ -70,10 +70,8 @@ export function PrDetailView({ prNumber }: PrDetailViewProps) {
 
 function PrDetail({ prNumber }: { prNumber: number }) {
   const { cwd } = useWorkspace();
-  const [currentFileIndex, setCurrentFileIndex] = useState(0);
-  const [activeTab, setActiveTab] = useState<"overview" | "files" | "checks" | "reviews">(
-    "overview",
-  );
+  const { currentFileIndex, setCurrentFileIndex } = useFileNav();
+  const [activeTab, setActiveTab] = useState<"overview" | "checks" | "reviews">("overview");
   const [diffMode, setDiffMode] = useState<"all" | "since-review">("all");
   const [viewMode, setViewMode] = useState<DiffMode>("unified");
   const [showFullFile, setShowFullFile] = useState(false);
@@ -129,21 +127,6 @@ function PrDetail({ prNumber }: { prNumber: number }) {
     },
   });
 
-  // Viewed files
-  const viewedQuery = useQuery({
-    queryKey: ["review", "viewedFiles", repoName, prNumber],
-    queryFn: () => ipc("review.viewedFiles", { repo: repoName, prNumber }),
-  });
-  const viewedFiles = useMemo(() => new Set(viewedQuery.data ?? []), [viewedQuery.data]);
-
-  const setViewedMutation = useMutation({
-    mutationFn: (args: { repo: string; prNumber: number; filePath: string; viewed: boolean }) =>
-      ipc("review.setFileViewed", args),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["review", "viewedFiles"] });
-    },
-  });
-
   // Parse diff
   const rawDiff =
     diffMode === "since-review" && incrementalDiffQuery.data
@@ -176,17 +159,6 @@ function PrDetail({ prNumber }: { prNumber: number }) {
       map.set(key, existing);
     }
     return map;
-  }, [commentsQuery.data]);
-
-  // Per-file comment counts for file tree badges
-  const fileCommentCounts = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const c of commentsQuery.data ?? []) {
-      if (c.path) {
-        counts.set(c.path, (counts.get(c.path) ?? 0) + 1);
-      }
-    }
-    return counts;
   }, [commentsQuery.data]);
 
   // CI annotations
@@ -241,7 +213,6 @@ function PrDetail({ prNumber }: { prNumber: number }) {
         const fileIndex = files.findIndex((f) => (f.newPath || f.oldPath) === firstComment.path);
         if (fileIndex >= 0) {
           setCurrentFileIndex(fileIndex);
-          setActiveTab("files");
           // The diff viewer will show the inline comment automatically
           // since comments are already wired via commentsMap
         }
@@ -252,16 +223,16 @@ function PrDetail({ prNumber }: { prNumber: number }) {
         setTimeout(() => setHighlightedComment(null), 2000);
       }
     },
-    [commentsQuery.data, files],
+    [commentsQuery.data, files, setCurrentFileIndex],
   );
 
   // File navigation
   const goToPrevFile = useCallback(() => {
-    setCurrentFileIndex((i) => Math.max(0, i - 1));
-  }, []);
+    setCurrentFileIndex(Math.max(0, currentFileIndex - 1));
+  }, [currentFileIndex, setCurrentFileIndex]);
   const goToNextFile = useCallback(() => {
-    setCurrentFileIndex((i) => Math.min(files.length - 1, i + 1));
-  }, [files.length]);
+    setCurrentFileIndex(Math.min(files.length - 1, currentFileIndex + 1));
+  }, [currentFileIndex, files.length, setCurrentFileIndex]);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -458,12 +429,6 @@ function PrDetail({ prNumber }: { prNumber: number }) {
               onClick={() => setActiveTab("overview")}
             />
             <TabButton
-              label="Files"
-              count={files.length}
-              active={activeTab === "files"}
-              onClick={() => setActiveTab("files")}
-            />
-            <TabButton
               label="Checks"
               count={pr.statusCheckRollup.length}
               active={activeTab === "checks"}
@@ -487,25 +452,6 @@ function PrDetail({ prNumber }: { prNumber: number }) {
                 highlightedLogin={highlightedComment?.login ?? null}
                 onReviewClick={handleReviewClick}
               />
-            )}
-            {activeTab === "files" && (
-              <div className="p-2">
-                <FileTree
-                  files={files}
-                  currentFileIndex={currentFileIndex}
-                  onSelectFile={setCurrentFileIndex}
-                  viewedFiles={viewedFiles}
-                  commentCounts={fileCommentCounts}
-                  onToggleViewed={(filePath, viewed) => {
-                    setViewedMutation.mutate({
-                      repo: repoName,
-                      prNumber,
-                      filePath,
-                      viewed,
-                    });
-                  }}
-                />
-              </div>
             )}
             {activeTab === "checks" && <ChecksPanel prNumber={prNumber} />}
             {activeTab === "reviews" && (

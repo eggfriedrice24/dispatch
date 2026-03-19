@@ -20,7 +20,7 @@ import { GitHubAvatar } from "./github-avatar";
 
 interface PrInboxProps {
   selectedPr: number | null;
-  onSelectPr: (pr: number) => void;
+  onSelectPr: (pr: number, title?: string) => void;
 }
 
 type FilterTab = "review" | "mine" | "all";
@@ -278,7 +278,7 @@ export function PrInbox({ selectedPr, onSelectPr }: PrInboxProps) {
               isFocused={focusIndex === index}
               onClick={() => {
                 setFocusIndex(index);
-                onSelectPr(pr.number);
+                onSelectPr(pr.number, pr.title);
               }}
             />
           ))}

@@ -6,9 +6,11 @@ import { Component, useCallback, useState } from "react";
 
 import { useKeyboardShortcuts } from "../hooks/use-keyboard-shortcuts";
 import { useNotificationPolling } from "../hooks/use-notification-polling";
+import { FileNavProvider } from "../lib/file-nav-context";
 import { RouterProvider, useRouter } from "../lib/router";
 import { Navbar } from "./navbar";
 import { PrDetailView } from "./pr-detail-view";
+import { PrFileSidebar } from "./pr-file-sidebar";
 import { PrInbox } from "./pr-inbox";
 import { SettingsView } from "./settings-view";
 import { WorkflowsDashboard } from "./workflows-dashboard";
@@ -31,6 +33,7 @@ export function AppLayout() {
 function AppShell() {
   const { route, navigate } = useRouter();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [selectedPrTitle, setSelectedPrTitle] = useState("");
 
   const toggleSidebar = useCallback(() => {
     setSidebarCollapsed((v) => !v);
@@ -68,31 +71,44 @@ function AppShell() {
 
       {/* View content */}
       {route.view === "review" && (
-        <ResizablePanelGroup
-          orientation="horizontal"
-          className="flex-1"
-        >
-          {!sidebarCollapsed && (
-            <>
-              <ResizablePanel
-                defaultSize="20%"
-                minSize="12%"
-                maxSize="35%"
-              >
-                <PrInbox
-                  selectedPr={selectedPr}
-                  onSelectPr={(pr) => navigate({ view: "review", prNumber: pr })}
-                />
-              </ResizablePanel>
-              <ResizableHandle />
-            </>
-          )}
-          <ResizablePanel>
-            <main className="flex h-full flex-col overflow-hidden">
-              <PrDetailView prNumber={selectedPr} />
-            </main>
-          </ResizablePanel>
-        </ResizablePanelGroup>
+        <FileNavProvider>
+          <ResizablePanelGroup
+            orientation="horizontal"
+            className="flex-1"
+          >
+            {!sidebarCollapsed && (
+              <>
+                <ResizablePanel
+                  defaultSize="20%"
+                  minSize="12%"
+                  maxSize="35%"
+                >
+                  {selectedPr ? (
+                    <PrFileSidebar
+                      prNumber={selectedPr}
+                      prTitle={selectedPrTitle}
+                      onBack={() => navigate({ view: "review", prNumber: null })}
+                    />
+                  ) : (
+                    <PrInbox
+                      selectedPr={selectedPr}
+                      onSelectPr={(pr, title) => {
+                        setSelectedPrTitle(title ?? "");
+                        navigate({ view: "review", prNumber: pr });
+                      }}
+                    />
+                  )}
+                </ResizablePanel>
+                <ResizableHandle />
+              </>
+            )}
+            <ResizablePanel>
+              <main className="flex h-full flex-col overflow-hidden">
+                <PrDetailView prNumber={selectedPr} />
+              </main>
+            </ResizablePanel>
+          </ResizablePanelGroup>
+        </FileNavProvider>
       )}
 
       {route.view === "workflows" && <WorkflowsDashboard />}

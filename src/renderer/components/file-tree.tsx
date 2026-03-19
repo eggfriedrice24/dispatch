@@ -1,13 +1,192 @@
 import type { DiffFile } from "../lib/diff-parser";
 
-import { Check, MessageCircle, Square } from "lucide-react";
-import { useMemo } from "react";
+import {
+  Check,
+  ChevronRight,
+  FileEdit,
+  FilePlus2,
+  FileText,
+  FileX2,
+  MessageCircle,
+  Square,
+} from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 /**
- * File tree sidebar — DISPATCH-DESIGN-SYSTEM.md § 8.7 (Files tab)
+ * Hierarchical file tree — inspired by Better Hub's diff-file-tree.
  *
- * Flat list of changed files with viewed state, comment counts, + navigation.
+ * Features:
+ * - Lazy recursive directory creation from flat file list
+ * - Collapsible directories with smooth CSS grid animation
+ * - Depth-based indent guides
+ * - File status icons (added/modified/deleted/renamed)
+ * - Directory-level aggregated +/- stats
+ * - Per-file comment count badges
+ * - Viewed state with checkboxes
+ * - Progress bar header
  */
+
+// ---------------------------------------------------------------------------
+// Tree data structure
+// ---------------------------------------------------------------------------
+
+interface TreeNode {
+  name: string;
+  path: string;
+  type: "file" | "dir";
+  status?: string;
+  additions: number;
+  deletions: number;
+  fileIndex?: number;
+  children?: TreeNode[];
+}
+
+function buildTree(files: DiffFile[]): TreeNode[] {
+  const root: TreeNode[] = [];
+  const dirMap = new Map<string, TreeNode>();
+
+  function ensureDirectory(dirPath: string): TreeNode {
+    const existing = dirMap.get(dirPath);
+    if (existing) {
+      return existing;
+    }
+
+    const parts = dirPath.split("/");
+    const name = parts[parts.length - 1] ?? dirPath;
+    const node: TreeNode = {
+      name,
+      path: dirPath,
+      type: "dir",
+      additions: 0,
+      deletions: 0,
+      children: [],
+    };
+    dirMap.set(dirPath, node);
+
+    if (parts.length > 1) {
+      const parentPath = parts.slice(0, -1).join("/");
+      const parent = ensureDirectory(parentPath);
+      parent.children!.push(node);
+    } else {
+      root.push(node);
+    }
+
+    return node;
+  }
+
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i]!;
+    const filePath = file.newPath || file.oldPath;
+    const parts = filePath.split("/");
+    const name = parts[parts.length - 1] ?? filePath;
+
+    const node: TreeNode = {
+      name,
+      path: filePath,
+      type: "file",
+      status: file.status,
+      additions: file.additions,
+      deletions: file.deletions,
+      fileIndex: i,
+    };
+
+    if (parts.length > 1) {
+      const parentPath = parts.slice(0, -1).join("/");
+      const parent = ensureDirectory(parentPath);
+      parent.children!.push(node);
+    } else {
+      root.push(node);
+    }
+  }
+
+  // Aggregate stats
+  function aggregateStats(node: TreeNode): { additions: number; deletions: number } {
+    if (node.type === "file") {
+      return { additions: node.additions, deletions: node.deletions };
+    }
+    let additions = 0;
+    let deletions = 0;
+    for (const child of node.children ?? []) {
+      const stats = aggregateStats(child);
+      additions += stats.additions;
+      deletions += stats.deletions;
+    }
+    node.additions = additions;
+    node.deletions = deletions;
+    return { additions, deletions };
+  }
+
+  // Sort: directories first, then alphabetical
+  function sortNodes(nodes: TreeNode[]) {
+    nodes.sort((a, b) => {
+      if (a.type !== b.type) {
+        return a.type === "dir" ? -1 : 1;
+      }
+      return a.name.localeCompare(b.name);
+    });
+    for (const node of nodes) {
+      if (node.children) {
+        sortNodes(node.children);
+      }
+    }
+  }
+
+  for (const node of root) {
+    aggregateStats(node);
+  }
+  sortNodes(root);
+
+  return root;
+}
+
+function getAllDirPaths(nodes: TreeNode[]): string[] {
+  const paths: string[] = [];
+  for (const node of nodes) {
+    if (node.type === "dir") {
+      paths.push(node.path);
+      if (node.children) {
+        paths.push(...getAllDirPaths(node.children));
+      }
+    }
+  }
+  return paths;
+}
+
+// ---------------------------------------------------------------------------
+// File status helpers
+// ---------------------------------------------------------------------------
+
+function getStatusIcon(status?: string) {
+  switch (status) {
+    case "added":
+      return FilePlus2;
+    case "deleted":
+      return FileX2;
+    case "modified":
+      return FileEdit;
+    default:
+      return FileText;
+  }
+}
+
+function getStatusColor(status?: string): string {
+  switch (status) {
+    case "added":
+      return "text-success";
+    case "deleted":
+      return "text-destructive";
+    case "modified":
+      return "text-warning";
+    case "renamed":
+      return "text-info";
+    default:
+      return "text-text-ghost";
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
 
 interface FileTreeProps {
   files: DiffFile[];
@@ -15,16 +194,8 @@ interface FileTreeProps {
   onSelectFile: (index: number) => void;
   viewedFiles: Set<string>;
   onToggleViewed: (filePath: string, viewed: boolean) => void;
-  /** Map of filePath -> comment count for showing badges */
   commentCounts?: Map<string, number>;
 }
-
-const STATUS_DOT_COLOR: Record<string, string> = {
-  added: "bg-success",
-  deleted: "bg-destructive",
-  modified: "bg-warning",
-  renamed: "bg-info",
-};
 
 export function FileTree({
   files,
@@ -34,28 +205,54 @@ export function FileTree({
   onToggleViewed,
   commentCounts = new Map(),
 }: FileTreeProps) {
-  const viewedCount = files.filter((f) => viewedFiles.has(f.newPath)).length;
+  const tree = useMemo(() => buildTree(files), [files]);
+  const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
+  const initializedRef = useRef(false);
 
-  // Pre-compute sorted files with their original indices to avoid O(n^2) indexOf
-  const sortedFilesWithIndex = useMemo(() => {
-    const indexed = files.map((file, i) => ({ file, originalIndex: i }));
-    return indexed.toSorted((a, b) => {
-      const aPath = a.file.newPath || a.file.oldPath;
-      const bPath = b.file.newPath || b.file.oldPath;
-      const aDir = aPath.includes("/") ? aPath.slice(0, aPath.lastIndexOf("/")) : "";
-      const bDir = bPath.includes("/") ? bPath.slice(0, bPath.lastIndexOf("/")) : "";
-      if (aDir !== bDir) {
-        return aDir.localeCompare(bDir);
+  // Expand all directories on first render
+  useEffect(() => {
+    if (!initializedRef.current && tree.length > 0) {
+      initializedRef.current = true;
+      setExpandedPaths(new Set(getAllDirPaths(tree)));
+    }
+  }, [tree]);
+
+  const viewedCount = files.filter((f) => viewedFiles.has(f.newPath || f.oldPath)).length;
+
+  function toggleExpand(path: string) {
+    setExpandedPaths((prev) => {
+      const next = new Set(prev);
+      if (next.has(path)) {
+        next.delete(path);
+      } else {
+        next.add(path);
       }
-      const aName = aPath.split("/").pop() ?? aPath;
-      const bName = bPath.split("/").pop() ?? bPath;
-      return aName.localeCompare(bName);
+      return next;
     });
-  }, [files]);
+  }
+
+  // Auto-expand ancestors when selecting a file
+  function selectFile(index: number) {
+    const file = files[index];
+    if (file) {
+      const filePath = file.newPath || file.oldPath;
+      const parts = filePath.split("/");
+      if (parts.length > 1) {
+        setExpandedPaths((prev) => {
+          const next = new Set(prev);
+          for (let i = 1; i < parts.length; i++) {
+            next.add(parts.slice(0, i).join("/"));
+          }
+          return next;
+        });
+      }
+    }
+    onSelectFile(index);
+  }
 
   return (
     <div className="flex flex-col">
-      {/* Progress */}
+      {/* Progress bar */}
       <div className="flex items-center gap-2 px-3 pt-1 pb-2">
         <div className="bg-border h-[3px] flex-1 overflow-hidden rounded-full">
           <div
@@ -64,100 +261,213 @@ export function FileTree({
           />
         </div>
         <span className="text-text-tertiary font-mono text-[10px]">
-          {viewedCount}/{files.length}
+          {viewedCount}/{files.length} viewed
         </span>
       </div>
 
-      {/* File list */}
-      <div className="flex flex-col gap-0.5">
-        {sortedFilesWithIndex.map(({ file, originalIndex }) => {
-          const filePath = file.newPath || file.oldPath;
-          const fileName = filePath.split("/").pop() ?? filePath;
-          const dirPath = filePath.includes("/")
-            ? filePath.slice(0, filePath.lastIndexOf("/"))
-            : "";
-          const isViewed = viewedFiles.has(filePath);
-          const isActive = currentFileIndex === originalIndex;
-
-          return (
-            <button
-              key={filePath}
-              type="button"
-              onClick={() => onSelectFile(originalIndex)}
-              className={`flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors ${
-                isActive
-                  ? "border-l-primary bg-accent-muted border-l-2"
-                  : "hover:bg-bg-raised border-l-2 border-l-transparent"
-              }`}
-            >
-              {/* Viewed checkbox */}
-              <span
-                role="checkbox"
-                aria-checked={isViewed}
-                tabIndex={0}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onToggleViewed(filePath, !isViewed);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === " " || e.key === "Enter") {
-                    e.stopPropagation();
-                    e.preventDefault();
-                    onToggleViewed(filePath, !isViewed);
-                  }
-                }}
-                className={`flex h-[14px] w-[14px] shrink-0 cursor-pointer items-center justify-center rounded-xs border ${
-                  isViewed
-                    ? "border-success bg-success text-bg-root"
-                    : "border-border-strong hover:border-text-tertiary text-transparent"
-                }`}
-              >
-                {isViewed ? (
-                  <Check size={10} />
-                ) : (
-                  <Square
-                    size={10}
-                    className="opacity-0"
-                  />
-                )}
-              </span>
-
-              {/* Status dot */}
-              <div
-                className={`h-[6px] w-[6px] shrink-0 rounded-full ${
-                  STATUS_DOT_COLOR[file.status] ?? "bg-text-ghost"
-                }`}
-              />
-
-              {/* File path */}
-              <div className="min-w-0 flex-1">
-                {dirPath && (
-                  <p className="text-text-tertiary truncate font-mono text-[10px]">{dirPath}/</p>
-                )}
-                <p className="text-text-primary truncate font-mono text-xs">{fileName}</p>
-              </div>
-
-              {/* Comment count badge */}
-              {(commentCounts.get(filePath) ?? 0) > 0 && (
-                <span className="text-warning flex items-center gap-0.5 font-mono text-[10px]">
-                  <MessageCircle size={10} />
-                  {commentCounts.get(filePath)}
-                </span>
-              )}
-
-              {/* Stats */}
-              <div className="flex items-center gap-1">
-                {file.additions > 0 && (
-                  <span className="text-success font-mono text-[10px]">+{file.additions}</span>
-                )}
-                {file.deletions > 0 && (
-                  <span className="text-destructive font-mono text-[10px]">-{file.deletions}</span>
-                )}
-              </div>
-            </button>
-          );
-        })}
+      {/* Tree */}
+      <div className="flex flex-col">
+        {tree.map((node) => (
+          <TreeNodeRow
+            key={node.path}
+            node={node}
+            depth={0}
+            expandedPaths={expandedPaths}
+            onToggle={toggleExpand}
+            onSelectFile={selectFile}
+            currentFileIndex={currentFileIndex}
+            viewedFiles={viewedFiles}
+            onToggleViewed={onToggleViewed}
+            commentCounts={commentCounts}
+          />
+        ))}
       </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Tree node row (recursive)
+// ---------------------------------------------------------------------------
+
+function TreeNodeRow({
+  node,
+  depth,
+  expandedPaths,
+  onToggle,
+  onSelectFile,
+  currentFileIndex,
+  viewedFiles,
+  onToggleViewed,
+  commentCounts,
+}: {
+  node: TreeNode;
+  depth: number;
+  expandedPaths: Set<string>;
+  onToggle: (path: string) => void;
+  onSelectFile: (index: number) => void;
+  currentFileIndex: number;
+  viewedFiles: Set<string>;
+  onToggleViewed: (filePath: string, viewed: boolean) => void;
+  commentCounts: Map<string, number>;
+}) {
+  const isExpanded = expandedPaths.has(node.path);
+  const paddingLeft = depth * 16 + 8;
+
+  if (node.type === "dir") {
+    return (
+      <div>
+        <button
+          type="button"
+          onClick={() => onToggle(node.path)}
+          className="group hover:bg-bg-raised flex w-full cursor-pointer items-center gap-1 py-1 pr-2 text-left transition-colors"
+          style={{ paddingLeft }}
+        >
+          {/* Indent guides */}
+          {Array.from({ length: depth }, (_, i) => (
+            <span
+              key={i}
+              className="bg-border/40 absolute w-px"
+              style={{ left: i * 16 + 16, top: 0, bottom: 0 }}
+            />
+          ))}
+
+          <ChevronRight
+            size={12}
+            className={`text-text-tertiary shrink-0 transition-transform duration-150 ${
+              isExpanded ? "rotate-90" : ""
+            }`}
+          />
+          <span className="text-text-primary flex-1 truncate text-[11px] font-medium">
+            {node.name}
+          </span>
+          {node.additions > 0 && (
+            <span className="text-success font-mono text-[9px]">+{node.additions}</span>
+          )}
+          {node.deletions > 0 && (
+            <span className="text-destructive font-mono text-[9px]">-{node.deletions}</span>
+          )}
+        </button>
+        {/* Animated collapse container */}
+        <div
+          className="grid transition-[grid-template-rows] duration-150 ease-out"
+          style={{ gridTemplateRows: isExpanded ? "1fr" : "0fr" }}
+        >
+          <div className="overflow-hidden">
+            {node.children?.map((child) => (
+              <TreeNodeRow
+                key={child.path}
+                node={child}
+                depth={depth + 1}
+                expandedPaths={expandedPaths}
+                onToggle={onToggle}
+                onSelectFile={onSelectFile}
+                currentFileIndex={currentFileIndex}
+                viewedFiles={viewedFiles}
+                onToggleViewed={onToggleViewed}
+                commentCounts={commentCounts}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // File node
+  const isActive = currentFileIndex === node.fileIndex;
+  const isViewed = viewedFiles.has(node.path);
+  const StatusIcon = isViewed ? Check : getStatusIcon(node.status);
+  const statusColor = isViewed ? "text-primary" : getStatusColor(node.status);
+  const commentCount = commentCounts.get(node.path) ?? 0;
+
+  return (
+    <div className="relative">
+      {/* Indent guides */}
+      {Array.from({ length: depth }, (_, i) => (
+        <span
+          key={i}
+          className="bg-border/40 absolute w-px"
+          style={{ left: i * 16 + 16, top: 0, bottom: 0 }}
+        />
+      ))}
+
+      <button
+        type="button"
+        onClick={() => node.fileIndex !== undefined && onSelectFile(node.fileIndex)}
+        className={`group flex w-full cursor-pointer items-center gap-1.5 py-[3px] pr-2 text-left transition-colors ${
+          isActive ? "bg-accent-muted" : "hover:bg-bg-raised"
+        }`}
+        style={{ paddingLeft: paddingLeft + 15 }}
+      >
+        {/* Active indicator */}
+        {isActive && (
+          <div className="bg-primary absolute top-1 bottom-1 left-0 w-[2px] rounded-r-full" />
+        )}
+
+        <StatusIcon
+          size={13}
+          className={`shrink-0 ${statusColor}`}
+        />
+
+        <span
+          className={`flex-1 truncate font-mono text-[11px] ${
+            isViewed ? "text-text-tertiary line-through opacity-60" : "text-text-primary"
+          }`}
+        >
+          {node.name}
+        </span>
+
+        {/* Comment badge */}
+        {commentCount > 0 && (
+          <span className="text-warning flex items-center gap-0.5 font-mono text-[9px]">
+            <MessageCircle size={9} />
+            {commentCount}
+          </span>
+        )}
+
+        {/* Stats (hidden on hover, replaced by viewed checkbox) */}
+        <span className="flex items-center gap-1 group-hover:hidden">
+          {node.additions > 0 && (
+            <span className="text-success font-mono text-[9px]">+{node.additions}</span>
+          )}
+          {node.deletions > 0 && (
+            <span className="text-destructive font-mono text-[9px]">-{node.deletions}</span>
+          )}
+        </span>
+
+        {/* Viewed checkbox — appears on hover */}
+        <span
+          role="checkbox"
+          aria-checked={isViewed}
+          tabIndex={0}
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleViewed(node.path, !isViewed);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === " " || e.key === "Enter") {
+              e.stopPropagation();
+              e.preventDefault();
+              onToggleViewed(node.path, !isViewed);
+            }
+          }}
+          className={`hidden h-[13px] w-[13px] shrink-0 cursor-pointer items-center justify-center rounded-xs border group-hover:flex ${
+            isViewed
+              ? "border-success bg-success text-bg-root"
+              : "border-border-strong hover:border-text-tertiary text-transparent"
+          }`}
+        >
+          {isViewed ? (
+            <Check size={9} />
+          ) : (
+            <Square
+              size={9}
+              className="opacity-0"
+            />
+          )}
+        </span>
+      </button>
     </div>
   );
 }
