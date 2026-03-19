@@ -13,7 +13,9 @@ interface GitHubAvatarProps {
 
 /** Get a GitHub avatar URL for a given username */
 export function githubAvatarUrl(login: string, size = 64): string {
-  return `https://github.com/${encodeURIComponent(login)}.png?size=${size}`;
+  // Strip [bot] suffix for avatar URL
+  const cleanLogin = login.replace(/\[bot\]$/i, "");
+  return `https://github.com/${encodeURIComponent(cleanLogin)}.png?size=${size}`;
 }
 
 export function GitHubAvatar({ login, size = 20, className = "" }: GitHubAvatarProps) {
@@ -23,8 +25,21 @@ export function GitHubAvatar({ login, size = 20, className = "" }: GitHubAvatarP
       alt={login}
       width={size}
       height={size}
-      className={`shrink-0 rounded-full ${className}`}
+      className={`bg-bg-raised shrink-0 rounded-full ${className}`}
       loading="eager"
+      onError={(e) => {
+        // Fallback to a gradient avatar on load failure
+        const target = e.currentTarget;
+        target.style.display = "none";
+        const fallback = document.createElement("div");
+        fallback.className = `shrink-0 rounded-full flex items-center justify-center text-bg-root font-semibold ${className}`;
+        fallback.style.width = `${size}px`;
+        fallback.style.height = `${size}px`;
+        fallback.style.fontSize = `${Math.max(size * 0.4, 8)}px`;
+        fallback.style.background = "linear-gradient(135deg, var(--primary), #7c5a2a)";
+        fallback.textContent = login[0]?.toUpperCase() ?? "?";
+        target.parentNode?.insertBefore(fallback, target);
+      }}
     />
   );
 }

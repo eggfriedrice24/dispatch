@@ -38,7 +38,15 @@ export function ReleasesView() {
     staleTime: 60_000,
   });
 
+  // Check if user has push permission (needed to create releases)
+  const repoInfoQuery = useQuery({
+    queryKey: ["repo", "info", cwd],
+    queryFn: () => ipc("repo.info", { cwd }),
+    staleTime: 300_000,
+  });
+
   const releases = releasesQuery.data ?? [];
+  const canCreateRelease = repoInfoQuery.data?.canPush ?? false;
 
   return (
     <div className="flex flex-1 flex-col overflow-y-auto">
@@ -48,7 +56,7 @@ export function ReleasesView() {
             <h1 className="font-heading text-text-primary text-2xl italic">Releases</h1>
             <p className="text-text-secondary mt-1 text-sm">Manage releases for this repo.</p>
           </div>
-          <CreateReleaseDialog latestTag={releases[0]?.tagName} />
+          {canCreateRelease && <CreateReleaseDialog latestTag={releases[0]?.tagName} />}
         </div>
 
         {releasesQuery.isLoading && (

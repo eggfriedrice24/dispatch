@@ -90,18 +90,22 @@ export async function switchAccount(host: string, login: string): Promise<void> 
 export async function getRepoInfo(cwd: string): Promise<RepoInfo> {
   const { stdout } = await execFile(
     "gh",
-    ["repo", "view", "--json", "nameWithOwner,isFork,parent"],
+    ["repo", "view", "--json", "nameWithOwner,isFork,parent,viewerPermission"],
     { cwd, timeout: 10_000 },
   );
   const data = parseJsonOutput<{
     nameWithOwner: string;
     isFork: boolean;
     parent: { owner: { login: string }; name: string } | null;
+    viewerPermission: string;
   }>(stdout);
+  // viewerPermission is: ADMIN, MAINTAIN, WRITE, TRIAGE, READ
+  const canPush = ["ADMIN", "MAINTAIN", "WRITE"].includes(data.viewerPermission);
   return {
     nameWithOwner: data.nameWithOwner,
     isFork: data.isFork,
     parent: data.parent ? `${data.parent.owner.login}/${data.parent.name}` : null,
+    canPush,
   };
 }
 
@@ -881,6 +885,22 @@ export async function getReviewLoad(
 // Releases (3.4)
 // ---------------------------------------------------------------------------
 
+/**
+ * Get the upstream repo identifier for gh commands that don't auto-detect forks.
+ * Returns ["-R", "owner/repo"] args if fork, empty array if not.
+ */
+async function getUpstreamArgs(cwd: string): Promise<string[]> {
+  try {
+    const info = await getRepoInfo(cwd);
+    if (info.isFork && info.parent) {
+      return ["-R", info.parent];
+    }
+  } catch {
+    // Not a fork or detection failed
+  }
+  return [];
+}
+
 export async function listReleases(
   cwd: string,
   limit = 20,
@@ -895,19 +915,50 @@ export async function listReleases(
     author: { login: string };
   }>
 > {
+  const upstreamArgs = await getUpstreamArgs(cwd);
+  // gh release list only supports: createdAt, isDraft, isLatest, isPrerelease, name, publishedAt, tagName
   const { stdout } = await execFile(
     "gh",
     [
+      ...upstreamArgs,
       "release",
       "list",
       "--json",
-      "tagName,name,body,isDraft,isPrerelease,createdAt,author",
+      "tagName,name,isDraft,isPrerelease,createdAt",
       "--limit",
       String(limit),
     ],
     { cwd, timeout: 15_000 },
   );
-  return parseJsonOutput(stdout);
+  const releases =
+    parseJsonOutput<
+      Array<{
+        tagName: string;
+        name: string;
+        isDraft: boolean;
+        isPrerelease: boolean;
+        createdAt: string;
+      }>
+    >(stdout);
+
+  // Fetch body + author per release via gh release view
+  const detailed = await Promise.all(
+    releases.map(async (release) => {
+      try {
+        const { stdout: detail } = await execFile(
+          "gh",
+          [...upstreamArgs, "release", "view", release.tagName, "--json", "body,author"],
+          { cwd, timeout: 10_000 },
+        );
+        const data = parseJsonOutput<{ body: string; author: { login: string } }>(detail);
+        return { ...release, body: data.body ?? "", author: data.author ?? { login: "" } };
+      } catch {
+        return { ...release, body: "", author: { login: "" } };
+      }
+    }),
+  );
+
+  return detailed;
 }
 
 export async function createRelease(args: {

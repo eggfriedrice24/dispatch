@@ -177,6 +177,7 @@ export interface RepoInfo {
   nameWithOwner: string;
   isFork: boolean;
   parent: string | null; // "owner/name" of upstream repo, or null
+  canPush: boolean;
 }
 
 export interface EnvStatus {
