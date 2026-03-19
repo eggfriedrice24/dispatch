@@ -25,6 +25,11 @@ const handlers: { [M in IpcMethod]: Handler<M> } = {
     }
     return { ghVersion, gitVersion, ghAuth };
   },
+  "env.user": async () => ghCli.getAuthenticatedUser(),
+  "env.accounts": async () => ghCli.listAccounts(),
+  "env.switchAccount": async (args) => {
+    await ghCli.switchAccount(args.host, args.login);
+  },
 
   // Workspace
   "workspace.list": async () => repo.getWorkspaces(),
@@ -64,10 +69,10 @@ const handlers: { [M in IpcMethod]: Handler<M> } = {
   },
   "pr.comments": async (args) => ghCli.getPrReviewComments(args.cwd, args.prNumber),
   "pr.createComment": async (args) => {
-    await ghCli.createReviewComment(args.cwd, args.prNumber, args.body, args.path, args.line);
+    await ghCli.createReviewComment(args);
   },
   "pr.submitReview": async (args) => {
-    await ghCli.submitReview(args.cwd, args.prNumber, args.event, args.body);
+    await ghCli.submitReview(args);
   },
 
   // Checks
@@ -79,7 +84,7 @@ const handlers: { [M in IpcMethod]: Handler<M> } = {
   "checks.annotations": async (args) => ghCli.getCheckAnnotations(args.cwd, args.prNumber),
 
   // Git
-  "git.blame": async (args) => gitCli.blame(args.cwd, args.file, args.line, args.ref),
+  "git.blame": async (args) => gitCli.blame(args),
   "git.fileHistory": async (args) => gitCli.fileHistory(args.cwd, args.filePath, args.limit),
   "git.diff": async (args) => gitCli.diff(args.cwd, args.fromRef, args.toRef),
   "git.repoRoot": async (args) => gitCli.getRepoRoot(args.cwd),
@@ -89,7 +94,7 @@ const handlers: { [M in IpcMethod]: Handler<M> } = {
   "workflows.runs": async (args) => ghCli.listWorkflowRuns(args.cwd, args.workflowId, args.limit),
   "workflows.runDetail": async (args) => ghCli.getWorkflowRunDetail(args.cwd, args.runId),
   "workflows.trigger": async (args) => {
-    await ghCli.triggerWorkflow(args.cwd, args.workflowId, args.ref, args.inputs);
+    await ghCli.triggerWorkflow(args);
   },
   "workflows.cancel": async (args) => {
     await ghCli.cancelWorkflowRun(args.cwd, args.runId);
