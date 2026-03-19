@@ -309,19 +309,60 @@ export interface GhCheckRun {
   completedAt: string | null;
 }
 
+/**
+ * Fetch PR checks. The `gh pr checks --json` fields are:
+ * name, state, bucket, link, startedAt, completedAt, description, event, workflow
+ *
+ * We map to our GhCheckRun interface:
+ *   state → status, bucket → conclusion, link → detailsUrl
+ */
 export async function getPrChecks(cwd: string, prNumber: number): Promise<GhCheckRun[]> {
   const { stdout } = await execFile(
     "gh",
-    [
-      "pr",
-      "checks",
-      String(prNumber),
-      "--json",
-      "name,status,conclusion,detailsUrl,startedAt,completedAt",
-    ],
+    ["pr", "checks", String(prNumber), "--json", "name,state,bucket,link,startedAt,completedAt"],
     { cwd },
   );
-  return parseJsonOutput<GhCheckRun[]>(stdout);
+
+  const raw = parseJsonOutput<
+    Array<{
+      name: string;
+      state: string;
+      bucket: string;
+      link: string;
+      startedAt: string;
+      completedAt: string | null;
+    }>
+  >(stdout);
+
+  return raw.map((check) => ({
+    name: check.name,
+    status: check.state,
+    conclusion: mapBucketToConclusion(check.bucket),
+    detailsUrl: check.link,
+    startedAt: check.startedAt,
+    completedAt: check.completedAt,
+  }));
+}
+
+/** Map gh's "bucket" field to GitHub's conclusion values */
+function mapBucketToConclusion(bucket: string): string | null {
+  switch (bucket) {
+    case "pass": {
+      return "success";
+    }
+    case "fail": {
+      return "failure";
+    }
+    case "pending": {
+      return null;
+    }
+    case "skipping": {
+      return "skipped";
+    }
+    default: {
+      return bucket || null;
+    }
+  }
 }
 
 export interface GhRunLog {

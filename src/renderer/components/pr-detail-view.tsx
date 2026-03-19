@@ -5,6 +5,16 @@ import type { ReviewComment } from "./inline-comment";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogClose,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogPopup,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
 import { toastManager } from "@/components/ui/toast";
 import { relativeTime } from "@/shared/format";
@@ -973,7 +983,7 @@ function MergeButton({
 }
 
 // ---------------------------------------------------------------------------
-// Approve button with expandable message + LGTM gif
+// Approve button — Dialog modal with optional message + LGTM gif
 // ---------------------------------------------------------------------------
 
 const LGTM_GIFS = [
@@ -990,7 +1000,6 @@ const LGTM_GIFS = [
 ];
 
 function ApproveButton({ cwd, prNumber }: { cwd: string; prNumber: number }) {
-  const [open, setOpen] = useState(false);
   const [body, setBody] = useState("");
 
   const reviewMutation = useMutation({
@@ -1003,7 +1012,6 @@ function ApproveButton({ cwd, prNumber }: { cwd: string; prNumber: number }) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pr"] });
       toastManager.add({ title: "PR approved", type: "success" });
-      setOpen(false);
       setBody("");
     },
     onError: (err) => {
@@ -1015,13 +1023,8 @@ function ApproveButton({ cwd, prNumber }: { cwd: string; prNumber: number }) {
     },
   });
 
-  function handleApprove(message?: string) {
-    reviewMutation.mutate({
-      cwd,
-      prNumber,
-      event: "APPROVE",
-      body: message || undefined,
-    });
+  function handleQuickApprove() {
+    reviewMutation.mutate({ cwd, prNumber, event: "APPROVE" });
   }
 
   function insertLgtmGif() {
@@ -1033,91 +1036,92 @@ function ApproveButton({ cwd, prNumber }: { cwd: string; prNumber: number }) {
   }
 
   return (
-    <div className="relative">
-      <div className="flex">
-        {/* Quick approve (no message) */}
-        <Button
-          size="sm"
-          variant="outline"
-          className="border-success/30 text-success hover:bg-success-muted gap-1.5 rounded-r-none"
-          disabled={reviewMutation.isPending}
-          onClick={() => handleApprove()}
-        >
-          {reviewMutation.isPending ? <Spinner className="h-3 w-3" /> : "✓"}
-          Approve
-        </Button>
-        {/* Expand for message */}
-        <Button
-          size="sm"
-          variant="outline"
-          className="border-success/30 text-success hover:bg-success-muted rounded-l-none border-l-0 px-1.5"
-          onClick={() => setOpen(!open)}
-          disabled={reviewMutation.isPending}
+    <div className="flex">
+      {/* Quick approve (no message) */}
+      <Button
+        size="sm"
+        variant="outline"
+        className="border-success/30 text-success hover:bg-success-muted gap-1.5 rounded-r-none"
+        disabled={reviewMutation.isPending}
+        onClick={handleQuickApprove}
+      >
+        {reviewMutation.isPending ? <Spinner className="h-3 w-3" /> : "✓"}
+        Approve
+      </Button>
+      {/* Expand for message — opens Dialog */}
+      <Dialog
+        onOpenChange={(open) => {
+          if (!open) {
+            setBody("");
+          }
+        }}
+      >
+        <DialogTrigger
+          render={
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-success/30 text-success hover:bg-success-muted rounded-l-none border-l-0 px-1.5"
+              disabled={reviewMutation.isPending}
+            />
+          }
         >
           <ChevronDown size={11} />
-        </Button>
-      </div>
-      {open && (
-        <div className="border-border bg-bg-elevated absolute top-full right-0 z-20 mt-1 w-80 rounded-md border p-3 shadow-lg">
-          <textarea
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            placeholder="Leave a comment with your approval (optional)..."
-            rows={3}
-            className="border-border bg-bg-root text-text-primary placeholder:text-text-tertiary focus:border-success w-full resize-none rounded-md border px-3 py-2 text-xs focus:outline-none"
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-                e.preventDefault();
-                handleApprove(body.trim());
-              }
-              if (e.key === "Escape") {
-                setOpen(false);
-              }
-            }}
-          />
-          <div className="mt-2 flex items-center justify-between">
+        </DialogTrigger>
+        <DialogPopup className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Approve with comment</DialogTitle>
+            <DialogDescription>Optionally leave a message with your approval.</DialogDescription>
+          </DialogHeader>
+          <div className="px-6 pb-2">
+            <textarea
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              placeholder="LGTM! Ship it."
+              rows={4}
+              className="border-border bg-bg-root text-text-primary placeholder:text-text-tertiary focus:border-success w-full resize-none rounded-md border px-3 py-2.5 text-xs leading-relaxed focus:outline-none"
+            />
             <button
               type="button"
               onClick={insertLgtmGif}
-              className="text-text-tertiary hover:text-text-primary flex cursor-pointer items-center gap-1 text-[11px]"
-              title="Insert random LGTM gif"
+              className="text-text-tertiary hover:text-text-primary mt-1.5 flex cursor-pointer items-center gap-1 text-[11px]"
             >
               <Dices size={13} />
-              LGTM gif
+              Insert random LGTM gif
             </button>
-            <div className="flex items-center gap-1.5">
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => {
-                  setOpen(false);
-                  setBody("");
-                }}
-              >
-                Cancel
-              </Button>
-              <Button
-                size="sm"
-                className="bg-success hover:bg-success/90 text-bg-root"
-                disabled={reviewMutation.isPending}
-                onClick={() => handleApprove(body.trim())}
-              >
-                {reviewMutation.isPending ? <Spinner className="h-3 w-3" /> : "✓ Approve"}
-              </Button>
-            </div>
           </div>
-        </div>
-      )}
+          <DialogFooter variant="bare">
+            <DialogClose render={<Button variant="ghost" />}>Cancel</DialogClose>
+            <DialogClose
+              render={
+                <Button
+                  className="bg-success hover:bg-success/90 text-bg-root"
+                  disabled={reviewMutation.isPending}
+                  onClick={() => {
+                    reviewMutation.mutate({
+                      cwd,
+                      prNumber,
+                      event: "APPROVE",
+                      body: body.trim() || undefined,
+                    });
+                  }}
+                />
+              }
+            >
+              {reviewMutation.isPending ? <Spinner className="h-3 w-3" /> : "✓ Approve"}
+            </DialogClose>
+          </DialogFooter>
+        </DialogPopup>
+      </Dialog>
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Request Changes button
+// Request Changes button — Dialog modal
 // ---------------------------------------------------------------------------
 
 function RequestChangesButton({ cwd, prNumber }: { cwd: string; prNumber: number }) {
-  const [open, setOpen] = useState(false);
   const [body, setBody] = useState("");
 
   const reviewMutation = useMutation({
@@ -1130,7 +1134,6 @@ function RequestChangesButton({ cwd, prNumber }: { cwd: string; prNumber: number
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pr"] });
       toastManager.add({ title: "Changes requested", type: "success" });
-      setOpen(false);
       setBody("");
     },
     onError: (err) => {
@@ -1143,68 +1146,63 @@ function RequestChangesButton({ cwd, prNumber }: { cwd: string; prNumber: number
   });
 
   return (
-    <div className="relative">
-      <Button
-        size="sm"
-        variant="ghost"
-        className="text-destructive hover:bg-danger-muted hover:text-destructive gap-1.5"
-        onClick={() => setOpen(!open)}
+    <Dialog
+      onOpenChange={(open) => {
+        if (!open) {
+          setBody("");
+        }
+      }}
+    >
+      <DialogTrigger
+        render={
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-destructive hover:bg-danger-muted hover:text-destructive gap-1.5"
+          />
+        }
       >
         <MessageSquare size={13} />
         Request Changes
-      </Button>
-      {open && (
-        <div className="border-border bg-bg-elevated absolute top-full right-0 z-20 mt-1 w-72 rounded-md border p-3 shadow-lg">
+      </DialogTrigger>
+      <DialogPopup className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Request changes</DialogTitle>
+          <DialogDescription>
+            Describe what needs to change before this can be merged.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="px-6 pb-2">
           <textarea
             value={body}
             onChange={(e) => setBody(e.target.value)}
             placeholder="What needs to change?"
-            rows={3}
-            className="border-border bg-bg-root text-text-primary placeholder:text-text-tertiary focus:border-primary w-full resize-none rounded-md border px-3 py-2 text-xs focus:outline-none"
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && body.trim()) {
-                e.preventDefault();
-                reviewMutation.mutate({
-                  cwd,
-                  prNumber,
-                  event: "REQUEST_CHANGES",
-                  body: body.trim(),
-                });
-              }
-              if (e.key === "Escape") {
-                setOpen(false);
-              }
-            }}
+            rows={4}
+            className="border-border bg-bg-root text-text-primary placeholder:text-text-tertiary focus:border-destructive w-full resize-none rounded-md border px-3 py-2.5 text-xs leading-relaxed focus:outline-none"
           />
-          <div className="mt-2 flex items-center justify-end gap-1.5">
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => {
-                setOpen(false);
-                setBody("");
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              size="sm"
-              className="bg-destructive hover:bg-destructive/90 text-white"
-              disabled={!body.trim() || reviewMutation.isPending}
-              onClick={() => {
-                reviewMutation.mutate({
-                  cwd,
-                  prNumber,
-                  event: "REQUEST_CHANGES",
-                  body: body.trim(),
-                });
-              }}
-            >
-              {reviewMutation.isPending ? <Spinner className="h-3 w-3" /> : "Submit"}
-            </Button>
-          </div>
         </div>
-      )}
-    </div>
+        <DialogFooter variant="bare">
+          <DialogClose render={<Button variant="ghost" />}>Cancel</DialogClose>
+          <DialogClose
+            render={
+              <Button
+                className="bg-destructive hover:bg-destructive/90 text-white"
+                disabled={!body.trim() || reviewMutation.isPending}
+                onClick={() => {
+                  reviewMutation.mutate({
+                    cwd,
+                    prNumber,
+                    event: "REQUEST_CHANGES",
+                    body: body.trim(),
+                  });
+                }}
+              />
+            }
+          >
+            {reviewMutation.isPending ? <Spinner className="h-3 w-3" /> : "Submit"}
+          </DialogClose>
+        </DialogFooter>
+      </DialogPopup>
+    </Dialog>
   );
 }
