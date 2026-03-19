@@ -4,11 +4,13 @@ import {
   type BrowserWindowConstructorOptions,
   Tray,
   app,
+  dialog,
   ipcMain,
   nativeImage,
   BrowserWindow,
 } from "electron";
 
+import { BADGE_COUNT_CHANNEL } from "../shared/ipc";
 import { closeDatabase, initDatabase } from "./db/database";
 import { registerIpcHandler } from "./ipc-handler";
 
@@ -54,21 +56,35 @@ function createWindow(): BrowserWindow {
 }
 
 // ---------------------------------------------------------------------------
-// System tray
+// System tray (stored at module level to prevent GC)
 // ---------------------------------------------------------------------------
+
+let tray: Tray | null = null;
 
 function setupTray(): void {
   // 16x16 copper-tinted icon as a simple data URL
   const icon = nativeImage.createFromDataURL(
     "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAWklEQVQ4T2P8z8DwHwMNACMDAwMjNQwYZGb8/88A1UENLzAykmIAvS0g2gCaewGnF4hxMU29QIwBNPcCIxkG0DwOGBkYaOsFogygpReINoDmgURzA2juBSINAACXizARd37XYAAAAABJRU5ErkJggg==",
   );
-  const tray = new Tray(icon);
+  tray = new Tray(icon);
   tray.setToolTip("Dispatch");
 }
 
 app.whenReady().then(() => {
   // Initialize infrastructure
-  initDatabase();
+  try {
+    initDatabase();
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error("Failed to initialize database:", error);
+    dialog.showErrorBox(
+      "Database Error",
+      `Dispatch failed to initialize its database. The app may not function correctly.\n\n${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+  }
+
   registerIpcHandler();
 
   // Create main window
@@ -78,8 +94,10 @@ app.whenReady().then(() => {
   setupTray();
 
   // Listen for badge count updates from renderer
-  ipcMain.on("set-badge-count", (_event, count: number) => {
-    app.setBadgeCount(count);
+  ipcMain.on(BADGE_COUNT_CHANNEL, (_event, count: unknown) => {
+    if (typeof count === "number" && Number.isInteger(count) && count >= 0) {
+      app.setBadgeCount(count);
+    }
   });
 
   app.on("activate", () => {
@@ -99,10 +117,13 @@ app.on("before-quit", () => {
   closeDatabase();
 });
 
-process.on("message", (msg) => {
-  if (msg === "electron-vite&type=hot-reload") {
-    for (const win of BrowserWindow.getAllWindows()) {
-      win.webContents.reload();
+// Development hot-reload
+if (process.env.VITE_DEV_SERVER_URL) {
+  process.on("message", (msg) => {
+    if (msg === "electron-vite&type=hot-reload") {
+      for (const win of BrowserWindow.getAllWindows()) {
+        win.webContents.reload();
+      }
     }
-  }
-});
+  });
+}
