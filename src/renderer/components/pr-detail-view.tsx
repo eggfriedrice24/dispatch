@@ -195,6 +195,41 @@ function PrDetail({ prNumber }: { prNumber: number }) {
 
   const currentFile = files[currentFileIndex] ?? null;
 
+  // State for visually highlighting a comment after navigation
+  const [highlightedComment, setHighlightedComment] = useState<{
+    login: string;
+    expiresAt: number;
+  } | null>(null);
+
+  // Navigate to a reviewer's first inline comment in the diff
+  const handleReviewClick = useCallback(
+    (login: string) => {
+      const allComments = commentsQuery.data ?? [];
+      // Find this reviewer's inline comments (ones with path + line)
+      const reviewerComments = allComments
+        .filter((c) => c.user.login === login && c.path && c.line)
+        .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+
+      if (reviewerComments.length > 0) {
+        const firstComment = reviewerComments[0]!;
+        // Find the file index for this comment
+        const fileIndex = files.findIndex((f) => (f.newPath || f.oldPath) === firstComment.path);
+        if (fileIndex >= 0) {
+          setCurrentFileIndex(fileIndex);
+          setActiveTab("files");
+          // The diff viewer will show the inline comment automatically
+          // since comments are already wired via commentsMap
+        }
+      } else {
+        // No inline comments — switch to overview and highlight the review
+        setActiveTab("overview");
+        setHighlightedComment({ login, expiresAt: Date.now() + 2000 });
+        setTimeout(() => setHighlightedComment(null), 2000);
+      }
+    },
+    [commentsQuery.data, files],
+  );
+
   // File navigation
   const goToPrevFile = useCallback(() => {
     setCurrentFileIndex((i) => Math.max(0, i - 1));
@@ -417,8 +452,9 @@ function PrDetail({ prNumber }: { prNumber: number }) {
               <OverviewTab
                 pr={pr}
                 comments={commentsQuery.data ?? []}
-                isAuthor={isAuthor}
                 repo={repoSlug}
+                highlightedLogin={highlightedComment?.login ?? null}
+                onReviewClick={handleReviewClick}
               />
             )}
             {activeTab === "files" && (
@@ -440,7 +476,12 @@ function PrDetail({ prNumber }: { prNumber: number }) {
               </div>
             )}
             {activeTab === "checks" && <ChecksPanel prNumber={prNumber} />}
-            {activeTab === "reviews" && <ReviewsList reviews={pr.reviews} />}
+            {activeTab === "reviews" && (
+              <ReviewsList
+                reviews={pr.reviews}
+                onReviewClick={(login) => handleReviewClick(login)}
+              />
+            )}
           </div>
 
           {/* Merge checklist */}
@@ -458,8 +499,9 @@ function PrDetail({ prNumber }: { prNumber: number }) {
 function OverviewTab({
   pr,
   comments,
-  isAuthor,
   repo,
+  highlightedLogin,
+  onReviewClick,
 }: {
   pr: {
     body: string;
@@ -470,8 +512,9 @@ function OverviewTab({
     url: string;
   };
   comments: Array<{ id: number; body: string; user: { login: string }; created_at: string }>;
-  isAuthor: boolean;
   repo: string;
+  highlightedLogin: string | null;
+  onReviewClick: (login: string) => void;
 }) {
   // General (non-inline) comments — those without a path/line
   const generalComments = comments.filter((c) => !("path" in c) || !(c as { line?: unknown }).line);
@@ -495,24 +538,12 @@ function OverviewTab({
       </div>
 
       {/* Review summary — dedupe to latest per user */}
-      {pr.reviews.length > 0 && <OverviewReviewSummary reviews={pr.reviews} />}
-
-      {/* Author-specific: ship status summary */}
-      {isAuthor && (
-        <div className="border-border border-b px-4 py-3">
-          <h3 className="text-text-tertiary mb-2 text-[10px] font-semibold tracking-[0.06em] uppercase">
-            Ship status
-          </h3>
-          <p className="text-text-secondary text-xs">
-            {pr.reviewDecision === "APPROVED"
-              ? "Your PR has been approved. Ready to merge when CI passes."
-              : pr.reviewDecision === "CHANGES_REQUESTED"
-                ? "Changes have been requested. Address feedback and push."
-                : pr.reviewDecision === "REVIEW_REQUIRED"
-                  ? "Waiting for review. Reviewers have been notified."
-                  : "No review decision yet."}
-          </p>
-        </div>
+      {pr.reviews.length > 0 && (
+        <OverviewReviewSummary
+          reviews={pr.reviews}
+          highlightedLogin={highlightedLogin}
+          onReviewClick={onReviewClick}
+        />
       )}
 
       {/* Conversation — general comments (not inline) */}
@@ -564,8 +595,12 @@ function OverviewTab({
 
 function OverviewReviewSummary({
   reviews,
+  highlightedLogin,
+  onReviewClick,
 }: {
   reviews: Array<{ author: { login: string }; state: string; submittedAt: string }>;
+  highlightedLogin: string | null;
+  onReviewClick: (login: string) => void;
 }) {
   const latestByUser = new Map<
     string,
@@ -585,22 +620,31 @@ function OverviewReviewSummary({
         Reviews
       </h3>
       <div className="flex flex-col gap-1.5">
-        {uniqueReviews.map((review) => (
-          <div
-            key={review.author.login}
-            className="flex items-center gap-2"
-          >
-            <GitHubAvatar
-              login={review.author.login}
-              size={16}
-            />
-            <span className="text-text-primary text-[11px] font-medium">{review.author.login}</span>
-            <ReviewStateBadge state={review.state} />
-            <span className="text-text-ghost ml-auto font-mono text-[10px]">
-              {relativeTime(new Date(review.submittedAt))}
-            </span>
-          </div>
-        ))}
+        {uniqueReviews.map((review) => {
+          const isHighlighted = highlightedLogin === review.author.login;
+          return (
+            <button
+              key={review.author.login}
+              type="button"
+              onClick={() => onReviewClick(review.author.login)}
+              className={`flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-left transition-colors ${
+                isHighlighted ? "bg-primary/10 ring-primary/40 ring-1" : "hover:bg-bg-raised"
+              }`}
+            >
+              <GitHubAvatar
+                login={review.author.login}
+                size={16}
+              />
+              <span className="text-text-primary text-[11px] font-medium">
+                {review.author.login}
+              </span>
+              <ReviewStateBadge state={review.state} />
+              <span className="text-text-ghost ml-auto font-mono text-[10px]">
+                {relativeTime(new Date(review.submittedAt))}
+              </span>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
@@ -809,8 +853,10 @@ function TabButton({
 
 function ReviewsList({
   reviews,
+  onReviewClick,
 }: {
   reviews: Array<{ author: { login: string }; state: string; submittedAt: string }>;
+  onReviewClick: (login: string) => void;
 }) {
   if (reviews.length === 0) {
     return <div className="text-text-tertiary px-3 py-4 text-center text-xs">No reviews yet</div>;
@@ -832,9 +878,11 @@ function ReviewsList({
   return (
     <div className="flex flex-col gap-1 p-2">
       {uniqueReviews.map((review) => (
-        <div
+        <button
           key={review.author.login}
-          className="flex items-center gap-2 rounded-md px-2 py-1.5"
+          type="button"
+          onClick={() => onReviewClick(review.author.login)}
+          className="hover:bg-bg-raised flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors"
         >
           <GitHubAvatar
             login={review.author.login}
@@ -847,7 +895,7 @@ function ReviewsList({
             </span>
           </div>
           <ReviewStateBadge state={review.state} />
-        </div>
+        </button>
       ))}
     </div>
   );
