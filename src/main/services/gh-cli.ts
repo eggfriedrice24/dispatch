@@ -930,16 +930,15 @@ export async function listReleases(
     ],
     { cwd, timeout: 15_000 },
   );
-  const releases =
-    parseJsonOutput<
-      Array<{
-        tagName: string;
-        name: string;
-        isDraft: boolean;
-        isPrerelease: boolean;
-        createdAt: string;
-      }>
-    >(stdout);
+  const releases = parseJsonOutput<
+    Array<{
+      tagName: string;
+      name: string;
+      isDraft: boolean;
+      isPrerelease: boolean;
+      createdAt: string;
+    }>
+  >(stdout);
 
   // Fetch body + author per release via gh release view
   const detailed = await Promise.all(

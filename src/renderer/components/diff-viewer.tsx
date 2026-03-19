@@ -3,6 +3,7 @@ import type { Annotation } from "./ci-annotation";
 import type { ReviewComment } from "./inline-comment";
 import type { Highlighter } from "shiki";
 
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { ChevronDown, ChevronUp, Plus, Search, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -321,9 +322,6 @@ export function DiffViewer({
   const filePath = file.newPath || file.oldPath;
   const isDragging = selectingFrom !== null;
 
-  // Track global match index across rows for search highlighting
-  let globalMatchIdx = 0;
-
   return (
     <div
       ref={scrollRef}
@@ -448,107 +446,27 @@ export function DiffViewer({
           language={language ?? "text"}
         />
       ) : (
-        /* Unified diff mode (default) */
-        <table className="w-full border-collapse font-mono text-[12.5px] leading-5">
-          <colgroup>
-            <col className="w-[3px]" />
-            <col className="w-10" />
-            <col />
-          </colgroup>
-          <tbody>
-            {rows.map((row) => {
-              if (row.kind === "line") {
-                const lineNum = row.line.newLineNumber ?? row.line.oldLineNumber;
-                const isSelected =
-                  selectionRange !== null &&
-                  lineNum !== null &&
-                  lineNum >= selectionRange.start &&
-                  lineNum <= selectionRange.end;
-
-                // Track search matches for this line
-                const lineMatchOffset = globalMatchIdx;
-                if (searchQuery && row.line.type !== "hunk-header") {
-                  globalMatchIdx += countMatchesInText(row.line.content, searchQuery);
-                }
-
-                return (
-                  <DiffLineRow
-                    key={row.key}
-                    line={row.line}
-                    allRows={rows}
-                    highlighter={highlighter ?? null}
-                    language={language ?? "text"}
-                    onLineEnter={onLineEnter}
-                    onLineLeave={onLineLeave}
-                    onStartSelect={handleStartSelect}
-                    onLineHover={handleLineHover}
-                    onGutterClick={handleGutterClick}
-                    isSelected={isSelected}
-                    isDragging={isDragging}
-                    isComposerActive={
-                      activeComposer !== undefined &&
-                      activeComposer !== null &&
-                      lineNum !== null &&
-                      lineNum >= activeComposer.startLine &&
-                      lineNum <= activeComposer.endLine
-                    }
-                    searchQuery={searchQuery}
-                    searchMatchOffset={lineMatchOffset}
-                    activeSearchIndex={searchMatchIndex}
-                    activeSearchRef={activeSearchRef}
-                  />
-                );
-              }
-
-              if (row.kind === "comment") {
-                return (
-                  <tr key={row.key}>
-                    <td
-                      colSpan={3}
-                      className="p-0"
-                    >
-                      <InlineComment comments={row.comments} />
-                    </td>
-                  </tr>
-                );
-              }
-
-              if (row.kind === "annotation") {
-                return (
-                  <tr key={row.key}>
-                    <td
-                      colSpan={3}
-                      className="p-0"
-                    >
-                      <CiAnnotation annotations={row.annotations} />
-                    </td>
-                  </tr>
-                );
-              }
-
-              if (row.kind === "composer" && prNumber && onCloseComposer) {
-                return (
-                  <tr key={row.key}>
-                    <td
-                      colSpan={3}
-                      className="p-0"
-                    >
-                      <CommentComposer
-                        prNumber={prNumber}
-                        filePath={filePath}
-                        line={row.endLine}
-                        startLine={row.startLine !== row.endLine ? row.startLine : undefined}
-                        onClose={onCloseComposer}
-                      />
-                    </td>
-                  </tr>
-                );
-              }
-
-              return null;
-            })}
-          </tbody>
-        </table>
+        /* Unified diff mode (default) — VIRTUALIZED */
+        <VirtualizedUnifiedDiff
+          rows={rows}
+          scrollRef={scrollRef}
+          highlighter={highlighter ?? null}
+          language={language ?? "text"}
+          filePath={filePath}
+          prNumber={prNumber}
+          selectionRange={selectionRange}
+          activeComposer={activeComposer ?? null}
+          isDragging={isDragging}
+          searchQuery={searchQuery}
+          searchMatchIndex={searchMatchIndex}
+          activeSearchRef={activeSearchRef}
+          onLineEnter={onLineEnter}
+          onLineLeave={onLineLeave}
+          onStartSelect={handleStartSelect}
+          onLineHover={handleLineHover}
+          onGutterClick={handleGutterClick}
+          onCloseComposer={onCloseComposer}
+        />
       )}
 
       <BlamePopover
@@ -716,6 +634,209 @@ function renderLineContent(
 // ---------------------------------------------------------------------------
 // Unified diff line row with search highlighting
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Virtualized unified diff table
+// ---------------------------------------------------------------------------
+
+const ROW_HEIGHT_LINE = 20;
+const ROW_HEIGHT_COMMENT = 80;
+const ROW_HEIGHT_ANNOTATION = 48;
+const ROW_HEIGHT_COMPOSER = 140;
+
+function VirtualizedUnifiedDiff({
+  rows,
+  scrollRef,
+  highlighter,
+  language,
+  filePath,
+  prNumber,
+  selectionRange,
+  activeComposer,
+  isDragging,
+  searchQuery,
+  searchMatchIndex,
+  activeSearchRef,
+  onLineEnter,
+  onLineLeave,
+  onStartSelect,
+  onLineHover,
+  onGutterClick,
+  onCloseComposer,
+}: {
+  rows: FlatRow[];
+  scrollRef: React.RefObject<HTMLDivElement | null>;
+  highlighter: Highlighter | null;
+  language: string;
+  filePath: string;
+  prNumber?: number;
+  selectionRange: { start: number; end: number } | null;
+  activeComposer: CommentRange | null;
+  isDragging: boolean;
+  searchQuery: string;
+  searchMatchIndex: number;
+  activeSearchRef: React.RefObject<HTMLSpanElement | null>;
+  onLineEnter: (lineNumber: number, rect: { top: number; left: number }) => void;
+  onLineLeave: () => void;
+  onStartSelect: (lineNum: number) => void;
+  onLineHover: (lineNum: number) => void;
+  onGutterClick: (lineNum: number, shiftKey: boolean) => void;
+  onCloseComposer?: () => void;
+}) {
+  const virtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: (index) => {
+      const row = rows[index];
+      if (!row) {
+        return ROW_HEIGHT_LINE;
+      }
+      switch (row.kind) {
+        case "line":
+          return ROW_HEIGHT_LINE;
+        case "comment":
+          return ROW_HEIGHT_COMMENT;
+        case "annotation":
+          return ROW_HEIGHT_ANNOTATION;
+        case "composer":
+          return ROW_HEIGHT_COMPOSER;
+      }
+    },
+    overscan: 30,
+  });
+
+  // Precompute search match offsets for all rows
+  const searchMatchOffsets = useMemo(() => {
+    const offsets: number[] = [];
+    let total = 0;
+    for (const row of rows) {
+      offsets.push(total);
+      if (row.kind === "line" && row.line.type !== "hunk-header" && searchQuery) {
+        total += countMatchesInText(row.line.content, searchQuery);
+      }
+    }
+    return offsets;
+  }, [rows, searchQuery]);
+
+  const virtualItems = virtualizer.getVirtualItems();
+  const totalHeight = virtualizer.getTotalSize();
+
+  // Padding for before/after visible items
+  const paddingTop = virtualItems.length > 0 ? (virtualItems[0]?.start ?? 0) : 0;
+  const paddingBottom =
+    virtualItems.length > 0 ? totalHeight - (virtualItems[virtualItems.length - 1]?.end ?? 0) : 0;
+
+  return (
+    <table className="w-full border-collapse font-mono text-[12.5px] leading-5">
+      <colgroup>
+        <col className="w-[3px]" />
+        <col className="w-10" />
+        <col />
+      </colgroup>
+      <tbody>
+        {paddingTop > 0 && (
+          <tr>
+            <td style={{ height: paddingTop, padding: 0 }} />
+          </tr>
+        )}
+        {virtualItems.map((virtualRow) => {
+          const row = rows[virtualRow.index]!;
+
+          if (row.kind === "line") {
+            const lineNum = row.line.newLineNumber ?? row.line.oldLineNumber;
+            const isSelected =
+              selectionRange !== null &&
+              lineNum !== null &&
+              lineNum >= selectionRange.start &&
+              lineNum <= selectionRange.end;
+
+            return (
+              <DiffLineRow
+                key={row.key}
+                line={row.line}
+                allRows={rows}
+                highlighter={highlighter}
+                language={language}
+                onLineEnter={onLineEnter}
+                onLineLeave={onLineLeave}
+                onStartSelect={onStartSelect}
+                onLineHover={onLineHover}
+                onGutterClick={onGutterClick}
+                isSelected={isSelected}
+                isDragging={isDragging}
+                isComposerActive={
+                  activeComposer !== null &&
+                  lineNum !== null &&
+                  lineNum >= activeComposer.startLine &&
+                  lineNum <= activeComposer.endLine
+                }
+                searchQuery={searchQuery}
+                searchMatchOffset={searchMatchOffsets[virtualRow.index] ?? 0}
+                activeSearchIndex={searchMatchIndex}
+                activeSearchRef={activeSearchRef}
+              />
+            );
+          }
+
+          if (row.kind === "comment") {
+            return (
+              <tr key={row.key}>
+                <td
+                  colSpan={3}
+                  className="p-0"
+                >
+                  <InlineComment
+                    comments={row.comments}
+                    prNumber={prNumber}
+                  />
+                </td>
+              </tr>
+            );
+          }
+
+          if (row.kind === "annotation") {
+            return (
+              <tr key={row.key}>
+                <td
+                  colSpan={3}
+                  className="p-0"
+                >
+                  <CiAnnotation annotations={row.annotations} />
+                </td>
+              </tr>
+            );
+          }
+
+          if (row.kind === "composer" && prNumber && onCloseComposer) {
+            return (
+              <tr key={row.key}>
+                <td
+                  colSpan={3}
+                  className="p-0"
+                >
+                  <CommentComposer
+                    prNumber={prNumber}
+                    filePath={filePath}
+                    line={row.endLine}
+                    startLine={row.startLine !== row.endLine ? row.startLine : undefined}
+                    onClose={onCloseComposer}
+                  />
+                </td>
+              </tr>
+            );
+          }
+
+          return null;
+        })}
+        {paddingBottom > 0 && (
+          <tr>
+            <td style={{ height: paddingBottom, padding: 0 }} />
+          </tr>
+        )}
+      </tbody>
+    </table>
+  );
+}
 
 function DiffLineRow({
   line,
