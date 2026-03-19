@@ -1,6 +1,7 @@
 import type { GhWorkflowRun } from "@/shared/ipc";
 
 import { Button } from "@/components/ui/button";
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Spinner } from "@/components/ui/spinner";
 import { toastManager } from "@/components/ui/toast";
 import { relativeTime } from "@/shared/format";
@@ -15,7 +16,7 @@ import {
   Square,
   XCircle,
 } from "lucide-react";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { ipc } from "../lib/ipc";
 import { queryClient } from "../lib/query-client";
@@ -29,17 +30,12 @@ import { RunDetail } from "./run-detail";
  * Detail panel is resizable via drag handle.
  */
 
-const MIN_DETAIL_WIDTH = 300;
-const MAX_DETAIL_WIDTH = 800;
-const DEFAULT_DETAIL_WIDTH = 420;
-
 export function WorkflowsDashboard() {
   const { cwd } = useWorkspace();
   const [selectedWorkflow, setSelectedWorkflow] = useState<number | null>(null);
   const [selectedRun, setSelectedRun] = useState<number | null>(null);
   const [workflowMenuOpen, setWorkflowMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [detailWidth, setDetailWidth] = useState(DEFAULT_DETAIL_WIDTH);
 
   // Workflows list
   const workflowsQuery = useQuery({
@@ -84,40 +80,8 @@ export function WorkflowsDashboard() {
     return workflows.find((w) => w.id === selectedWorkflow)?.name ?? "Unknown";
   }, [selectedWorkflow, workflows]);
 
-  // Resize drag handler
-  const containerRef = useRef<HTMLDivElement>(null);
-  const handleResizeStart = useCallback(
-    (e: React.MouseEvent) => {
-      e.preventDefault();
-      const startX = e.clientX;
-      const startWidth = detailWidth;
-
-      function onMouseMove(ev: MouseEvent) {
-        const delta = startX - ev.clientX;
-        const newWidth = Math.min(MAX_DETAIL_WIDTH, Math.max(MIN_DETAIL_WIDTH, startWidth + delta));
-        setDetailWidth(newWidth);
-      }
-
-      function onMouseUp() {
-        document.removeEventListener("mousemove", onMouseMove);
-        document.removeEventListener("mouseup", onMouseUp);
-        document.body.style.cursor = "";
-        document.body.style.userSelect = "";
-      }
-
-      document.addEventListener("mousemove", onMouseMove);
-      document.addEventListener("mouseup", onMouseUp);
-      document.body.style.cursor = "col-resize";
-      document.body.style.userSelect = "none";
-    },
-    [detailWidth],
-  );
-
   return (
-    <div
-      ref={containerRef}
-      className="flex flex-1 flex-col overflow-hidden"
-    >
+    <div className="flex flex-1 flex-col overflow-hidden">
       {/* Toolbar */}
       <div className="border-border bg-bg-surface flex shrink-0 items-center gap-3 border-b px-5 py-3">
         {/* Workflow selector */}
@@ -217,62 +181,59 @@ export function WorkflowsDashboard() {
       </div>
 
       {/* Content */}
-      <div className="flex flex-1 overflow-hidden">
+      <ResizablePanelGroup
+        orientation="horizontal"
+        className="flex-1"
+      >
         {/* Run list */}
-        <div className="flex-1 overflow-y-auto">
-          {runsQuery.isLoading && (
-            <div className="flex items-center justify-center py-12">
-              <Spinner className="text-primary h-5 w-5" />
-            </div>
-          )}
+        <ResizablePanel
+          defaultSize="60%"
+          minSize="30%"
+        >
+          <div className="h-full overflow-y-auto">
+            {runsQuery.isLoading && (
+              <div className="flex items-center justify-center py-12">
+                <Spinner className="text-primary h-5 w-5" />
+              </div>
+            )}
 
-          {!runsQuery.isLoading && filteredRuns.length === 0 && (
-            <div className="flex flex-col items-center justify-center gap-2 py-12">
-              <p className="text-text-tertiary text-sm">
-                {searchQuery ? "No runs match your search" : "No workflow runs found"}
-              </p>
-            </div>
-          )}
+            {!runsQuery.isLoading && filteredRuns.length === 0 && (
+              <div className="flex flex-col items-center justify-center gap-2 py-12">
+                <p className="text-text-tertiary text-sm">
+                  {searchQuery ? "No runs match your search" : "No workflow runs found"}
+                </p>
+              </div>
+            )}
 
-          {filteredRuns.length > 0 && (
-            <RunTable
-              runs={filteredRuns}
-              selectedRun={selectedRun}
-              onSelectRun={setSelectedRun}
-              cwd={cwd}
-            />
-          )}
-        </div>
+            {filteredRuns.length > 0 && (
+              <RunTable
+                runs={filteredRuns}
+                selectedRun={selectedRun}
+                onSelectRun={setSelectedRun}
+                cwd={cwd}
+              />
+            )}
+          </div>
+        </ResizablePanel>
 
-        {/* Resizable run detail panel */}
         {selectedRun && (
           <>
-            {/* Resize handle — wider hit area with visible 1px line */}
-            <div
-              className="group/resize relative w-2 shrink-0 cursor-col-resize"
-              onMouseDown={handleResizeStart}
+            <ResizableHandle withHandle />
+            <ResizablePanel
+              defaultSize="40%"
+              minSize="20%"
+              maxSize="65%"
             >
-              {/* Visible border line */}
-              <div className="bg-border group-hover/resize:bg-primary/50 group-active/resize:bg-primary absolute top-0 right-0 bottom-0 w-px transition-colors" />
-              {/* Grip dots — appear on hover */}
-              <div className="absolute top-1/2 left-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col gap-[3px] opacity-0 transition-opacity group-hover/resize:opacity-100">
-                <div className="bg-text-ghost h-[3px] w-[3px] rounded-full" />
-                <div className="bg-text-ghost h-[3px] w-[3px] rounded-full" />
-                <div className="bg-text-ghost h-[3px] w-[3px] rounded-full" />
+              <div className="bg-bg-surface h-full overflow-y-auto">
+                <RunDetail
+                  cwd={cwd}
+                  runId={selectedRun}
+                />
               </div>
-            </div>
-            <div
-              className="bg-bg-surface shrink-0 overflow-y-auto"
-              style={{ width: detailWidth }}
-            >
-              <RunDetail
-                cwd={cwd}
-                runId={selectedRun}
-              />
-            </div>
+            </ResizablePanel>
           </>
         )}
-      </div>
+      </ResizablePanelGroup>
     </div>
   );
 }
