@@ -31,8 +31,9 @@ import {
   MessageSquare,
   Rows2,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
+import { useKeyboardShortcuts } from "../hooks/use-keyboard-shortcuts";
 import { useSyntaxHighlighter } from "../hooks/use-syntax-highlight";
 import { parseDiff } from "../lib/diff-parser";
 import { useFileNav } from "../lib/file-nav-context";
@@ -68,10 +69,21 @@ export function PrDetailView({ prNumber }: PrDetailViewProps) {
 // Main PR detail (with data)
 // ---------------------------------------------------------------------------
 
+// Remember active tab per PR across navigation
+const tabMemory = new Map<number, "overview" | "checks" | "reviews">();
+
 function PrDetail({ prNumber }: { prNumber: number }) {
   const { cwd } = useWorkspace();
   const { currentFileIndex, setCurrentFileIndex } = useFileNav();
-  const [activeTab, setActiveTab] = useState<"overview" | "checks" | "reviews">("overview");
+  const [activeTab, setActiveTabRaw] = useState<"overview" | "checks" | "reviews">(
+    tabMemory.get(prNumber) ?? "overview",
+  );
+
+  // Persist tab choice
+  function setActiveTab(tab: "overview" | "checks" | "reviews") {
+    tabMemory.set(prNumber, tab);
+    setActiveTabRaw(tab);
+  }
   const [diffMode, setDiffMode] = useState<"all" | "since-review">("all");
   const [viewMode, setViewMode] = useState<DiffMode>("unified");
   const [showFullFile, setShowFullFile] = useState(false);
@@ -234,23 +246,11 @@ function PrDetail({ prNumber }: { prNumber: number }) {
     setCurrentFileIndex(Math.min(files.length - 1, currentFileIndex + 1));
   }, [currentFileIndex, files.length, setCurrentFileIndex]);
 
-  useEffect(() => {
-    function onKeyDown(e: KeyboardEvent) {
-      const target = e.target as HTMLElement;
-      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) {
-        return;
-      }
-      if (e.key === "[") {
-        goToPrevFile();
-      } else if (e.key === "]") {
-        goToNextFile();
-      }
-    }
-    globalThis.addEventListener("keydown", onKeyDown);
-    return () => {
-      globalThis.removeEventListener("keydown", onKeyDown);
-    };
-  }, [goToPrevFile, goToNextFile]);
+  // Keyboard shortcuts — centralized via useKeyboardShortcuts
+  useKeyboardShortcuts([
+    { key: "[", handler: goToPrevFile },
+    { key: "]", handler: goToNextFile },
+  ]);
 
   // Loading
   if (detailQuery.isLoading) {

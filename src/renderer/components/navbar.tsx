@@ -307,7 +307,8 @@ function AccountMenuItem({
 // ---------------------------------------------------------------------------
 
 function WorkspaceSwitcher() {
-  const { cwd } = useWorkspace();
+  const { cwd, switchWorkspace } = useWorkspace();
+  const { navigate } = useRouter();
   const repoName = cwd.split("/").pop() ?? "—";
 
   const workspacesQuery = useQuery({
@@ -344,8 +345,9 @@ function WorkspaceSwitcher() {
               onClick={() => {
                 ipc("workspace.setActive", { path: ws.path })
                   .then(() => {
+                    switchWorkspace(ws.path);
                     queryClient.invalidateQueries();
-                    globalThis.location.reload();
+                    navigate({ view: "review", prNumber: null });
                   })
                   .catch(() => {
                     // Workspace switch failed
@@ -379,8 +381,9 @@ function WorkspaceSwitcher() {
                 if (result) {
                   return ipc("workspace.add", { path: result }).then(() =>
                     ipc("workspace.setActive", { path: result }).then(() => {
+                      switchWorkspace(result);
                       queryClient.invalidateQueries();
-                      globalThis.location.reload();
+                      navigate({ view: "review", prNumber: null });
                     }),
                   );
                 }

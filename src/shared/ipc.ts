@@ -190,6 +190,14 @@ export interface EnvStatus {
 // ---------------------------------------------------------------------------
 
 export interface IpcApi {
+  // Preferences
+  "preferences.get": { args: { key: string }; result: string | null };
+  "preferences.set": { args: { key: string; value: string }; result: void };
+  "preferences.getAll": {
+    args: { keys: string[] };
+    result: Record<string, string | null>;
+  };
+
   "env.check": { args: void; result: EnvStatus };
   "env.user": { args: void; result: GhUser | null };
   "env.accounts": { args: void; result: GhAccount[] };

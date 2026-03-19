@@ -16,6 +16,19 @@ import { whichVersion } from "./services/shell";
 type Handler<M extends IpcMethod> = (args: IpcApi[M]["args"]) => Promise<IpcApi[M]["result"]>;
 
 const handlers: { [M in IpcMethod]: Handler<M> } = {
+  // Preferences
+  "preferences.get": async (args) => repo.getPreference(args.key),
+  "preferences.set": async (args) => {
+    repo.setPreference(args.key, args.value);
+  },
+  "preferences.getAll": async (args) => {
+    const result: Record<string, string | null> = {};
+    for (const key of args.keys) {
+      result[key] = repo.getPreference(key);
+    }
+    return result;
+  },
+
   // Environment
   "env.check": async () => {
     const [ghVersion, gitVersion] = await Promise.all([whichVersion("gh"), whichVersion("git")]);

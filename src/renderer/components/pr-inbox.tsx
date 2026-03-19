@@ -5,8 +5,9 @@ import { Spinner } from "@/components/ui/spinner";
 import { clamp, relativeTime } from "@/shared/format";
 import { useQuery } from "@tanstack/react-query";
 import { Inbox, Search } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
+import { useKeyboardShortcuts } from "../hooks/use-keyboard-shortcuts";
 import { ipc } from "../lib/ipc";
 import { useWorkspace } from "../lib/workspace-context";
 import { GitHubAvatar } from "./github-avatar";
@@ -116,31 +117,6 @@ export function PrInbox({ selectedPr, onSelectPr }: PrInboxProps) {
     );
   }, [reviewPrs, authorPrs, allPrs, activeFilter, searchQuery]);
 
-  // Keyboard navigation
-  const handleKeyDown = useCallback(
-    (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement;
-      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) {
-        return;
-      }
-
-      if (event.key === "j") {
-        setFocusIndex((i) => Math.min(i + 1, filteredPrs.length - 1));
-      } else if (event.key === "k") {
-        setFocusIndex((i) => Math.max(i - 1, 0));
-      } else if (event.key === "Enter") {
-        const pr = filteredPrs[focusIndex];
-        if (pr) {
-          onSelectPr(pr.number);
-        }
-      } else if (event.key === "/") {
-        event.preventDefault();
-        searchRef.current?.focus();
-      }
-    },
-    [focusIndex, onSelectPr, filteredPrs],
-  );
-
   // Clamp focusIndex when the list shrinks
   useEffect(() => {
     if (filteredPrs.length > 0 && focusIndex >= filteredPrs.length) {
@@ -148,12 +124,29 @@ export function PrInbox({ selectedPr, onSelectPr }: PrInboxProps) {
     }
   }, [filteredPrs.length, focusIndex]);
 
-  useEffect(() => {
-    globalThis.addEventListener("keydown", handleKeyDown);
-    return () => {
-      globalThis.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [handleKeyDown]);
+  useKeyboardShortcuts([
+    {
+      key: "j",
+      handler: () => setFocusIndex((i) => Math.min(i + 1, filteredPrs.length - 1)),
+    },
+    {
+      key: "k",
+      handler: () => setFocusIndex((i) => Math.max(i - 1, 0)),
+    },
+    {
+      key: "Enter",
+      handler: () => {
+        const pr = filteredPrs[focusIndex];
+        if (pr) {
+          onSelectPr(pr.number, pr.title);
+        }
+      },
+    },
+    {
+      key: "/",
+      handler: () => searchRef.current?.focus(),
+    },
+  ]);
 
   const isLoading =
     (activeFilter === "review" && reviewQuery.isLoading) ||

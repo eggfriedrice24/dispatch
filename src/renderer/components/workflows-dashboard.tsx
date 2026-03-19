@@ -21,6 +21,7 @@ import { useMemo, useState } from "react";
 import { ipc } from "../lib/ipc";
 import { queryClient } from "../lib/query-client";
 import { useWorkspace } from "../lib/workspace-context";
+import { RunComparison } from "./run-comparison";
 import { RunDetail } from "./run-detail";
 
 /**
@@ -34,8 +35,19 @@ export function WorkflowsDashboard() {
   const { cwd } = useWorkspace();
   const [selectedWorkflow, setSelectedWorkflow] = useState<number | null>(null);
   const [selectedRun, setSelectedRun] = useState<number | null>(null);
+  const [compareRun, setCompareRun] = useState<number | null>(null);
   const [workflowMenuOpen, setWorkflowMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+
+  /** Shift+click selects a second run for comparison */
+  function handleSelectRun(runId: number, shiftKey: boolean) {
+    if (shiftKey && selectedRun && selectedRun !== runId) {
+      setCompareRun(runId);
+    } else {
+      setSelectedRun(runId);
+      setCompareRun(null);
+    }
+  }
 
   // Workflows list
   const workflowsQuery = useQuery({
@@ -209,7 +221,8 @@ export function WorkflowsDashboard() {
               <RunTable
                 runs={filteredRuns}
                 selectedRun={selectedRun}
-                onSelectRun={setSelectedRun}
+                compareRun={compareRun}
+                onSelectRun={handleSelectRun}
                 cwd={cwd}
               />
             )}
@@ -225,10 +238,18 @@ export function WorkflowsDashboard() {
               maxSize="65%"
             >
               <div className="bg-bg-surface h-full overflow-y-auto">
-                <RunDetail
-                  cwd={cwd}
-                  runId={selectedRun}
-                />
+                {compareRun ? (
+                  <RunComparison
+                    cwd={cwd}
+                    baseRunId={selectedRun}
+                    compareRunId={compareRun}
+                  />
+                ) : (
+                  <RunDetail
+                    cwd={cwd}
+                    runId={selectedRun}
+                  />
+                )}
               </div>
             </ResizablePanel>
           </>
@@ -245,12 +266,14 @@ export function WorkflowsDashboard() {
 function RunTable({
   runs,
   selectedRun,
+  compareRun,
   onSelectRun,
   cwd,
 }: {
   runs: GhWorkflowRun[];
   selectedRun: number | null;
-  onSelectRun: (id: number) => void;
+  compareRun: number | null;
+  onSelectRun: (id: number, shiftKey: boolean) => void;
   cwd: string;
 }) {
   return (
@@ -260,7 +283,8 @@ function RunTable({
           key={run.databaseId}
           run={run}
           isSelected={selectedRun === run.databaseId}
-          onSelect={() => onSelectRun(run.databaseId)}
+          isCompare={compareRun === run.databaseId}
+          onSelect={(shiftKey) => onSelectRun(run.databaseId, shiftKey)}
           cwd={cwd}
         />
       ))}
@@ -271,12 +295,14 @@ function RunTable({
 function RunRow({
   run,
   isSelected,
+  isCompare,
   onSelect,
   cwd,
 }: {
   run: GhWorkflowRun;
   isSelected: boolean;
-  onSelect: () => void;
+  isCompare: boolean;
+  onSelect: (shiftKey: boolean) => void;
   cwd: string;
 }) {
   const rerunMutation = useMutation({
@@ -308,9 +334,13 @@ function RunRow({
   return (
     <button
       type="button"
-      onClick={onSelect}
+      onClick={(e) => onSelect(e.shiftKey)}
       className={`flex w-full cursor-pointer items-center gap-3 px-5 py-2.5 text-left transition-colors ${
-        isSelected ? "bg-accent-muted" : "hover:bg-bg-raised"
+        isSelected
+          ? "bg-accent-muted"
+          : isCompare
+            ? "bg-info/8 border-l-info border-l-2"
+            : "hover:bg-bg-raised"
       }`}
     >
       <StatusIcon

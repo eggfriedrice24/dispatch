@@ -1,37 +1,57 @@
-import { Button } from "@/components/ui/button";
-import { toastManager } from "@/components/ui/toast";
-import { useEffect, useState } from "react";
+import { Spinner } from "@/components/ui/spinner";
+import { useMutation, useQuery } from "@tanstack/react-query";
 
 import { ipc } from "../lib/ipc";
+import { queryClient } from "../lib/query-client";
 
 /**
- * Settings panel — Phase 2 B2.2
+ * Settings panel — persists all values via preferences IPC.
  *
- * Configurable: merge strategy, polling intervals.
- * Future: AI provider, theme.
+ * Keys: mergeStrategy, prPollInterval, checksPollInterval
  */
 
+const PREF_KEYS = ["mergeStrategy", "prPollInterval", "checksPollInterval"];
+
 export function SettingsView() {
-  const [mergeStrategy, setMergeStrategy] = useState("squash");
-  const [prPollInterval, setPrPollInterval] = useState("30");
-  const [checksPollInterval, setChecksPollInterval] = useState("10");
-
   // Load saved preferences
-  useEffect(() => {
-    ipc("review.getLastSha", { repo: "__prefs", prNumber: 0 }).catch(() => {});
-    // Future: load from ipc("preferences.get", ...) when endpoint exists
-  }, []);
+  const prefsQuery = useQuery({
+    queryKey: ["preferences", PREF_KEYS],
+    queryFn: () => ipc("preferences.getAll", { keys: PREF_KEYS }),
+  });
 
-  function handleSave() {
-    // Future: persist via IPC preferences endpoint
-    toastManager.add({ title: "Settings saved", type: "success" });
+  const prefs = prefsQuery.data ?? {};
+  const mergeStrategy = prefs.mergeStrategy ?? "squash";
+  const prPollInterval = prefs.prPollInterval ?? "30";
+  const checksPollInterval = prefs.checksPollInterval ?? "10";
+
+  const saveMutation = useMutation({
+    mutationFn: async (args: { key: string; value: string }) => {
+      await ipc("preferences.set", args);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["preferences"] });
+    },
+  });
+
+  function savePref(key: string, value: string) {
+    saveMutation.mutate({ key, value });
+  }
+
+  if (prefsQuery.isLoading) {
+    return (
+      <div className="flex flex-1 items-center justify-center">
+        <Spinner className="text-primary h-5 w-5" />
+      </div>
+    );
   }
 
   return (
     <div className="flex flex-1 items-start justify-center overflow-y-auto py-12">
       <div className="w-full max-w-lg">
         <h1 className="font-heading text-text-primary text-3xl italic">Settings</h1>
-        <p className="text-text-secondary mt-1 text-sm">Configure Dispatch behavior.</p>
+        <p className="text-text-secondary mt-1 text-sm">
+          Configure Dispatch behavior. Changes save automatically.
+        </p>
 
         {/* Merge strategy */}
         <section className="mt-8">
@@ -44,7 +64,7 @@ export function SettingsView() {
               <button
                 key={s}
                 type="button"
-                onClick={() => setMergeStrategy(s)}
+                onClick={() => savePref("mergeStrategy", s)}
                 className={`flex-1 cursor-pointer rounded-sm px-3 py-1.5 text-xs capitalize ${
                   mergeStrategy === s
                     ? "bg-bg-elevated text-text-primary shadow-sm"
@@ -61,7 +81,7 @@ export function SettingsView() {
         <section className="mt-8">
           <h2 className="text-text-primary text-sm font-semibold">Polling Intervals</h2>
           <p className="text-text-tertiary mt-0.5 text-xs">
-            How often to check for updates (in seconds).
+            How often to check for updates (in seconds). Changes apply immediately.
           </p>
           <div className="mt-3 flex flex-col gap-3">
             <div className="flex items-center justify-between">
@@ -71,7 +91,7 @@ export function SettingsView() {
                 min="5"
                 max="300"
                 value={prPollInterval}
-                onChange={(e) => setPrPollInterval(e.target.value)}
+                onChange={(e) => savePref("prPollInterval", e.target.value)}
                 className="border-border bg-bg-root text-text-primary focus:border-primary w-20 rounded-md border px-2 py-1 text-right font-mono text-xs focus:outline-none"
               />
             </div>
@@ -82,7 +102,7 @@ export function SettingsView() {
                 min="5"
                 max="300"
                 value={checksPollInterval}
-                onChange={(e) => setChecksPollInterval(e.target.value)}
+                onChange={(e) => savePref("checksPollInterval", e.target.value)}
                 className="border-border bg-bg-root text-text-primary focus:border-primary w-20 rounded-md border px-2 py-1 text-right font-mono text-xs focus:outline-none"
               />
             </div>
@@ -97,15 +117,6 @@ export function SettingsView() {
             CI/CD-integrated desktop PR review app.
           </p>
         </section>
-
-        <div className="mt-8 flex justify-end">
-          <Button
-            className="bg-primary text-primary-foreground hover:bg-accent-hover"
-            onClick={handleSave}
-          >
-            Save
-          </Button>
-        </div>
       </div>
     </div>
   );
