@@ -621,7 +621,7 @@ function SplitDiffView({
               <tr key={`split-${i}`}>
                 <td
                   colSpan={5}
-                  className="border-border-subtle bg-diff-hunk-bg text-info sticky top-0 z-[1] h-5 border-y px-3 text-[11px]"
+                  className="border-border-subtle bg-diff-hunk-bg text-info h-5 border-y px-3 text-[11px]"
                 >
                   {pair.left.content}
                 </td>
@@ -757,7 +757,7 @@ function DiffLineRow({
       <tr>
         <td
           colSpan={3}
-          className="border-border-subtle bg-diff-hunk-bg text-info sticky top-0 z-[1] h-5 border-y px-3 text-[11px]"
+          className="border-border-subtle bg-diff-hunk-bg text-info h-5 border-y px-3 text-[11px]"
         >
           {line.content}
         </td>
