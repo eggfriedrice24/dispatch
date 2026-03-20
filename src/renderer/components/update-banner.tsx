@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { GitBranch, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { ipc } from "../lib/ipc";
 
@@ -12,7 +12,11 @@ import { ipc } from "../lib/ipc";
  * poll the local checkout's upstream tracking branch and surface when the
  * current branch is behind. Packaged builds and non-repo runs stay silent.
  */
-export function UpdateBanner() {
+export function UpdateBanner({
+  onVisibilityChange,
+}: {
+  onVisibilityChange?: (visible: boolean) => void;
+}) {
   const [dismissedKey, setDismissedKey] = useState<string | null>(null);
 
   const statusQuery = useQuery({
@@ -32,21 +36,26 @@ export function UpdateBanner() {
         )
       : null;
 
-  if (
-    !status?.enabled ||
-    !status.hasUpdates ||
-    !status.currentBranch ||
-    !status.upstreamBranch ||
-    !bannerKey ||
-    dismissedKey === bannerKey
-  ) {
+  const visible =
+    !!status?.enabled &&
+    !!status.hasUpdates &&
+    !!status.currentBranch &&
+    !!status.upstreamBranch &&
+    !!bannerKey &&
+    dismissedKey !== bannerKey;
+
+  useEffect(() => {
+    onVisibilityChange?.(visible);
+  }, [visible, onVisibilityChange]);
+
+  if (!visible) {
     return null;
   }
 
-  const commitLabel = status.behindCount === 1 ? "1 commit" : `${status.behindCount} commits`;
+  const commitLabel = status!.behindCount === 1 ? "1 commit" : `${status!.behindCount} commits`;
 
   return (
-    <div className="border-border-accent bg-accent-muted/90 flex min-h-9 shrink-0 items-center gap-3 border-b px-4 py-1.5 shadow-sm">
+    <div className="border-border-accent bg-accent-muted/90 flex min-h-9 shrink-0 items-center gap-3 border-b py-1.5 pr-4 pl-20 shadow-sm">
       <div className="bg-bg-root/45 border-border-accent flex h-6 w-6 shrink-0 items-center justify-center rounded-full border">
         <GitBranch
           size={13}
@@ -58,17 +67,17 @@ export function UpdateBanner() {
         <p className="text-text-primary text-[12px] leading-4">
           <span className="text-accent-text font-medium">Dispatch repo update available.</span> This
           checkout is {commitLabel} behind{" "}
-          <span className="text-accent-text font-mono text-[10px]">{status.upstreamBranch}</span> on{" "}
-          <span className="text-text-secondary font-mono text-[10px]">{status.currentBranch}</span>.
+          <span className="text-accent-text font-mono text-[10px]">{status!.upstreamBranch}</span> on{" "}
+          <span className="text-text-secondary font-mono text-[10px]">{status!.currentBranch}</span>.
           Close Dispatch, pull latest, and run{" "}
           <span className="text-text-primary font-mono text-[10px]">bun run dev</span> again.
         </p>
       </div>
 
       <div className="border-border-accent bg-bg-root/45 text-text-secondary hidden items-center gap-1 rounded-full border px-2 py-1 font-mono text-[10px] md:flex">
-        <span>ahead {status.aheadCount}</span>
+        <span>ahead {status!.aheadCount}</span>
         <span className="text-text-ghost">/</span>
-        <span className="text-accent-text">behind {status.behindCount}</span>
+        <span className="text-accent-text">behind {status!.behindCount}</span>
       </div>
 
       <Button
