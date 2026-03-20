@@ -245,7 +245,7 @@ function LogSection({
   const [expandedState, setExpandedState] = useState<boolean | null>(null);
   // Force-expand groups when search finds matches inside them,
   // regardless of user's manual collapsed state.
-  const expanded = (hasMatches && section.isGroup) ? true : (expandedState ?? defaultExpanded);
+  const expanded = hasMatches && section.isGroup ? true : (expandedState ?? defaultExpanded);
 
   let lineMatchOffset = globalOffset;
 

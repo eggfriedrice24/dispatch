@@ -83,6 +83,7 @@ export async function switchAccount(host: string, login: string): Promise<void> 
   await execFile("gh", ["auth", "switch", "--hostname", host, "--user", login], {
     timeout: 10_000,
   });
+  invalidateAllCaches();
 }
 
 // ---------------------------------------------------------------------------
@@ -180,7 +181,12 @@ const PR_LIST_ENRICHMENT_FIELDS = ["number", "statusCheckRollup", "additions", "
 );
 
 /** All fields combined — used by the tray poller which needs everything. */
-const PR_LIST_ALL_FIELDS = [PR_LIST_CORE_FIELDS, "statusCheckRollup", "additions", "deletions"].join(",");
+const PR_LIST_ALL_FIELDS = [
+  PR_LIST_CORE_FIELDS,
+  "statusCheckRollup",
+  "additions",
+  "deletions",
+].join(",");
 
 const PR_LIST_LIMIT = "50";
 
@@ -194,13 +200,28 @@ interface CacheEntry<T> {
   expiresAt: number;
 }
 
-const prListCache = new Map<string, CacheEntry<GhPrListItemCore[]>>();
-const prEnrichmentCache = new Map<string, CacheEntry<GhPrEnrichment[]>>();
-const prFullCache = new Map<string, CacheEntry<GhPrListItem[]>>();
+interface CacheStore<T> {
+  entries: Map<string, CacheEntry<T>>;
+  inFlight: Map<string, Promise<T>>;
+  invalidationVersions: Map<string, number>;
+  epoch: number;
+}
+
+function createCacheStore<T>(): CacheStore<T> {
+  return {
+    entries: new Map(),
+    inFlight: new Map(),
+    invalidationVersions: new Map(),
+    epoch: 0,
+  };
+}
+
+const prListCache = createCacheStore<GhPrListItemCore[]>();
+const prEnrichmentCache = createCacheStore<GhPrEnrichment[]>();
+const prFullCache = createCacheStore<GhPrListItem[]>();
 
 /** General-purpose cache for any JSON-serializable data. */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const genericCache = new Map<string, CacheEntry<any>>();
+const genericCache = createCacheStore<unknown>();
 
 const CACHE_TTL_MS = 15_000;
 /** Longer TTL for data that changes infrequently (metrics, releases). */
@@ -210,17 +231,118 @@ function cacheKey(cwd: string, filter: string): string {
   return `${cwd}::${filter}`;
 }
 
-function getCached<T>(cache: Map<string, CacheEntry<T>>, key: string): T | null {
-  const entry = cache.get(key);
+function getCached<T>(cache: CacheStore<T>, key: string): T | null {
+  const entry = cache.entries.get(key);
   if (entry && Date.now() < entry.expiresAt) {
     return entry.data;
   }
-  cache.delete(key);
+  cache.entries.delete(key);
   return null;
 }
 
-function setCache<T>(cache: Map<string, CacheEntry<T>>, key: string, data: T, ttl = CACHE_TTL_MS): void {
-  cache.set(key, { data, expiresAt: Date.now() + ttl });
+function setCache<T>(cache: CacheStore<T>, key: string, value: { data: T; ttl?: number }): void {
+  cache.entries.set(key, {
+    data: value.data,
+    expiresAt: Date.now() + (value.ttl ?? CACHE_TTL_MS),
+  });
+}
+
+function invalidateCacheKey<T>(cache: CacheStore<T>, key: string): void {
+  cache.entries.delete(key);
+  cache.inFlight.delete(key);
+  cache.invalidationVersions.set(key, (cache.invalidationVersions.get(key) ?? 0) + 1);
+}
+
+function invalidateCacheWhere<T>(cache: CacheStore<T>, predicate: (key: string) => boolean): void {
+  const keys = new Set([
+    ...cache.entries.keys(),
+    ...cache.inFlight.keys(),
+    ...cache.invalidationVersions.keys(),
+  ]);
+
+  for (const key of keys) {
+    if (predicate(key)) {
+      invalidateCacheKey(cache, key);
+    }
+  }
+}
+
+function clearCacheStore<T>(cache: CacheStore<T>): void {
+  cache.entries.clear();
+  cache.inFlight.clear();
+  cache.invalidationVersions.clear();
+  cache.epoch += 1;
+}
+
+function getOrLoadCached<T>({
+  cache,
+  key,
+  loader,
+  ttl = CACHE_TTL_MS,
+}: {
+  cache: CacheStore<T>;
+  key: string;
+  loader: () => Promise<T>;
+  ttl?: number;
+}): Promise<T> {
+  const cached = getCached(cache, key);
+  if (cached !== null) {
+    return Promise.resolve(cached);
+  }
+
+  const pending = cache.inFlight.get(key);
+  if (pending) {
+    return pending;
+  }
+
+  const { epoch, invalidationVersions } = cache;
+  const invalidationVersion = invalidationVersions.get(key) ?? 0;
+
+  const request = loader()
+    .then((data) => {
+      if (
+        cache.epoch === epoch &&
+        (cache.invalidationVersions.get(key) ?? 0) === invalidationVersion
+      ) {
+        setCache(cache, key, { data, ttl });
+      }
+      return data;
+    })
+    .finally(() => {
+      if (cache.inFlight.get(key) === request) {
+        cache.inFlight.delete(key);
+      }
+    });
+
+  cache.inFlight.set(key, request);
+  return request;
+}
+
+function invalidatePrListCaches(cwd: string): void {
+  for (const filter of ["reviewRequested", "authored", "all"] as const) {
+    const key = cacheKey(cwd, filter);
+    invalidateCacheKey(prListCache, key);
+    invalidateCacheKey(prEnrichmentCache, key);
+    invalidateCacheKey(prFullCache, key);
+  }
+}
+
+function invalidateWorkflowCaches(cwd: string): void {
+  invalidateCacheWhere(
+    genericCache,
+    (key) => key.startsWith(`workflows::${cwd}`) || key.startsWith(`workflowRuns::${cwd}::`),
+  );
+}
+
+function invalidateReleaseCaches(cwd: string): void {
+  invalidateCacheWhere(genericCache, (key) => key.startsWith(`releases::${cwd}::`));
+}
+
+export function invalidateAllCaches(): void {
+  clearCacheStore(prListCache);
+  clearCacheStore(prEnrichmentCache);
+  clearCacheStore(prFullCache);
+  clearCacheStore(genericCache);
 }
 
 // ---------------------------------------------------------------------------
@@ -254,75 +376,75 @@ function buildFilterArgs(
 // Core list (lightweight — used for initial render)
 // ---------------------------------------------------------------------------
 
-export async function listPrsCore(
+export function listPrsCore(
   cwd: string,
   filter: "reviewRequested" | "authored" | "all" = "reviewRequested",
 ): Promise<GhPrListItemCore[]> {
   const key = cacheKey(cwd, filter);
-  const cached = getCached(prListCache, key);
-  if (cached) return cached;
-
-  const args = buildFilterArgs(filter, PR_LIST_CORE_FIELDS);
-  const { stdout } = await execFile("gh", args, { cwd, timeout: 30_000 });
-  const data = parseJsonOutput<GhPrListItemCore[]>(stdout);
-  setCache(prListCache, key, data);
-  return data;
+  return getOrLoadCached({
+    cache: prListCache,
+    key,
+    loader: async () => {
+      const args = buildFilterArgs(filter, PR_LIST_CORE_FIELDS);
+      const { stdout } = await execFile("gh", args, { cwd, timeout: 30_000 });
+      return parseJsonOutput<GhPrListItemCore[]>(stdout);
+    },
+  });
 }
 
 // ---------------------------------------------------------------------------
 // Enrichment (heavy fields — lazy loaded after initial render)
 // ---------------------------------------------------------------------------
 
-export async function listPrsEnrichment(
+export function listPrsEnrichment(
   cwd: string,
   filter: "reviewRequested" | "authored" | "all" = "reviewRequested",
 ): Promise<GhPrEnrichment[]> {
   const key = cacheKey(cwd, filter);
-  const cached = getCached(prEnrichmentCache, key);
-  if (cached) return cached;
-
-  const args = buildFilterArgs(filter, PR_LIST_ENRICHMENT_FIELDS);
-  const { stdout } = await execFile("gh", args, { cwd, timeout: 60_000 });
-  const data = parseJsonOutput<GhPrEnrichment[]>(stdout);
-  setCache(prEnrichmentCache, key, data);
-  return data;
+  return getOrLoadCached({
+    cache: prEnrichmentCache,
+    key,
+    loader: async () => {
+      const args = buildFilterArgs(filter, PR_LIST_ENRICHMENT_FIELDS);
+      const { stdout } = await execFile("gh", args, { cwd, timeout: 60_000 });
+      return parseJsonOutput<GhPrEnrichment[]>(stdout);
+    },
+  });
 }
 
 // ---------------------------------------------------------------------------
 // Full list (all fields — used by tray poller for notifications)
 // ---------------------------------------------------------------------------
 
-export async function listPrs(
+export function listPrs(
   cwd: string,
   filter: "reviewRequested" | "authored" | "all" = "reviewRequested",
 ): Promise<GhPrListItem[]> {
   const key = cacheKey(cwd, filter);
-  const cached = getCached(prFullCache, key);
-  if (cached) return cached;
-
-  const args = buildFilterArgs(filter, PR_LIST_ALL_FIELDS);
-  const { stdout } = await execFile("gh", args, { cwd, timeout: 60_000 });
-  const data = parseJsonOutput<GhPrListItem[]>(stdout);
-  setCache(prFullCache, key, data);
-
-  // Also populate the core and enrichment caches from the full result.
-  setCache(
-    prListCache,
+  return getOrLoadCached({
+    cache: prFullCache,
     key,
-    data.map(({ statusCheckRollup: _, additions: _a, deletions: _d, ...core }) => core),
-  );
-  setCache(
-    prEnrichmentCache,
-    key,
-    data.map(({ number, statusCheckRollup, additions, deletions }) => ({
-      number,
-      statusCheckRollup,
-      additions,
-      deletions,
-    })),
-  );
+    loader: async () => {
+      const args = buildFilterArgs(filter, PR_LIST_ALL_FIELDS);
+      const { stdout } = await execFile("gh", args, { cwd, timeout: 60_000 });
+      const data = parseJsonOutput<GhPrListItem[]>(stdout);
 
-  return data;
+      // Also populate the core and enrichment caches from the full result.
+      setCache(prListCache, key, {
+        data: data.map(({ statusCheckRollup: _, additions: _a, deletions: _d, ...core }) => core),
+      });
+      setCache(prEnrichmentCache, key, {
+        data: data.map(({ number, statusCheckRollup, additions, deletions }) => ({
+          number,
+          statusCheckRollup,
+          additions,
+          deletions,
+        })),
+      });
+
+      return data;
+    },
+  });
 }
 
 const PR_DETAIL_FIELDS = [
@@ -368,6 +490,7 @@ export async function updatePrTitle(cwd: string, prNumber: number, title: string
     cwd,
     timeout: 15_000,
   });
+  invalidatePrListCaches(cwd);
 }
 
 // ---------------------------------------------------------------------------
@@ -451,6 +574,7 @@ export async function getRunLogs(cwd: string, runId: number): Promise<string> {
 
 export async function rerunFailedJobs(cwd: string, runId: number): Promise<void> {
   await execFile("gh", ["run", "rerun", String(runId), "--failed"], { cwd });
+  invalidateWorkflowCaches(cwd);
 }
 
 // ---------------------------------------------------------------------------
@@ -470,10 +594,12 @@ export async function mergePr(
     args.push("--admin");
   }
   await execFile("gh", args, { cwd });
+  invalidatePrListCaches(cwd);
 }
 
 export async function closePr(cwd: string, prNumber: number): Promise<void> {
   await execFile("gh", ["pr", "close", String(prNumber)], { cwd });
+  invalidatePrListCaches(cwd);
 }
 
 export async function getMergeQueueStatus(
@@ -560,6 +686,7 @@ export async function replyToReviewComment(
     ],
     { cwd, timeout: 15_000 },
   );
+  invalidatePrListCaches(cwd);
 }
 
 export async function createPrComment(cwd: string, prNumber: number, body: string): Promise<void> {
@@ -567,6 +694,7 @@ export async function createPrComment(cwd: string, prNumber: number, body: strin
     cwd,
     timeout: 15_000,
   });
+  invalidatePrListCaches(cwd);
 }
 
 // ---------------------------------------------------------------------------
@@ -660,50 +788,74 @@ export async function searchUsers(
   }
 }
 
-export async function listIssuesAndPrs(
+export function listIssuesAndPrs(
   cwd: string,
   limit = 50,
 ): Promise<Array<{ number: number; title: string; state: string; isPr: boolean }>> {
   const key = `issuesPrs::${cwd}::${limit}`;
-  const cached = getCached(genericCache, key);
-  if (cached) return cached as Array<{ number: number; title: string; state: string; isPr: boolean }>;
+  return getOrLoadCached({
+    cache: genericCache,
+    key,
+    loader: async () => {
+      // Fetch issues and PRs in parallel (2 lightweight calls)
+      const [issueResult, prResult] = await Promise.all([
+        execFile(
+          "gh",
+          [
+            "issue",
+            "list",
+            "--json",
+            "number,title,state",
+            "--limit",
+            String(limit),
+            "--state",
+            "all",
+          ],
+          { cwd, timeout: 15_000 },
+        ),
+        execFile(
+          "gh",
+          [
+            "pr",
+            "list",
+            "--json",
+            "number,title,state",
+            "--limit",
+            String(limit),
+            "--state",
+            "all",
+          ],
+          { cwd, timeout: 15_000 },
+        ),
+      ]);
+      const issues = parseJsonOutput<Array<{ number: number; title: string; state: string }>>(
+        issueResult.stdout,
+      );
+      const prs = parseJsonOutput<Array<{ number: number; title: string; state: string }>>(
+        prResult.stdout,
+      );
 
-  // Fetch issues and PRs in parallel (2 lightweight calls)
-  const [issueResult, prResult] = await Promise.all([
-    execFile(
-      "gh",
-      ["issue", "list", "--json", "number,title,state", "--limit", String(limit), "--state", "all"],
-      { cwd, timeout: 15_000 },
-    ),
-    execFile(
-      "gh",
-      ["pr", "list", "--json", "number,title,state", "--limit", String(limit), "--state", "all"],
-      { cwd, timeout: 15_000 },
-    ),
-  ]);
-  const issues = parseJsonOutput<Array<{ number: number; title: string; state: string }>>(issueResult.stdout);
-  const prs = parseJsonOutput<Array<{ number: number; title: string; state: string }>>(prResult.stdout);
+      // Merge and dedupe
+      const seen = new Set<number>();
+      const result: Array<{ number: number; title: string; state: string; isPr: boolean }> = [];
 
-  // Merge and dedupe
-  const seen = new Set<number>();
-  const result: Array<{ number: number; title: string; state: string; isPr: boolean }> = [];
+      for (const pr of prs) {
+        if (!seen.has(pr.number)) {
+          seen.add(pr.number);
+          result.push({ ...pr, isPr: true });
+        }
+      }
+      for (const issue of issues) {
+        if (!seen.has(issue.number)) {
+          seen.add(issue.number);
+          result.push({ ...issue, isPr: false });
+        }
+      }
 
-  for (const pr of prs) {
-    if (!seen.has(pr.number)) {
-      seen.add(pr.number);
-      result.push({ ...pr, isPr: true });
-    }
-  }
-  for (const issue of issues) {
-    if (!seen.has(issue.number)) {
-      seen.add(issue.number);
-      result.push({ ...issue, isPr: false });
-    }
-  }
-
-  result.sort((a, b) => b.number - a.number);
-  setCache(genericCache, key, result);
-  return result;
+      result.sort((a, b) => b.number - a.number);
+      return result;
+    },
+  }) as Promise<Array<{ number: number; title: string; state: string; isPr: boolean }>>;
 }
 
 export async function resolveReviewThread(cwd: string, threadId: string): Promise<void> {
@@ -717,6 +869,7 @@ export async function resolveReviewThread(cwd: string, threadId: string): Promis
     ],
     { cwd, timeout: 10_000 },
   );
+  invalidatePrListCaches(cwd);
 }
 
 export async function unresolveReviewThread(cwd: string, threadId: string): Promise<void> {
@@ -730,6 +883,7 @@ export async function unresolveReviewThread(cwd: string, threadId: string): Prom
     ],
     { cwd, timeout: 10_000 },
   );
+  invalidatePrListCaches(cwd);
 }
 
 export async function createReviewComment(args: {
@@ -765,6 +919,7 @@ export async function createReviewComment(args: {
     ],
     { cwd: args.cwd, timeout: 15_000 },
   );
+  invalidatePrListCaches(args.cwd);
 }
 
 // ---------------------------------------------------------------------------
@@ -798,6 +953,7 @@ export async function submitReview(args: {
     ghArgs.push("--body", args.body);
   }
   await execFile("gh", ghArgs, { cwd: args.cwd, timeout: 15_000 });
+  invalidatePrListCaches(args.cwd);
 }
 
 // ---------------------------------------------------------------------------
@@ -854,22 +1010,23 @@ export async function getCheckAnnotations(cwd: string, prNumber: number): Promis
 // Workflows
 // ---------------------------------------------------------------------------
 
-export async function listWorkflows(cwd: string): Promise<GhWorkflow[]> {
+export function listWorkflows(cwd: string): Promise<GhWorkflow[]> {
   const key = `workflows::${cwd}`;
-  const cached = getCached(genericCache, key);
-  if (cached) return cached as GhWorkflow[];
-
-  const { stdout } = await execFile(
-    "gh",
-    ["workflow", "list", "--json", "id,name,state", "--limit", "50"],
-    { cwd },
-  );
-  const data = parseJsonOutput<GhWorkflow[]>(stdout);
-  setCache(genericCache, key, data);
-  return data;
+  return getOrLoadCached({
+    cache: genericCache,
+    key,
+    loader: async () => {
+      const { stdout } = await execFile(
+        "gh",
+        ["workflow", "list", "--json", "id,name,state", "--limit", "50"],
+        { cwd },
+      );
+      return parseJsonOutput<GhWorkflow[]>(stdout);
+    },
+  }) as Promise<GhWorkflow[]>;
 }
 
-export async function listWorkflowRuns(
+export function listWorkflowRuns(
   cwd: string,
   workflowId?: number,
   limit = 20,
@@ -877,24 +1034,25 @@ export async function listWorkflowRuns(
   // Cap the limit to avoid oversized responses on frequent polls.
   const effectiveLimit = Math.min(limit, 50);
   const key = `workflowRuns::${cwd}::${workflowId ?? "all"}::${effectiveLimit}`;
-  const cached = getCached(genericCache, key);
-  if (cached) return cached as GhWorkflowRun[];
-
-  const ghArgs = [
-    "run",
-    "list",
-    "--json",
-    "databaseId,displayTitle,name,status,conclusion,headBranch,createdAt,updatedAt,event,workflowName,attempt",
-    "--limit",
-    String(effectiveLimit),
-  ];
-  if (workflowId) {
-    ghArgs.push("--workflow", String(workflowId));
-  }
-  const { stdout } = await execFile("gh", ghArgs, { cwd });
-  const data = parseJsonOutput<GhWorkflowRun[]>(stdout);
-  setCache(genericCache, key, data);
-  return data;
+  return getOrLoadCached({
+    cache: genericCache,
+    key,
+    loader: async () => {
+      const ghArgs = [
+        "run",
+        "list",
+        "--json",
+        "databaseId,displayTitle,name,status,conclusion,headBranch,createdAt,updatedAt,event,workflowName,attempt",
+        "--limit",
+        String(effectiveLimit),
+      ];
+      if (workflowId) {
+        ghArgs.push("--workflow", String(workflowId));
+      }
+      const { stdout } = await execFile("gh", ghArgs, { cwd });
+      return parseJsonOutput<GhWorkflowRun[]>(stdout);
+    },
+  }) as Promise<GhWorkflowRun[]>;
 }
 
 export async function getWorkflowRunDetail(
@@ -928,14 +1086,17 @@ export async function triggerWorkflow(args: {
     }
   }
   await execFile("gh", ghArgs, { cwd: args.cwd, timeout: 15_000 });
+  invalidateWorkflowCaches(args.cwd);
 }
 
 export async function cancelWorkflowRun(cwd: string, runId: number): Promise<void> {
   await execFile("gh", ["run", "cancel", String(runId)], { cwd });
+  invalidateWorkflowCaches(cwd);
 }
 
 export async function rerunWorkflowRun(cwd: string, runId: number): Promise<void> {
   await execFile("gh", ["run", "rerun", String(runId)], { cwd });
+  invalidateWorkflowCaches(cwd);
 }
 
 export async function getWorkflowYaml(cwd: string, workflowId: string): Promise<string> {
@@ -960,37 +1121,43 @@ async function mapWithConcurrency<T, R>(
   concurrency: number,
   fn: (item: T) => Promise<R>,
 ): Promise<PromiseSettledResult<R>[]> {
-  const results: PromiseSettledResult<R>[] = new Array(items.length);
+  const results: Array<PromiseSettledResult<R> | undefined> = Array.from({ length: items.length });
   let nextIndex = 0;
 
   async function worker(): Promise<void> {
     while (nextIndex < items.length) {
       const index = nextIndex++;
+      const item = items.at(index);
+      if (item === undefined) {
+        return;
+      }
       try {
-        results[index] = { status: "fulfilled", value: await fn(items[index]!) };
-      } catch (reason) {
-        results[index] = { status: "rejected", reason };
+        results[index] = { status: "fulfilled", value: await fn(item) };
+      } catch (error) {
+        results[index] = { status: "rejected", reason: error };
       }
     }
   }
 
   const workers = Array.from({ length: Math.min(concurrency, items.length) }, () => worker());
   await Promise.all(workers);
-  return results;
+  return results.map(
+    (result) =>
+      result ?? {
+        status: "rejected",
+        reason: new Error("Missing concurrency result"),
+      },
+  );
 }
 
 export async function listAllPrs(
   workspaces: Array<{ path: string; name: string }>,
   filter: "reviewRequested" | "authored" | "all",
 ): Promise<Array<GhPrListItemCore & { workspace: string; workspacePath: string }>> {
-  const results = await mapWithConcurrency(
-    workspaces,
-    MAX_CONCURRENT_GH_CALLS,
-    async (ws) => {
-      const prs = await listPrsCore(ws.path, filter);
-      return prs.map((pr) => ({ ...pr, workspace: ws.name, workspacePath: ws.path }));
-    },
-  );
+  const results = await mapWithConcurrency(workspaces, MAX_CONCURRENT_GH_CALLS, async (ws) => {
+    const prs = await listPrsCore(ws.path, filter);
+    return prs.map((pr) => ({ ...pr, workspace: ws.name, workspacePath: ws.path }));
+  });
 
   return results
     .filter(
@@ -1007,20 +1174,14 @@ export async function listAllPrsEnrichment(
   workspaces: Array<{ path: string; name: string }>,
   filter: "reviewRequested" | "authored" | "all",
 ): Promise<Array<GhPrEnrichment & { workspacePath: string }>> {
-  const results = await mapWithConcurrency(
-    workspaces,
-    MAX_CONCURRENT_GH_CALLS,
-    async (ws) => {
-      const enrichments = await listPrsEnrichment(ws.path, filter);
-      return enrichments.map((e) => ({ ...e, workspacePath: ws.path }));
-    },
-  );
+  const results = await mapWithConcurrency(workspaces, MAX_CONCURRENT_GH_CALLS, async (ws) => {
+    const enrichments = await listPrsEnrichment(ws.path, filter);
+    return enrichments.map((e) => ({ ...e, workspacePath: ws.path }));
+  });
 
   return results
     .filter(
-      (
-        r,
-      ): r is PromiseFulfilledResult<Array<GhPrEnrichment & { workspacePath: string }>> =>
+      (r): r is PromiseFulfilledResult<Array<GhPrEnrichment & { workspacePath: string }>> =>
         r.status === "fulfilled",
     )
     .flatMap((r) => r.value);
@@ -1030,7 +1191,7 @@ export async function listAllPrsEnrichment(
 // Metrics (3.2)
 // ---------------------------------------------------------------------------
 
-export async function getPrCycleTime(
+export function getPrCycleTime(
   cwd: string,
   since: string,
 ): Promise<
@@ -1060,118 +1221,122 @@ export async function getPrCycleTime(
     additions: number;
     deletions: number;
   }>;
-  const cached = getCached(genericCache, key);
-  if (cached) return cached as CycleTimeResult;
+  return getOrLoadCached({
+    cache: genericCache,
+    key,
+    loader: async () => {
+      const { stdout } = await execFile(
+        "gh",
+        [
+          "pr",
+          "list",
+          "--state",
+          "merged",
+          "--json",
+          "number,title,author,createdAt,mergedAt,additions,deletions,reviews",
+          "--limit",
+          "50",
+        ],
+        { cwd, timeout: 30_000 },
+      );
 
-  const { stdout } = await execFile(
-    "gh",
-    [
-      "pr",
-      "list",
-      "--state",
-      "merged",
-      "--json",
-      "number,title,author,createdAt,mergedAt,additions,deletions,reviews",
-      "--limit",
-      "50",
-    ],
-    { cwd, timeout: 30_000 },
-  );
+      const prs = parseJsonOutput<
+        Array<{
+          number: number;
+          title: string;
+          author: { login: string };
+          createdAt: string;
+          mergedAt: string | null;
+          additions: number;
+          deletions: number;
+          reviews: Array<{ submittedAt: string }>;
+        }>
+      >(stdout);
 
-  const prs = parseJsonOutput<
-    Array<{
-      number: number;
-      title: string;
-      author: { login: string };
-      createdAt: string;
-      mergedAt: string | null;
-      additions: number;
-      deletions: number;
-      reviews: Array<{ submittedAt: string }>;
-    }>
-  >(stdout);
+      const sinceDate = new Date(since);
 
-  const sinceDate = new Date(since);
+      return prs
+        .filter((pr) => new Date(pr.createdAt) >= sinceDate)
+        .map((pr) => {
+          const firstReview = pr.reviews
+            .map((r) => new Date(r.submittedAt))
+            .sort((a, b) => a.getTime() - b.getTime())[0];
 
-  const result = prs
-    .filter((pr) => new Date(pr.createdAt) >= sinceDate)
-    .map((pr) => {
-      const firstReview = pr.reviews
-        .map((r) => new Date(r.submittedAt))
-        .sort((a, b) => a.getTime() - b.getTime())[0];
+          const createdMs = new Date(pr.createdAt).getTime();
+          const mergedMs = pr.mergedAt ? new Date(pr.mergedAt).getTime() : null;
+          const firstReviewMs = firstReview ? firstReview.getTime() : null;
 
-      const createdMs = new Date(pr.createdAt).getTime();
-      const mergedMs = pr.mergedAt ? new Date(pr.mergedAt).getTime() : null;
-      const firstReviewMs = firstReview ? firstReview.getTime() : null;
-
-      return {
-        prNumber: pr.number,
-        title: pr.title,
-        author: pr.author.login,
-        createdAt: pr.createdAt,
-        mergedAt: pr.mergedAt,
-        firstReviewAt: firstReview?.toISOString() ?? null,
-        timeToFirstReview: firstReviewMs ? Math.round((firstReviewMs - createdMs) / 60_000) : null,
-        timeToMerge: mergedMs ? Math.round((mergedMs - createdMs) / 60_000) : null,
-        additions: pr.additions,
-        deletions: pr.deletions,
-      };
-    });
-
-  setCache(genericCache, key, result, CACHE_TTL_LONG_MS);
-  return result;
+          return {
+            prNumber: pr.number,
+            title: pr.title,
+            author: pr.author.login,
+            createdAt: pr.createdAt,
+            mergedAt: pr.mergedAt,
+            firstReviewAt: firstReview?.toISOString() ?? null,
+            timeToFirstReview: firstReviewMs
+              ? Math.round((firstReviewMs - createdMs) / 60_000)
+              : null,
+            timeToMerge: mergedMs ? Math.round((mergedMs - createdMs) / 60_000) : null,
+            additions: pr.additions,
+            deletions: pr.deletions,
+          };
+        });
+    },
+    ttl: CACHE_TTL_LONG_MS,
+  }) as Promise<CycleTimeResult>;
 }
 
-export async function getReviewLoad(
+export function getReviewLoad(
   cwd: string,
   since: string,
 ): Promise<Array<{ reviewer: string; reviewCount: number; avgResponseTime: number }>> {
   const key = `reviewLoad::${cwd}::${since}`;
   type ReviewLoadResult = Array<{ reviewer: string; reviewCount: number; avgResponseTime: number }>;
-  const cached = getCached(genericCache, key);
-  if (cached) return cached as ReviewLoadResult;
+  return getOrLoadCached({
+    cache: genericCache,
+    key,
+    loader: async () => {
+      const { stdout } = await execFile(
+        "gh",
+        ["pr", "list", "--state", "all", "--json", "number,createdAt,reviews", "--limit", "50"],
+        { cwd, timeout: 30_000 },
+      );
 
-  const { stdout } = await execFile(
-    "gh",
-    ["pr", "list", "--state", "all", "--json", "number,createdAt,reviews", "--limit", "50"],
-    { cwd, timeout: 30_000 },
-  );
+      const prs = parseJsonOutput<
+        Array<{
+          number: number;
+          createdAt: string;
+          reviews: Array<{ author: { login: string }; submittedAt: string }>;
+        }>
+      >(stdout);
 
-  const prs = parseJsonOutput<
-    Array<{
-      number: number;
-      createdAt: string;
-      reviews: Array<{ author: { login: string }; submittedAt: string }>;
-    }>
-  >(stdout);
+      const sinceDate = new Date(since);
+      const reviewerMap = new Map<string, { count: number; totalResponseMs: number }>();
 
-  const sinceDate = new Date(since);
-  const reviewerMap = new Map<string, { count: number; totalResponseMs: number }>();
+      for (const pr of prs) {
+        if (new Date(pr.createdAt) < sinceDate) {
+          continue;
+        }
+        const prCreated = new Date(pr.createdAt).getTime();
+        for (const review of pr.reviews) {
+          const reviewer = review.author.login;
+          const existing = reviewerMap.get(reviewer) ?? { count: 0, totalResponseMs: 0 };
+          existing.count++;
+          existing.totalResponseMs += new Date(review.submittedAt).getTime() - prCreated;
+          reviewerMap.set(reviewer, existing);
+        }
+      }
 
-  for (const pr of prs) {
-    if (new Date(pr.createdAt) < sinceDate) {
-      continue;
-    }
-    const prCreated = new Date(pr.createdAt).getTime();
-    for (const review of pr.reviews) {
-      const reviewer = review.author.login;
-      const existing = reviewerMap.get(reviewer) ?? { count: 0, totalResponseMs: 0 };
-      existing.count++;
-      existing.totalResponseMs += new Date(review.submittedAt).getTime() - prCreated;
-      reviewerMap.set(reviewer, existing);
-    }
-  }
-
-  const result = [...reviewerMap.entries()]
-    .map(([reviewer, data]) => ({
-      reviewer,
-      reviewCount: data.count,
-      avgResponseTime: Math.round(data.totalResponseMs / data.count / 60_000),
-    }))
-    .sort((a, b) => b.reviewCount - a.reviewCount);
-
-  setCache(genericCache, key, result, CACHE_TTL_LONG_MS);
-  return result;
+      return [...reviewerMap.entries()]
+        .map(([reviewer, data]) => ({
+          reviewer,
+          reviewCount: data.count,
+          avgResponseTime: Math.round(data.totalResponseMs / data.count / 60_000),
+        }))
+        .sort((a, b) => b.reviewCount - a.reviewCount);
+    },
+    ttl: CACHE_TTL_LONG_MS,
+  }) as Promise<ReviewLoadResult>;
 }
 
 // ---------------------------------------------------------------------------
@@ -1194,7 +1359,7 @@ async function getUpstreamArgs(cwd: string): Promise<string[]> {
   return [];
 }
 
-export async function listReleases(
+export function listReleases(
   cwd: string,
   limit = 20,
 ): Promise<
@@ -1218,57 +1383,56 @@ export async function listReleases(
     createdAt: string;
     author: { login: string };
   }>;
-  const cached = getCached(genericCache, key);
-  if (cached) return cached as ReleaseResult;
-
-  const upstreamArgs = await getUpstreamArgs(cwd);
-  // gh release list only supports: createdAt, isDraft, isLatest, isPrerelease, name, publishedAt, tagName
-  const { stdout } = await execFile(
-    "gh",
-    [
-      ...upstreamArgs,
-      "release",
-      "list",
-      "--json",
-      "tagName,name,isDraft,isPrerelease,createdAt",
-      "--limit",
-      String(limit),
-    ],
-    { cwd, timeout: 15_000 },
-  );
-  const releases = parseJsonOutput<
-    Array<{
-      tagName: string;
-      name: string;
-      isDraft: boolean;
-      isPrerelease: boolean;
-      createdAt: string;
-    }>
-  >(stdout);
-
-  // Fetch body + author per release — concurrency-limited to avoid thundering herd.
-  const detailResults = await mapWithConcurrency(
-    releases,
-    MAX_CONCURRENT_GH_CALLS,
-    async (release) => {
-      const { stdout: detail } = await execFile(
+  return getOrLoadCached({
+    cache: genericCache,
+    key,
+    loader: async () => {
+      const upstreamArgs = await getUpstreamArgs(cwd);
+      // gh release list only supports: createdAt, isDraft, isLatest, isPrerelease, name, publishedAt, tagName
+      const { stdout } = await execFile(
         "gh",
-        [...upstreamArgs, "release", "view", release.tagName, "--json", "body,author"],
-        { cwd, timeout: 10_000 },
+        [
+          ...upstreamArgs,
+          "release",
+          "list",
+          "--json",
+          "tagName,name,isDraft,isPrerelease,createdAt",
+          "--limit",
+          String(limit),
+        ],
+        { cwd, timeout: 15_000 },
       );
-      const data = parseJsonOutput<{ body: string; author: { login: string } }>(detail);
-      return { ...release, body: data.body ?? "", author: data.author ?? { login: "" } };
+      const releases = parseJsonOutput<
+        Array<{
+          tagName: string;
+          name: string;
+          isDraft: boolean;
+          isPrerelease: boolean;
+          createdAt: string;
+        }>
+      >(stdout);
+
+      // Fetch body + author per release — concurrency-limited to avoid thundering herd.
+      const detailResults = await mapWithConcurrency(
+        releases,
+        MAX_CONCURRENT_GH_CALLS,
+        async (release) => {
+          const { stdout: detail } = await execFile(
+            "gh",
+            [...upstreamArgs, "release", "view", release.tagName, "--json", "body,author"],
+            { cwd, timeout: 10_000 },
+          );
+          const data = parseJsonOutput<{ body: string; author: { login: string } }>(detail);
+          return { ...release, body: data.body ?? "", author: data.author ?? { login: "" } };
+        },
+      );
+
+      return detailResults.map((r, i) =>
+        r.status === "fulfilled" ? r.value : { ...releases[i]!, body: "", author: { login: "" } },
+      );
     },
-  );
-
-  const detailed = detailResults.map((r, i) =>
-    r.status === "fulfilled"
-      ? r.value
-      : { ...releases[i]!, body: "", author: { login: "" } },
-  );
-
-  setCache(genericCache, key, detailed, CACHE_TTL_LONG_MS);
-  return detailed;
+    ttl: CACHE_TTL_LONG_MS,
+  }) as Promise<ReleaseResult>;
 }
 
 export async function createRelease(args: {
@@ -1298,6 +1462,7 @@ export async function createRelease(args: {
     ghArgs.push("--prerelease");
   }
   const { stdout } = await execFile("gh", ghArgs, { cwd: args.cwd, timeout: 30_000 });
+  invalidateReleaseCaches(args.cwd);
   return { url: stdout.trim() };
 }
 

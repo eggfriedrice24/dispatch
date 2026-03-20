@@ -201,8 +201,7 @@ export function PrInbox({ selectedPr, onSelectPr }: PrInboxProps) {
 
   // Derive a safe focus index — stays valid when the list shrinks without
   // needing an effect to sync state after render.
-  const safeFocusIndex =
-    filteredPrs.length > 0 ? clamp(focusIndex, 0, filteredPrs.length - 1) : 0;
+  const safeFocusIndex = filteredPrs.length > 0 ? clamp(focusIndex, 0, filteredPrs.length - 1) : 0;
 
   useKeyboardShortcuts([
     {
@@ -475,9 +474,7 @@ function PrItem({
   workspace?: string;
   cwd: string;
 }) {
-  const size = enrichment
-    ? prSizeLabel(enrichment.additions, enrichment.deletions)
-    : null;
+  const size = enrichment ? prSizeLabel(enrichment.additions, enrichment.deletions) : null;
 
   const approveMutation = useMutation({
     mutationFn: () => ipc("pr.submitReview", { cwd, prNumber: pr.number, event: "APPROVE" }),

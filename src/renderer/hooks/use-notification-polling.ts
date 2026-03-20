@@ -149,8 +149,6 @@ export function useNotificationPolling(): void {
       }
     }
 
-    previousEnrichment.current = new Map(
-      authorEnrichmentQuery.data.map((e) => [e.number, e]),
-    );
+    previousEnrichment.current = new Map(authorEnrichmentQuery.data.map((e) => [e.number, e]));
   }, [authorEnrichmentQuery.data, authorQuery.data, cwd]);
 }
