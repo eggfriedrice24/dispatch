@@ -65,12 +65,11 @@ export function UpdateBanner({
 
       <div className="min-w-0 flex-1">
         <p className="text-text-primary text-[12px] leading-4">
-          <span className="text-accent-text font-medium">Dispatch repo update available.</span> This
-          checkout is {commitLabel} behind{" "}
-          <span className="text-accent-text font-mono text-[10px]">{status!.upstreamBranch}</span> on{" "}
-          <span className="text-text-secondary font-mono text-[10px]">{status!.currentBranch}</span>.
-          Close Dispatch, pull latest, and run{" "}
-          <span className="text-text-primary font-mono text-[10px]">bun run dev</span> again.
+          <span className="text-accent-text font-medium">Update available</span>
+          <span className="text-text-tertiary mx-1">·</span>
+          <span className="text-text-secondary font-mono text-[10px]">{status!.currentBranch}</span> is{" "}
+          {commitLabel} behind{" "}
+          <span className="text-accent-text font-mono text-[10px]">{status!.upstreamBranch}</span>
         </p>
       </div>
 
