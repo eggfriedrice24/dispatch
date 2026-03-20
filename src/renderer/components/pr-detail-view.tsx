@@ -30,6 +30,7 @@ import {
   GitMerge,
   MessageSquare,
   Rows2,
+  XCircle,
 } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 
@@ -38,8 +39,8 @@ import { useSyntaxHighlighter } from "../hooks/use-syntax-highlight";
 import { parseDiff } from "../lib/diff-parser";
 import { useFileNav } from "../lib/file-nav-context";
 import { ensureLanguage, inferLanguage } from "../lib/highlighter";
-import { openExternal } from "../lib/open-external";
 import { ipc } from "../lib/ipc";
+import { openExternal } from "../lib/open-external";
 import { queryClient } from "../lib/query-client";
 import { useWorkspace } from "../lib/workspace-context";
 import { AiReviewSummary } from "./ai-review-summary";
@@ -1168,6 +1169,24 @@ function MergeButton({
     },
   });
 
+  const closeMutation = useMutation({
+    mutationFn: () => ipc("pr.close", { cwd, prNumber }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pr"] });
+      toastManager.add({
+        title: `PR #${prNumber} closed`,
+        type: "success",
+      });
+    },
+    onError: (err) => {
+      toastManager.add({
+        title: "Close failed",
+        description: String(err.message),
+        type: "error",
+      });
+    },
+  });
+
   const hasApproval = pr.reviewDecision === "APPROVED";
   const allChecksPassing =
     pr.statusCheckRollup.length > 0 &&
@@ -1232,11 +1251,7 @@ function MergeButton({
           }}
         >
           {mergeMutation.isPending ? <Spinner className="h-3 w-3" /> : <GitMerge size={13} />}
-          {requirementsMet
-            ? STRATEGY_LABELS[strategy]
-            : canAdmin
-              ? "Merge (admin)"
-              : STRATEGY_LABELS[strategy]}
+          {STRATEGY_LABELS[strategy]}
         </Button>
         <Button
           size="sm"
@@ -1247,15 +1262,12 @@ function MergeButton({
                 ? "border-l-bg-root/20 bg-warning/80 text-bg-root hover:bg-warning/90"
                 : "border-l-primary-foreground/20 bg-primary text-primary-foreground"
           }`}
-          disabled={!canMerge || mergeMutation.isPending}
+          disabled={mergeMutation.isPending || closeMutation.isPending}
           onClick={() => setMenuOpen(!menuOpen)}
         >
           <ChevronDown size={12} />
         </Button>
       </div>
-
-      {/* Admin override hint */}
-      {!requirementsMet && canAdmin && <span className="text-warning text-[9px]">admin</span>}
 
       {menuOpen && (
         <div className="border-border bg-bg-elevated absolute top-full right-0 z-20 mt-1 w-48 rounded-md border p-1 shadow-lg">
@@ -1276,6 +1288,19 @@ function MergeButton({
               {STRATEGY_LABELS[s]}
             </button>
           ))}
+          <div className="bg-border my-1 h-px" />
+          <button
+            type="button"
+            onClick={() => {
+              setMenuOpen(false);
+              closeMutation.mutate();
+            }}
+            disabled={closeMutation.isPending}
+            className="text-destructive hover:bg-destructive/10 flex w-full cursor-pointer items-center gap-1.5 rounded-sm px-3 py-1.5 text-left text-xs transition-colors"
+          >
+            <XCircle size={12} />
+            Close pull request
+          </button>
         </div>
       )}
     </div>

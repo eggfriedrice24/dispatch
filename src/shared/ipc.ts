@@ -229,6 +229,10 @@ export interface IpcApi {
     };
     result: void;
   };
+  "pr.close": {
+    args: { cwd: string; prNumber: number };
+    result: void;
+  };
   "pr.mergeQueueStatus": {
     args: { cwd: string; prNumber: number };
     result: {

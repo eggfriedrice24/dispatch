@@ -346,6 +346,10 @@ export async function mergePr(
   await execFile("gh", args, { cwd });
 }
 
+export async function closePr(cwd: string, prNumber: number): Promise<void> {
+  await execFile("gh", ["pr", "close", String(prNumber)], { cwd });
+}
+
 export async function getMergeQueueStatus(
   cwd: string,
   prNumber: number,

@@ -1,13 +1,17 @@
 import type { GhPrListItem } from "@/shared/ipc";
 
 import { Kbd } from "@/components/ui/kbd";
+import { MenuItem, MenuPopup, MenuSeparator } from "@/components/ui/menu";
+import { toastManager } from "@/components/ui/toast";
+import { ContextMenu } from "@base-ui/react/context-menu";
 import { clamp, relativeTime } from "@/shared/format";
-import { useQuery } from "@tanstack/react-query";
-import { Inbox, Search } from "lucide-react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { Check, Copy, GitMerge, Inbox, Search, XCircle } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useKeyboardShortcuts } from "../hooks/use-keyboard-shortcuts";
 import { ipc } from "../lib/ipc";
+import { queryClient } from "../lib/query-client";
 import { useWorkspace } from "../lib/workspace-context";
 import { GitHubAvatar } from "./github-avatar";
 import { PrInboxSkeleton } from "./loading-skeletons";
@@ -302,6 +306,11 @@ export function PrInbox({ selectedPr, onSelectPr }: PrInboxProps) {
             <PrItem
               key={pr.number}
               pr={pr}
+              cwd={
+                multiRepo
+                  ? ((pr as GhPrListItem & { workspacePath?: string }).workspacePath ?? cwd)
+                  : cwd
+              }
               statusColor={resolveStatusColor(pr.reviewDecision, pr.statusCheckRollup, pr.isDraft)}
               isActive={selectedPr === pr.number}
               isFocused={focusIndex === index}
@@ -393,6 +402,7 @@ function PrItem({
   isFocused,
   onClick,
   workspace,
+  cwd,
 }: {
   pr: GhPrListItem;
   statusColor: string;
@@ -400,57 +410,149 @@ function PrItem({
   isFocused: boolean;
   onClick: () => void;
   workspace?: string;
+  cwd: string;
 }) {
   const size = prSizeLabel(pr.additions, pr.deletions);
 
+  const approveMutation = useMutation({
+    mutationFn: () => ipc("pr.submitReview", { cwd, prNumber: pr.number, event: "APPROVE" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pr"] });
+      toastManager.add({ title: `PR #${pr.number} approved`, type: "success" });
+    },
+    onError: (err) => {
+      toastManager.add({
+        title: "Approve failed",
+        description: String(err.message),
+        type: "error",
+      });
+    },
+  });
+
+  const mergeMutation = useMutation({
+    mutationFn: () => ipc("pr.merge", { cwd, prNumber: pr.number, strategy: "squash" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pr"] });
+      toastManager.add({
+        title: `PR #${pr.number} merged`,
+        description: "Branch deleted.",
+        type: "success",
+      });
+    },
+    onError: (err) => {
+      toastManager.add({ title: "Merge failed", description: String(err.message), type: "error" });
+    },
+  });
+
+  const closeMutation = useMutation({
+    mutationFn: () => ipc("pr.close", { cwd, prNumber: pr.number }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pr"] });
+      toastManager.add({ title: `PR #${pr.number} closed`, type: "success" });
+    },
+    onError: (err) => {
+      toastManager.add({ title: "Close failed", description: String(err.message), type: "error" });
+    },
+  });
+
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`flex w-full cursor-pointer items-start gap-2.5 border-l-2 px-3 py-2 text-left transition-colors ${
-        isActive
-          ? "border-l-primary bg-accent-muted"
-          : isFocused
-            ? "bg-bg-raised border-l-transparent"
-            : "hover:bg-bg-raised border-l-transparent"
-      }`}
-    >
-      {/* Author avatar */}
-      <GitHubAvatar
-        login={pr.author.login}
-        size={20}
-        className="border-border mt-0.5 border"
-      />
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5">
-          <p className="text-text-primary truncate text-xs font-medium">{pr.title}</p>
-          <span
-            className={`bg-bg-raised shrink-0 rounded-sm px-1 font-mono text-[9px] font-medium ${size.color}`}
-          >
-            {size.label}
-          </span>
+    <ContextMenu.Root>
+      <ContextMenu.Trigger
+        render={
+          <button
+            type="button"
+            onClick={onClick}
+            className={`flex w-full cursor-pointer items-start gap-2.5 border-l-2 px-3 py-2 text-left transition-colors ${
+              isActive
+                ? "border-l-primary bg-accent-muted"
+                : isFocused
+                  ? "bg-bg-raised border-l-transparent"
+                  : "hover:bg-bg-raised border-l-transparent"
+            }`}
+          />
+        }
+      >
+        {/* Author avatar */}
+        <GitHubAvatar
+          login={pr.author.login}
+          size={20}
+          className="border-border mt-0.5 border"
+        />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            <p className="text-text-primary truncate text-xs font-medium">{pr.title}</p>
+            <span
+              className={`bg-bg-raised shrink-0 rounded-sm px-1 font-mono text-[9px] font-medium ${size.color}`}
+            >
+              {size.label}
+            </span>
+          </div>
+          <div className="text-text-tertiary mt-0.5 flex items-center gap-1 font-mono text-[10px]">
+            <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${statusColor}`} />
+            <span>#{pr.number}</span>
+            <span className="text-text-ghost">·</span>
+            <span className="truncate">{pr.author.login}</span>
+            {workspace && (
+              <>
+                <span className="text-text-ghost">·</span>
+                <span className="text-info truncate">{workspace}</span>
+              </>
+            )}
+            <span className="text-text-ghost">·</span>
+            <span className="shrink-0">{relativeTime(new Date(pr.updatedAt))}</span>
+            {pr.isDraft && (
+              <>
+                <span className="text-text-ghost">·</span>
+                <span className="text-warning">Draft</span>
+              </>
+            )}
+          </div>
         </div>
-        <div className="text-text-tertiary mt-0.5 flex items-center gap-1 font-mono text-[10px]">
-          <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${statusColor}`} />
-          <span>#{pr.number}</span>
-          <span className="text-text-ghost">·</span>
-          <span className="truncate">{pr.author.login}</span>
-          {workspace && (
-            <>
-              <span className="text-text-ghost">·</span>
-              <span className="text-info truncate">{workspace}</span>
-            </>
-          )}
-          <span className="text-text-ghost">·</span>
-          <span className="shrink-0">{relativeTime(new Date(pr.updatedAt))}</span>
-          {pr.isDraft && (
-            <>
-              <span className="text-text-ghost">·</span>
-              <span className="text-warning">Draft</span>
-            </>
-          )}
-        </div>
-      </div>
-    </button>
+      </ContextMenu.Trigger>
+      <MenuPopup
+        side="bottom"
+        align="start"
+        className="border-border bg-bg-elevated w-48 rounded-md border shadow-lg"
+      >
+        <MenuItem
+          className="text-text-secondary hover:bg-bg-raised hover:text-text-primary flex items-center gap-2 rounded-sm px-3 py-1.5 text-xs"
+          onClick={() => approveMutation.mutate()}
+        >
+          <Check
+            size={13}
+            className="text-success"
+          />
+          Approve
+        </MenuItem>
+        <MenuItem
+          className="text-text-secondary hover:bg-bg-raised hover:text-text-primary flex items-center gap-2 rounded-sm px-3 py-1.5 text-xs"
+          onClick={() => mergeMutation.mutate()}
+        >
+          <GitMerge
+            size={13}
+            className="text-primary"
+          />
+          Squash & Merge
+        </MenuItem>
+        <MenuItem
+          className="text-destructive hover:bg-destructive/10 flex items-center gap-2 rounded-sm px-3 py-1.5 text-xs"
+          onClick={() => closeMutation.mutate()}
+        >
+          <XCircle size={13} />
+          Close
+        </MenuItem>
+        <MenuSeparator />
+        <MenuItem
+          className="text-text-secondary hover:bg-bg-raised hover:text-text-primary flex items-center gap-2 rounded-sm px-3 py-1.5 text-xs"
+          onClick={() => {
+            navigator.clipboard.writeText(pr.url);
+            toastManager.add({ title: "URL copied", type: "success" });
+          }}
+        >
+          <Copy size={13} />
+          Copy URL
+        </MenuItem>
+      </MenuPopup>
+    </ContextMenu.Root>
   );
 }
