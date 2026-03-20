@@ -202,7 +202,7 @@ export async function listPrs(
       break;
     }
   }
-  const { stdout } = await execFile("gh", args, { cwd });
+  const { stdout } = await execFile("gh", args, { cwd, timeout: 60_000 });
   return parseJsonOutput<GhPrListItem[]>(stdout);
 }
 
