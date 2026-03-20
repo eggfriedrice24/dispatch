@@ -51,6 +51,17 @@ export interface GhPrListItem {
   deletions: number;
 }
 
+/** Lightweight version returned by the core list query (no heavy fields). */
+export type GhPrListItemCore = Omit<GhPrListItem, "statusCheckRollup" | "additions" | "deletions">;
+
+/** Enrichment payload keyed by PR number. */
+export interface GhPrEnrichment {
+  number: number;
+  statusCheckRollup: GhPrListItem["statusCheckRollup"];
+  additions: number;
+  deletions: number;
+}
+
 export interface GhPrDetail {
   number: number;
   title: string;
@@ -252,7 +263,11 @@ export interface IpcApi {
 
   "pr.list": {
     args: { cwd: string; filter: "reviewRequested" | "authored" | "all" };
-    result: GhPrListItem[];
+    result: GhPrListItemCore[];
+  };
+  "pr.listEnrichment": {
+    args: { cwd: string; filter: "reviewRequested" | "authored" | "all" };
+    result: GhPrEnrichment[];
   };
   "pr.detail": { args: { cwd: string; prNumber: number }; result: GhPrDetail };
   "pr.diff": { args: { cwd: string; prNumber: number }; result: string };
@@ -378,7 +393,11 @@ export interface IpcApi {
   // Multi-repo (3.1)
   "pr.listAll": {
     args: { filter: "reviewRequested" | "authored" | "all" };
-    result: Array<GhPrListItem & { workspace: string; workspacePath: string }>;
+    result: Array<GhPrListItemCore & { workspace: string; workspacePath: string }>;
+  };
+  "pr.listAllEnrichment": {
+    args: { filter: "reviewRequested" | "authored" | "all" };
+    result: Array<GhPrEnrichment & { workspacePath: string }>;
   };
 
   // Metrics (3.2)

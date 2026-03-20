@@ -1,4 +1,4 @@
-import type { GhPrListItem } from "@/shared/ipc";
+import type { GhPrEnrichment, GhPrListItemCore } from "@/shared/ipc";
 
 import { Kbd } from "@/components/ui/kbd";
 import { MenuItem, MenuPopup, MenuSeparator } from "@/components/ui/menu";
@@ -69,7 +69,7 @@ export function PrInbox({ selectedPr, onSelectPr }: PrInboxProps) {
   const [multiRepo, setMultiRepo] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
 
-  // Single-repo queries (lazy — only active tab fires)
+  // Single-repo core queries (lightweight — only active tab fires)
   const reviewQuery = useQuery({
     queryKey: ["pr", "list", cwd, "reviewRequested"],
     queryFn: () => ipc("pr.list", { cwd, filter: "reviewRequested" }),
@@ -91,19 +91,53 @@ export function PrInbox({ selectedPr, onSelectPr }: PrInboxProps) {
     enabled: !multiRepo && activeFilter === "all",
   });
 
+  // Enrichment queries (heavy fields — lazy loaded after initial render)
+  const activeFilterIpc =
+    activeFilter === "mine" ? "authored" : activeFilter === "all" ? "all" : "reviewRequested";
+
+  const enrichmentQuery = useQuery({
+    queryKey: ["pr", "enrichment", cwd, activeFilterIpc],
+    queryFn: () => ipc("pr.listEnrichment", { cwd, filter: activeFilterIpc }),
+    refetchInterval: 30_000,
+    enabled: !multiRepo,
+  });
+
   // Multi-repo query (when toggle is active)
   const multiRepoQuery = useQuery({
     queryKey: ["pr", "listAll", activeFilter],
     queryFn: () =>
       ipc("pr.listAll", {
-        filter:
-          activeFilter === "mine" ? "authored" : activeFilter === "all" ? "all" : "reviewRequested",
+        filter: activeFilterIpc,
       }),
     refetchInterval: 30_000,
     enabled: multiRepo,
-    // Keep previous data while fetching the next filter.
     placeholderData: (prev) => prev,
   });
+
+  const multiRepoEnrichmentQuery = useQuery({
+    queryKey: ["pr", "listAllEnrichment", activeFilter],
+    queryFn: () =>
+      ipc("pr.listAllEnrichment", {
+        filter: activeFilterIpc,
+      }),
+    refetchInterval: 30_000,
+    enabled: multiRepo,
+  });
+
+  // Build enrichment index for O(1) lookups
+  const enrichmentIndex = useMemo(() => {
+    const map = new Map<string, GhPrEnrichment>();
+    if (multiRepo) {
+      for (const e of multiRepoEnrichmentQuery.data ?? []) {
+        map.set(`${e.workspacePath}:${e.number}`, e);
+      }
+    } else {
+      for (const e of enrichmentQuery.data ?? []) {
+        map.set(String(e.number), e);
+      }
+    }
+    return map;
+  }, [multiRepo, enrichmentQuery.data, multiRepoEnrichmentQuery.data]);
 
   const reviewPrs = multiRepo ? [] : (reviewQuery.data ?? []);
   const authorPrs = multiRepo ? [] : (authorQuery.data ?? []);
@@ -121,7 +155,7 @@ export function PrInbox({ selectedPr, onSelectPr }: PrInboxProps) {
 
   // Filter by active tab + search
   const filteredPrs = useMemo(() => {
-    const prs: GhPrListItem[] = multiRepo
+    const prs: GhPrListItemCore[] = multiRepo
       ? multiRepoPrs
       : activeFilter === "review"
         ? reviewPrs
@@ -142,8 +176,8 @@ export function PrInbox({ selectedPr, onSelectPr }: PrInboxProps) {
   }, [reviewPrs, authorPrs, allPrs, multiRepoPrs, activeFilter, searchQuery, multiRepo]);
 
   const handleSelectPr = useCallback(
-    (pr: GhPrListItem) => {
-      const prAny = pr as GhPrListItem & { workspacePath?: string };
+    (pr: GhPrListItemCore) => {
+      const prAny = pr as GhPrListItemCore & { workspacePath?: string };
       const prCwd = multiRepo ? (prAny.workspacePath ?? cwd) : cwd;
 
       void ipc("prActivity.markSeen", {
@@ -323,14 +357,17 @@ export function PrInbox({ selectedPr, onSelectPr }: PrInboxProps) {
       {!isLoading && filteredPrs.length > 0 && (
         <div className="flex-1 overflow-y-auto">
           {filteredPrs.map((pr, index) => {
-            const prAny = pr as GhPrListItem & { workspace?: string; workspacePath?: string };
+            const prAny = pr as GhPrListItemCore & { workspace?: string; workspacePath?: string };
             const prCwd = multiRepo ? (prAny.workspacePath ?? cwd) : cwd;
-            const checkSummary = summarizePrChecks(pr.statusCheckRollup);
+            const enrichmentKey = multiRepo ? `${prCwd}:${pr.number}` : String(pr.number);
+            const enrichment = enrichmentIndex.get(enrichmentKey);
+            const checkSummary = summarizePrChecks(enrichment?.statusCheckRollup ?? []);
 
             return (
               <PrItem
                 key={multiRepo ? `${prCwd}:${pr.number}` : pr.number}
                 pr={pr}
+                enrichment={enrichment}
                 cwd={prCwd}
                 checkSummary={checkSummary}
                 statusColor={resolveStatusColor(pr.reviewDecision, checkSummary, pr.isDraft)}
@@ -417,6 +454,7 @@ function prSizeLabel(additions: number, deletions: number): { label: string; col
 
 function PrItem({
   pr,
+  enrichment,
   checkSummary,
   statusColor,
   isActive,
@@ -426,7 +464,8 @@ function PrItem({
   workspace,
   cwd,
 }: {
-  pr: GhPrListItem;
+  pr: GhPrListItemCore;
+  enrichment?: GhPrEnrichment;
   checkSummary: PrCheckSummary;
   statusColor: string;
   isActive: boolean;
@@ -436,7 +475,9 @@ function PrItem({
   workspace?: string;
   cwd: string;
 }) {
-  const size = prSizeLabel(pr.additions, pr.deletions);
+  const size = enrichment
+    ? prSizeLabel(enrichment.additions, enrichment.deletions)
+    : null;
 
   const approveMutation = useMutation({
     mutationFn: () => ipc("pr.submitReview", { cwd, prNumber: pr.number, event: "APPROVE" }),
@@ -505,11 +546,13 @@ function PrItem({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
             <p className="text-text-primary truncate text-xs font-medium">{pr.title}</p>
-            <span
-              className={`bg-bg-raised shrink-0 rounded-sm px-1 font-mono text-[9px] font-medium ${size.color}`}
-            >
-              {size.label}
-            </span>
+            {size && (
+              <span
+                className={`bg-bg-raised shrink-0 rounded-sm px-1 font-mono text-[9px] font-medium ${size.color}`}
+              >
+                {size.label}
+              </span>
+            )}
             <CheckStatusBadge summary={checkSummary} />
             {hasNewActivity && (
               <span className="border-border-accent bg-accent-muted text-accent-text inline-flex shrink-0 items-center rounded-full border px-1.5 py-0.5 font-mono text-[9px] font-medium tracking-[0.06em] uppercase">

@@ -125,7 +125,8 @@ const handlers: { [M in IpcMethod]: Handler<M> } = {
   },
 
   // PR
-  "pr.list": async (args) => ghCli.listPrs(args.cwd, args.filter),
+  "pr.list": async (args) => ghCli.listPrsCore(args.cwd, args.filter),
+  "pr.listEnrichment": async (args) => ghCli.listPrsEnrichment(args.cwd, args.filter),
   "pr.detail": async (args) => ghCli.getPrDetail(args.cwd, args.prNumber),
   "pr.diff": async (args) => ghCli.getPrDiff(args.cwd, args.prNumber),
   "pr.updateTitle": async (args) => {
@@ -209,6 +210,10 @@ const handlers: { [M in IpcMethod]: Handler<M> } = {
   "pr.listAll": async (args) => {
     const workspaces = repo.getWorkspaces();
     return ghCli.listAllPrs(workspaces, args.filter);
+  },
+  "pr.listAllEnrichment": async (args) => {
+    const workspaces = repo.getWorkspaces();
+    return ghCli.listAllPrsEnrichment(workspaces, args.filter);
   },
 
   // Metrics (3.2)

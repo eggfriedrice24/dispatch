@@ -3,7 +3,9 @@ import type {
   GhAnnotation,
   GhCheckRun,
   GhPrDetail,
+  GhPrEnrichment,
   GhPrListItem,
+  GhPrListItemCore,
   GhReviewComment,
   GhUser,
   RepoInfo,
@@ -159,51 +161,162 @@ function parseJsonOutput<T>(stdout: string): T {
 // PR operations
 // ---------------------------------------------------------------------------
 
-const PR_LIST_FIELDS = [
+/** Lightweight fields for the initial list render (no heavy sub-queries). */
+const PR_LIST_CORE_FIELDS = [
   "number",
   "title",
   "author",
   "headRefName",
   "baseRefName",
   "reviewDecision",
-  "statusCheckRollup",
   "updatedAt",
   "url",
   "isDraft",
-  "additions",
-  "deletions",
 ].join(",");
 
-export async function listPrs(
-  cwd: string,
-  filter: "reviewRequested" | "authored" | "all" = "reviewRequested",
-): Promise<GhPrListItem[]> {
-  let args: string[];
+/** Heavy fields fetched lazily after the first paint. */
+const PR_LIST_ENRICHMENT_FIELDS = ["number", "statusCheckRollup", "additions", "deletions"].join(
+  ",",
+);
+
+/** All fields combined — used by the tray poller which needs everything. */
+const PR_LIST_ALL_FIELDS = [PR_LIST_CORE_FIELDS, "statusCheckRollup", "additions", "deletions"].join(",");
+
+const PR_LIST_LIMIT = "50";
+
+// ---------------------------------------------------------------------------
+// TTL cache — deduplicates calls across tray poller, notification poller,
+// and inbox queries that fire for the same cwd + filter combo.
+// ---------------------------------------------------------------------------
+
+interface CacheEntry<T> {
+  data: T;
+  expiresAt: number;
+}
+
+const prListCache = new Map<string, CacheEntry<GhPrListItemCore[]>>();
+const prEnrichmentCache = new Map<string, CacheEntry<GhPrEnrichment[]>>();
+const prFullCache = new Map<string, CacheEntry<GhPrListItem[]>>();
+
+const CACHE_TTL_MS = 15_000;
+
+function cacheKey(cwd: string, filter: string): string {
+  return `${cwd}::${filter}`;
+}
+
+function getCached<T>(cache: Map<string, CacheEntry<T>>, key: string): T | null {
+  const entry = cache.get(key);
+  if (entry && Date.now() < entry.expiresAt) {
+    return entry.data;
+  }
+  cache.delete(key);
+  return null;
+}
+
+function setCache<T>(cache: Map<string, CacheEntry<T>>, key: string, data: T): void {
+  cache.set(key, { data, expiresAt: Date.now() + CACHE_TTL_MS });
+}
+
+// ---------------------------------------------------------------------------
+// Filter args builder (shared between core and enrichment calls)
+// ---------------------------------------------------------------------------
+
+function buildFilterArgs(
+  filter: "reviewRequested" | "authored" | "all",
+  jsonFields: string,
+): string[] {
   switch (filter) {
-    case "reviewRequested": {
-      args = [
+    case "reviewRequested":
+      return [
         "pr",
         "list",
         "--search",
         "review-requested:@me",
         "--json",
-        PR_LIST_FIELDS,
+        jsonFields,
         "--limit",
-        "200",
+        PR_LIST_LIMIT,
       ];
-      break;
-    }
-    case "authored": {
-      args = ["pr", "list", "--author", "@me", "--json", PR_LIST_FIELDS, "--limit", "200"];
-      break;
-    }
-    case "all": {
-      args = ["pr", "list", "--json", PR_LIST_FIELDS, "--limit", "200"];
-      break;
-    }
+    case "authored":
+      return ["pr", "list", "--author", "@me", "--json", jsonFields, "--limit", PR_LIST_LIMIT];
+    case "all":
+      return ["pr", "list", "--json", jsonFields, "--limit", PR_LIST_LIMIT];
   }
+}
+
+// ---------------------------------------------------------------------------
+// Core list (lightweight — used for initial render)
+// ---------------------------------------------------------------------------
+
+export async function listPrsCore(
+  cwd: string,
+  filter: "reviewRequested" | "authored" | "all" = "reviewRequested",
+): Promise<GhPrListItemCore[]> {
+  const key = cacheKey(cwd, filter);
+  const cached = getCached(prListCache, key);
+  if (cached) return cached;
+
+  const args = buildFilterArgs(filter, PR_LIST_CORE_FIELDS);
+  const { stdout } = await execFile("gh", args, { cwd, timeout: 30_000 });
+  const data = parseJsonOutput<GhPrListItemCore[]>(stdout);
+  setCache(prListCache, key, data);
+  return data;
+}
+
+// ---------------------------------------------------------------------------
+// Enrichment (heavy fields — lazy loaded after initial render)
+// ---------------------------------------------------------------------------
+
+export async function listPrsEnrichment(
+  cwd: string,
+  filter: "reviewRequested" | "authored" | "all" = "reviewRequested",
+): Promise<GhPrEnrichment[]> {
+  const key = cacheKey(cwd, filter);
+  const cached = getCached(prEnrichmentCache, key);
+  if (cached) return cached;
+
+  const args = buildFilterArgs(filter, PR_LIST_ENRICHMENT_FIELDS);
   const { stdout } = await execFile("gh", args, { cwd, timeout: 60_000 });
-  return parseJsonOutput<GhPrListItem[]>(stdout);
+  const data = parseJsonOutput<GhPrEnrichment[]>(stdout);
+  setCache(prEnrichmentCache, key, data);
+  return data;
+}
+
+// ---------------------------------------------------------------------------
+// Full list (all fields — used by tray poller for notifications)
+// ---------------------------------------------------------------------------
+
+export async function listPrs(
+  cwd: string,
+  filter: "reviewRequested" | "authored" | "all" = "reviewRequested",
+): Promise<GhPrListItem[]> {
+  const key = cacheKey(cwd, filter);
+  const cached = getCached(prFullCache, key);
+  if (cached) return cached;
+
+  const args = buildFilterArgs(filter, PR_LIST_ALL_FIELDS);
+  const { stdout } = await execFile("gh", args, { cwd, timeout: 60_000 });
+  const data = parseJsonOutput<GhPrListItem[]>(stdout);
+  setCache(prFullCache, key, data);
+
+  // Also populate the core and enrichment caches from the full result.
+  setCache(
+    prListCache,
+    key,
+    data.map(({ statusCheckRollup: _, additions: _a, deletions: _d, ...core }) => core),
+  );
+  setCache(
+    prEnrichmentCache,
+    key,
+    data.map(({ number, statusCheckRollup, additions, deletions }) => ({
+      number,
+      statusCheckRollup,
+      additions,
+      deletions,
+    })),
+  );
+
+  return data;
 }
 
 const PR_DETAIL_FIELDS = [
@@ -811,15 +924,47 @@ export async function getWorkflowYaml(cwd: string, workflowId: string): Promise<
 // Multi-repo (3.1)
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Concurrency limiter — prevents thundering herd on multi-repo queries.
+// ---------------------------------------------------------------------------
+
+const MAX_CONCURRENT_GH_CALLS = 3;
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  fn: (item: T) => Promise<R>,
+): Promise<PromiseSettledResult<R>[]> {
+  const results: PromiseSettledResult<R>[] = new Array(items.length);
+  let nextIndex = 0;
+
+  async function worker(): Promise<void> {
+    while (nextIndex < items.length) {
+      const index = nextIndex++;
+      try {
+        results[index] = { status: "fulfilled", value: await fn(items[index]!) };
+      } catch (reason) {
+        results[index] = { status: "rejected", reason };
+      }
+    }
+  }
+
+  const workers = Array.from({ length: Math.min(concurrency, items.length) }, () => worker());
+  await Promise.all(workers);
+  return results;
+}
+
 export async function listAllPrs(
   workspaces: Array<{ path: string; name: string }>,
   filter: "reviewRequested" | "authored" | "all",
-): Promise<Array<GhPrListItem & { workspace: string; workspacePath: string }>> {
-  const results = await Promise.allSettled(
-    workspaces.map(async (ws) => {
-      const prs = await listPrs(ws.path, filter);
+): Promise<Array<GhPrListItemCore & { workspace: string; workspacePath: string }>> {
+  const results = await mapWithConcurrency(
+    workspaces,
+    MAX_CONCURRENT_GH_CALLS,
+    async (ws) => {
+      const prs = await listPrsCore(ws.path, filter);
       return prs.map((pr) => ({ ...pr, workspace: ws.name, workspacePath: ws.path }));
-    }),
+    },
   );
 
   return results
@@ -827,8 +972,31 @@ export async function listAllPrs(
       (
         r,
       ): r is PromiseFulfilledResult<
-        Array<GhPrListItem & { workspace: string; workspacePath: string }>
+        Array<GhPrListItemCore & { workspace: string; workspacePath: string }>
       > => r.status === "fulfilled",
+    )
+    .flatMap((r) => r.value);
+}
+
+export async function listAllPrsEnrichment(
+  workspaces: Array<{ path: string; name: string }>,
+  filter: "reviewRequested" | "authored" | "all",
+): Promise<Array<GhPrEnrichment & { workspacePath: string }>> {
+  const results = await mapWithConcurrency(
+    workspaces,
+    MAX_CONCURRENT_GH_CALLS,
+    async (ws) => {
+      const enrichments = await listPrsEnrichment(ws.path, filter);
+      return enrichments.map((e) => ({ ...e, workspacePath: ws.path }));
+    },
+  );
+
+  return results
+    .filter(
+      (
+        r,
+      ): r is PromiseFulfilledResult<Array<GhPrEnrichment & { workspacePath: string }>> =>
+        r.status === "fulfilled",
     )
     .flatMap((r) => r.value);
 }
