@@ -44,10 +44,9 @@ export function AiReviewSummary({
         .join("\n");
 
       return ipc("ai.complete", {
-        provider: config.provider as "openai" | "anthropic" | "ollama",
-        model: config.model,
-        apiKey: config.apiKey,
-        baseUrl: config.baseUrl,
+        provider: config.provider ?? undefined,
+        model: config.model ?? undefined,
+        baseUrl: config.baseUrl ?? undefined,
         messages: [
           {
             role: "system",

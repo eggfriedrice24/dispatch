@@ -13,6 +13,25 @@ export const BADGE_COUNT_CHANNEL = "set-badge-count";
 // Service types shared across processes
 // ---------------------------------------------------------------------------
 
+export type AiProvider = "openai" | "anthropic" | "ollama";
+export type AiConfigSource = "preference" | "environment" | "default" | "none";
+
+export interface AiResolvedConfig {
+  provider: AiProvider | null;
+  model: string | null;
+  baseUrl: string | null;
+  isConfigured: boolean;
+  hasApiKey: boolean;
+  providerSource: AiConfigSource;
+  modelSource: AiConfigSource;
+  apiKeySource: AiConfigSource;
+  baseUrlSource: AiConfigSource;
+  providerEnvVar: string | null;
+  modelEnvVar: string | null;
+  apiKeyEnvVar: string | null;
+  baseUrlEnvVar: string | null;
+}
+
 export interface GhPrListItem {
   number: number;
   title: string;
@@ -376,11 +395,15 @@ export interface IpcApi {
   };
 
   // AI (3.3)
+  "ai.config": {
+    args: void;
+    result: AiResolvedConfig;
+  };
   "ai.complete": {
     args: {
-      provider: "openai" | "anthropic" | "ollama";
-      model: string;
-      apiKey: string;
+      provider?: AiProvider;
+      model?: string;
+      apiKey?: string;
       baseUrl?: string;
       messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
       maxTokens?: number;

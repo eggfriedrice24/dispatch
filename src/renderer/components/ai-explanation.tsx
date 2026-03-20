@@ -21,32 +21,29 @@ interface AiExplanationProps {
 }
 
 function useAiConfig() {
-  const prefsQuery = useQuery({
-    queryKey: ["preferences", ["aiProvider", "aiModel", "aiApiKey", "aiBaseUrl"]],
-    queryFn: () =>
-      ipc("preferences.getAll", {
-        keys: ["aiProvider", "aiModel", "aiApiKey", "aiBaseUrl"],
-      }),
+  const configQuery = useQuery({
+    queryKey: ["ai", "config"],
+    queryFn: () => ipc("ai.config"),
     staleTime: 60_000,
   });
 
-  const prefs = prefsQuery.data ?? {};
-  const provider = prefs.aiProvider ?? null;
-  const isConfigured = !!provider && provider !== "none";
-
-  return {
-    isConfigured,
-    provider: provider ?? "openai",
-    model:
-      prefs.aiModel ??
-      (provider === "openai"
-        ? "gpt-4o"
-        : provider === "anthropic"
-          ? "claude-sonnet-4-20250514"
-          : "llama3.1"),
-    apiKey: prefs.aiApiKey ?? "",
-    baseUrl: prefs.aiBaseUrl || undefined,
-  };
+  return (
+    configQuery.data ?? {
+      provider: null,
+      model: null,
+      baseUrl: null,
+      isConfigured: false,
+      hasApiKey: false,
+      providerSource: "none",
+      modelSource: "none",
+      apiKeySource: "none",
+      baseUrlSource: "none",
+      providerEnvVar: null,
+      modelEnvVar: null,
+      apiKeyEnvVar: null,
+      baseUrlEnvVar: null,
+    }
+  );
 }
 
 export { useAiConfig };
@@ -58,10 +55,9 @@ export function AiExplanation({ filePath, codeSnippet, language, onDismiss }: Ai
   const explainMutation = useMutation({
     mutationFn: () =>
       ipc("ai.complete", {
-        provider: config.provider as "openai" | "anthropic" | "ollama",
-        model: config.model,
-        apiKey: config.apiKey,
-        baseUrl: config.baseUrl,
+        provider: config.provider ?? undefined,
+        model: config.model ?? undefined,
+        baseUrl: config.baseUrl ?? undefined,
         messages: [
           {
             role: "system",

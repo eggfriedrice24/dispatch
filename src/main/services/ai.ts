@@ -5,35 +5,76 @@
  * Each provider returns differently; we normalize to a plain string.
  */
 
+import type { AiProvider } from "../../shared/ipc";
+
+import { getAiConfigWithSecrets } from "./ai-config";
+
 interface AiMessage {
   role: "system" | "user" | "assistant";
   content: string;
 }
 
 interface AiCompletionArgs {
-  provider: "openai" | "anthropic" | "ollama";
-  model: string;
-  apiKey: string;
+  provider?: AiProvider;
+  model?: string;
+  apiKey?: string;
   baseUrl?: string;
   messages: AiMessage[];
   maxTokens?: number;
 }
 
+interface ResolvedAiCompletionArgs extends AiCompletionArgs {
+  provider: AiProvider;
+  model: string;
+  apiKey: string;
+}
+
 export async function complete(args: AiCompletionArgs): Promise<string> {
-  switch (args.provider) {
+  const config = getAiConfigWithSecrets({
+    provider: args.provider,
+    model: args.model,
+    apiKey: args.apiKey,
+    baseUrl: args.baseUrl,
+  });
+
+  if (!config.provider) {
+    throw new Error(
+      "AI provider is not configured. Set it in Settings or via Dispatch AI environment variables.",
+    );
+  }
+
+  if (!config.model) {
+    throw new Error(`AI model is not configured for ${config.provider}.`);
+  }
+
+  if (config.provider !== "ollama" && !config.apiKey) {
+    throw new Error(
+      `AI API key is not configured for ${config.provider}. Set it in Settings or the environment.`,
+    );
+  }
+
+  const request: ResolvedAiCompletionArgs = {
+    ...args,
+    provider: config.provider,
+    model: config.model,
+    apiKey: config.apiKey,
+    baseUrl: config.baseUrl ?? undefined,
+  };
+
+  switch (request.provider) {
     case "openai": {
-      return completeOpenAI(args);
+      return completeOpenAI(request);
     }
     case "anthropic": {
-      return completeAnthropic(args);
+      return completeAnthropic(request);
     }
     case "ollama": {
-      return completeOllama(args);
+      return completeOllama(request);
     }
   }
 }
 
-async function completeOpenAI(args: AiCompletionArgs): Promise<string> {
+async function completeOpenAI(args: ResolvedAiCompletionArgs): Promise<string> {
   const baseUrl = args.baseUrl || "https://api.openai.com/v1";
   const response = await fetch(`${baseUrl}/chat/completions`, {
     method: "POST",
@@ -59,7 +100,7 @@ async function completeOpenAI(args: AiCompletionArgs): Promise<string> {
   return data.choices[0]?.message.content ?? "";
 }
 
-async function completeAnthropic(args: AiCompletionArgs): Promise<string> {
+async function completeAnthropic(args: ResolvedAiCompletionArgs): Promise<string> {
   const baseUrl = args.baseUrl || "https://api.anthropic.com/v1";
 
   // Anthropic uses a system prompt separately from messages
@@ -92,7 +133,7 @@ async function completeAnthropic(args: AiCompletionArgs): Promise<string> {
   return data.content.find((c) => c.type === "text")?.text ?? "";
 }
 
-async function completeOllama(args: AiCompletionArgs): Promise<string> {
+async function completeOllama(args: ResolvedAiCompletionArgs): Promise<string> {
   const baseUrl = args.baseUrl || "http://localhost:11434";
   const response = await fetch(`${baseUrl}/api/chat`, {
     method: "POST",

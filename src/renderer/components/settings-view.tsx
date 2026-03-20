@@ -28,11 +28,26 @@ export function SettingsView() {
     queryKey: ["preferences", PREF_KEYS],
     queryFn: () => ipc("preferences.getAll", { keys: PREF_KEYS }),
   });
+  const aiConfigQuery = useQuery({
+    queryKey: ["ai", "config"],
+    queryFn: () => ipc("ai.config"),
+    staleTime: 60_000,
+  });
 
   const prefs = prefsQuery.data ?? {};
+  const aiConfig = aiConfigQuery.data;
   const mergeStrategy = prefs.mergeStrategy ?? "squash";
   const prPollInterval = prefs.prPollInterval ?? "30";
   const checksPollInterval = prefs.checksPollInterval ?? "10";
+  const effectiveAiProvider = prefs.aiProvider ?? aiConfig?.provider ?? "none";
+  const envAiVars = [
+    aiConfig?.providerSource === "environment" ? aiConfig.providerEnvVar : null,
+    aiConfig?.modelSource === "environment" ? aiConfig.modelEnvVar : null,
+    aiConfig?.apiKeySource === "environment" ? aiConfig.apiKeyEnvVar : null,
+    aiConfig?.baseUrlSource === "environment" ? aiConfig.baseUrlEnvVar : null,
+  ].filter(
+    (value, index, values): value is string => Boolean(value) && values.indexOf(value) === index,
+  );
 
   const saveMutation = useMutation({
     mutationFn: async (args: { key: string; value: string }) => {
@@ -125,11 +140,17 @@ export function SettingsView() {
           <p className="text-text-tertiary mt-0.5 text-xs">
             Configure an AI provider for code explanations and PR summaries.
           </p>
+          {envAiVars.length > 0 && (
+            <p className="text-text-tertiary mt-1 font-mono text-[10px]">
+              Using {envAiVars.join(", ")} from the environment. Saved settings override these
+              values. Select None to disable AI in Dispatch.
+            </p>
+          )}
           <div className="mt-3 flex flex-col gap-3">
             <div className="flex items-center justify-between">
               <span className="text-text-secondary text-xs">Provider</span>
               <select
-                value={prefs.aiProvider ?? "none"}
+                value={effectiveAiProvider}
                 onChange={(e) => savePref("aiProvider", e.target.value)}
                 className="border-border bg-bg-root text-text-primary focus:border-primary w-36 rounded-md border px-2 py-1 text-xs focus:outline-none"
               >
@@ -139,7 +160,7 @@ export function SettingsView() {
                 <option value="ollama">Ollama (local)</option>
               </select>
             </div>
-            {prefs.aiProvider && prefs.aiProvider !== "none" && (
+            {effectiveAiProvider !== "none" && (
               <>
                 <div className="flex items-center justify-between">
                   <span className="text-text-secondary text-xs">Model</span>
@@ -147,24 +168,22 @@ export function SettingsView() {
                     type="text"
                     value={prefs.aiModel ?? ""}
                     onChange={(e) => savePref("aiModel", e.target.value)}
-                    placeholder={
-                      prefs.aiProvider === "openai"
-                        ? "gpt-4o"
-                        : prefs.aiProvider === "anthropic"
-                          ? "claude-sonnet-4-20250514"
-                          : "llama3.1"
-                    }
+                    placeholder={aiConfig?.model ?? "Model name"}
                     className="border-border bg-bg-root text-text-primary placeholder:text-text-tertiary focus:border-primary w-36 rounded-md border px-2 py-1 font-mono text-xs focus:outline-none"
                   />
                 </div>
-                {prefs.aiProvider !== "ollama" && (
+                {effectiveAiProvider !== "ollama" && (
                   <div className="flex items-center justify-between">
                     <span className="text-text-secondary text-xs">API Key</span>
                     <input
                       type="password"
                       value={prefs.aiApiKey ?? ""}
                       onChange={(e) => savePref("aiApiKey", e.target.value)}
-                      placeholder="sk-..."
+                      placeholder={
+                        aiConfig?.apiKeySource === "environment" && aiConfig.apiKeyEnvVar
+                          ? `Using ${aiConfig.apiKeyEnvVar}`
+                          : "sk-..."
+                      }
                       className="border-border bg-bg-root text-text-primary placeholder:text-text-tertiary focus:border-primary w-36 rounded-md border px-2 py-1 font-mono text-xs focus:outline-none"
                     />
                   </div>
@@ -176,7 +195,8 @@ export function SettingsView() {
                     value={prefs.aiBaseUrl ?? ""}
                     onChange={(e) => savePref("aiBaseUrl", e.target.value)}
                     placeholder={
-                      prefs.aiProvider === "ollama" ? "http://localhost:11434" : "Default"
+                      aiConfig?.baseUrl ??
+                      (effectiveAiProvider === "ollama" ? "http://localhost:11434" : "Default")
                     }
                     className="border-border bg-bg-root text-text-primary placeholder:text-text-tertiary focus:border-primary w-36 rounded-md border px-2 py-1 font-mono text-xs focus:outline-none"
                   />

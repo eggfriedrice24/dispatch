@@ -3,6 +3,7 @@ import { BrowserWindow, dialog, ipcMain } from "electron";
 import { IPC_CHANNEL, type IpcApi, type IpcMethod } from "../shared/ipc";
 import * as repo from "./db/repository";
 import * as ai from "./services/ai";
+import { getAiConfig } from "./services/ai-config";
 import { openExternalUrl } from "./services/external-links";
 import * as ghCli from "./services/gh-cli";
 import * as gitCli from "./services/git-cli";
@@ -193,6 +194,7 @@ const handlers: { [M in IpcMethod]: Handler<M> } = {
   "metrics.reviewLoad": async (args) => ghCli.getReviewLoad(args.cwd, args.since),
 
   // AI (3.3)
+  "ai.config": async () => getAiConfig(),
   "ai.complete": async (args) => ai.complete(args),
 
   // Releases (3.4)
