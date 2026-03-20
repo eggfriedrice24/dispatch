@@ -64,6 +64,17 @@ Use `bun run <script>` for everything.
 | `format:check` | `bun run format:check` | Check formatting without writing          |
 | `typecheck`    | `bun run typecheck`    | TypeScript type checking                  |
 
+## React Patterns
+
+- **Avoid `useEffect`**. Most uses of `useEffect` can be replaced with better patterns:
+  - **Derived state**: If you're syncing state in an effect (e.g. clamping an index when a list shrinks), compute it inline during render instead.
+  - **Event handlers**: If an effect runs in response to a user action, move the logic into the event handler that triggered the change.
+  - **Ref callbacks**: If an effect focuses/measures a DOM node on mount, use a ref callback (`ref={(node) => { ... }}`) instead.
+  - **`autoFocus`**: If an effect just calls `.focus()` on mount, use the `autoFocus` HTML attribute.
+  - **Render-time notifications**: If an effect notifies a parent of derived state changes, use a ref to track the previous value and call the callback conditionally during render.
+- Legitimate uses of `useEffect` that should stay: subscribing to external events (IPC, DOM listeners), timers/intervals, async initialization, and scroll-into-view triggered by state changes.
+- Prefer `useMemo` for expensive derived values and `useCallback` for stable function references passed as props.
+
 ## Code Standards
 
 - **Formatting**: oxfmt handles all formatting. Do not manually adjust whitespace, quotes, semicolons, or trailing commas. Run `bun run format` after writing code.
