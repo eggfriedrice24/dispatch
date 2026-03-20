@@ -6,13 +6,14 @@ import { toastManager } from "@/components/ui/toast";
 import { clamp, relativeTime } from "@/shared/format";
 import { ContextMenu } from "@base-ui/react/context-menu";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Check, Copy, ExternalLink, GitMerge, Inbox, Search, XCircle } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Check, Clock, Copy, ExternalLink, GitMerge, Inbox, Search, XCircle } from "lucide-react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 import { useKeyboardShortcuts } from "../hooks/use-keyboard-shortcuts";
 import { ipc } from "../lib/ipc";
 import { openExternal } from "../lib/open-external";
 import { getPrActivityKey, hasNewPrActivity, indexPrActivityStates } from "../lib/pr-activity";
+import { summarizePrChecks, type PrCheckSummary } from "../lib/pr-check-status";
 import { queryClient } from "../lib/query-client";
 import { useWorkspace } from "../lib/workspace-context";
 import { GitHubAvatar } from "./github-avatar";
@@ -38,19 +39,16 @@ type FilterTab = "review" | "mine" | "all";
 
 function resolveStatusColor(
   reviewDecision: string,
-  checks: Array<{ conclusion: string | null }>,
+  checkSummary: PrCheckSummary,
   isDraft: boolean,
 ): string {
-  const allPassing = checks.length > 0 && checks.every((c) => c.conclusion === "success");
-  const anyFailing = checks.some((c) => c.conclusion === "failure" || c.conclusion === "error");
-
-  if (reviewDecision === "APPROVED" && allPassing) {
+  if (reviewDecision === "APPROVED" && checkSummary.state === "passing") {
     return "bg-success";
   }
-  if (anyFailing) {
+  if (checkSummary.state === "failing") {
     return "bg-destructive";
   }
-  if (isDraft || checks.some((c) => !c.conclusion)) {
+  if (isDraft || checkSummary.state === "pending") {
     return "bg-warning";
   }
   if (reviewDecision === "REVIEW_REQUIRED") {
@@ -103,7 +101,8 @@ export function PrInbox({ selectedPr, onSelectPr }: PrInboxProps) {
       }),
     refetchInterval: 30_000,
     enabled: multiRepo,
-    placeholderData: (prev) => prev, // Keep previous data while fetching new filter
+    // Keep previous data while fetching the next filter.
+    placeholderData: (prev) => prev,
   });
 
   const reviewPrs = multiRepo ? [] : (reviewQuery.data ?? []);
@@ -122,25 +121,13 @@ export function PrInbox({ selectedPr, onSelectPr }: PrInboxProps) {
 
   // Filter by active tab + search
   const filteredPrs = useMemo(() => {
-    let prs: GhPrListItem[];
-    if (multiRepo) {
-      prs = multiRepoPrs;
-    } else {
-      switch (activeFilter) {
-        case "review": {
-          prs = reviewPrs;
-          break;
-        }
-        case "mine": {
-          prs = authorPrs;
-          break;
-        }
-        case "all": {
-          prs = allPrs;
-          break;
-        }
-      }
-    }
+    const prs: GhPrListItem[] = multiRepo
+      ? multiRepoPrs
+      : activeFilter === "review"
+        ? reviewPrs
+        : activeFilter === "mine"
+          ? authorPrs
+          : allPrs;
 
     if (!searchQuery) {
       return prs;
@@ -178,12 +165,10 @@ export function PrInbox({ selectedPr, onSelectPr }: PrInboxProps) {
     [cwd, multiRepo, onSelectPr, switchWorkspace],
   );
 
-  // Clamp focusIndex when the list shrinks
-  useEffect(() => {
-    if (filteredPrs.length > 0 && focusIndex >= filteredPrs.length) {
-      setFocusIndex(clamp(focusIndex, 0, filteredPrs.length - 1));
-    }
-  }, [filteredPrs.length, focusIndex]);
+  // Derive a safe focus index — stays valid when the list shrinks without
+  // needing an effect to sync state after render.
+  const safeFocusIndex =
+    filteredPrs.length > 0 ? clamp(focusIndex, 0, filteredPrs.length - 1) : 0;
 
   useKeyboardShortcuts([
     {
@@ -197,7 +182,7 @@ export function PrInbox({ selectedPr, onSelectPr }: PrInboxProps) {
     {
       key: "Enter",
       handler: () => {
-        const pr = filteredPrs[focusIndex];
+        const pr = filteredPrs[safeFocusIndex];
         if (pr) {
           handleSelectPr(pr);
         }
@@ -340,19 +325,17 @@ export function PrInbox({ selectedPr, onSelectPr }: PrInboxProps) {
           {filteredPrs.map((pr, index) => {
             const prAny = pr as GhPrListItem & { workspace?: string; workspacePath?: string };
             const prCwd = multiRepo ? (prAny.workspacePath ?? cwd) : cwd;
+            const checkSummary = summarizePrChecks(pr.statusCheckRollup);
 
             return (
               <PrItem
                 key={multiRepo ? `${prCwd}:${pr.number}` : pr.number}
                 pr={pr}
                 cwd={prCwd}
-                statusColor={resolveStatusColor(
-                  pr.reviewDecision,
-                  pr.statusCheckRollup,
-                  pr.isDraft,
-                )}
+                checkSummary={checkSummary}
+                statusColor={resolveStatusColor(pr.reviewDecision, checkSummary, pr.isDraft)}
                 isActive={selectedPr === pr.number}
-                isFocused={focusIndex === index}
+                isFocused={safeFocusIndex === index}
                 hasNewActivity={hasNewPrActivity(
                   pr.updatedAt,
                   prActivityIndex.get(getPrActivityKey(prCwd, pr.number)),
@@ -434,6 +417,7 @@ function prSizeLabel(additions: number, deletions: number): { label: string; col
 
 function PrItem({
   pr,
+  checkSummary,
   statusColor,
   isActive,
   isFocused,
@@ -443,6 +427,7 @@ function PrItem({
   cwd,
 }: {
   pr: GhPrListItem;
+  checkSummary: PrCheckSummary;
   statusColor: string;
   isActive: boolean;
   isFocused: boolean;
@@ -525,6 +510,7 @@ function PrItem({
             >
               {size.label}
             </span>
+            <CheckStatusBadge summary={checkSummary} />
             {hasNewActivity && (
               <span className="border-border-accent bg-accent-muted text-accent-text inline-flex shrink-0 items-center rounded-full border px-1.5 py-0.5 font-mono text-[9px] font-medium tracking-[0.06em] uppercase">
                 New
@@ -608,4 +594,56 @@ function PrItem({
       </MenuPopup>
     </ContextMenu.Root>
   );
+}
+
+function CheckStatusBadge({ summary }: { summary: PrCheckSummary }) {
+  if (summary.state === "failing") {
+    return (
+      <span
+        title={checkSummaryTitle(summary)}
+        className="bg-danger-muted text-destructive inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 font-mono text-[9px] font-medium"
+      >
+        <XCircle size={11} />
+        {summary.failed === 1 ? "1 failed" : `${summary.failed} failed`}
+      </span>
+    );
+  }
+
+  if (summary.state === "pending") {
+    return (
+      <span
+        title={checkSummaryTitle(summary)}
+        className="bg-warning-muted text-warning inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 font-mono text-[9px] font-medium"
+      >
+        <Clock
+          size={11}
+          className="animate-spin"
+        />
+        {summary.pending === 1 ? "1 pending" : `${summary.pending} pending`}
+      </span>
+    );
+  }
+
+  return null;
+}
+
+function checkSummaryTitle(summary: PrCheckSummary): string {
+  const parts: string[] = [];
+
+  if (summary.failed > 0) {
+    parts.push(summary.failed === 1 ? "1 failed check" : `${summary.failed} failed checks`);
+  }
+  if (summary.pending > 0) {
+    parts.push(summary.pending === 1 ? "1 pending check" : `${summary.pending} pending checks`);
+  }
+  if (summary.passed > 0) {
+    parts.push(summary.passed === 1 ? "1 passing check" : `${summary.passed} passing checks`);
+  }
+  if (summary.neutral > 0) {
+    parts.push(
+      summary.neutral === 1 ? "1 non-blocking check" : `${summary.neutral} non-blocking checks`,
+    );
+  }
+
+  return parts.join(", ");
 }

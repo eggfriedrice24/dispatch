@@ -551,28 +551,18 @@ function EditablePrTitle({
 }) {
   const [draftTitle, setDraftTitle] = useState(title);
   const [isEditing, setIsEditing] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    if (isEditing) {
-      return;
+  // Ref callback — auto-focus and select the input when it mounts (entering edit mode).
+  // Replaces two useEffects: one synced draftTitle (redundant since beginEditing/cancelEditing
+  // already set it), and one focused the input on isEditing change.
+  const inputRef = useCallback((node: HTMLInputElement | null) => {
+    if (node) {
+      requestAnimationFrame(() => {
+        node.focus();
+        node.select();
+      });
     }
-
-    setDraftTitle(title);
-  }, [isEditing, title]);
-
-  useEffect(() => {
-    if (!isEditing) {
-      return;
-    }
-
-    const frame = requestAnimationFrame(() => {
-      inputRef.current?.focus();
-      inputRef.current?.select();
-    });
-
-    return () => cancelAnimationFrame(frame);
-  }, [isEditing]);
+  }, []);
 
   const updateTitleMutation = useMutation({
     mutationFn: (nextTitle: string) => ipc("pr.updateTitle", { cwd, prNumber, title: nextTitle }),

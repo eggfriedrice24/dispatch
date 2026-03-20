@@ -243,14 +243,9 @@ function LogSection({
 
   const defaultExpanded = !section.isGroup || hasMatches;
   const [expandedState, setExpandedState] = useState<boolean | null>(null);
-  const expanded = expandedState ?? defaultExpanded;
-
-  // Force-expand when search finds matches in a collapsed group
-  useEffect(() => {
-    if (hasMatches && section.isGroup) {
-      setExpandedState(true);
-    }
-  }, [hasMatches, section.isGroup]);
+  // Force-expand groups when search finds matches inside them,
+  // regardless of user's manual collapsed state.
+  const expanded = (hasMatches && section.isGroup) ? true : (expandedState ?? defaultExpanded);
 
   let lineMatchOffset = globalOffset;
 

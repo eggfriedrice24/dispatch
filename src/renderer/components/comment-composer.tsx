@@ -3,7 +3,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { toastManager } from "@/components/ui/toast";
 import { useMutation } from "@tanstack/react-query";
 import { CornerDownLeft } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 
 import { ipc } from "../lib/ipc";
 import { queryClient } from "../lib/query-client";
@@ -33,11 +33,6 @@ export function CommentComposer({
 }: CommentComposerProps) {
   const { cwd } = useWorkspace();
   const [body, setBody] = useState("");
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  useEffect(() => {
-    textareaRef.current?.focus();
-  }, []);
 
   const createMutation = useMutation({
     mutationFn: (args: {
@@ -89,7 +84,7 @@ export function CommentComposer({
         </div>
       )}
       <textarea
-        ref={textareaRef}
+        autoFocus
         value={body}
         onChange={(e) => setBody(e.target.value)}
         onKeyDown={handleKeyDown}

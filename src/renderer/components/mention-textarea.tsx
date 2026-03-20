@@ -152,10 +152,10 @@ export function MentionTextarea({
       );
   }, [trigger, contributors, issues, searchedUsers]);
 
-  // Reset selection when suggestions change
-  useEffect(() => {
-    setSelectedIndex(0);
-  }, [suggestions.length]);
+  // Clamp the selected index to remain within bounds when async results arrive
+  // (e.g. GitHub user search resolves and the list shrinks).
+  const safeSelectedIndex =
+    suggestions.length > 0 ? Math.min(selectedIndex, suggestions.length - 1) : 0;
 
   // Detect trigger characters while typing
   const handleChange = useCallback(
@@ -173,9 +173,11 @@ export function MentionTextarea({
       if (atMatch) {
         const startPos = cursorPos - atMatch[1]!.length - 1;
         setTrigger({ kind: "user", startPos, query: atMatch[1]! });
+        setSelectedIndex(0);
       } else if (hashMatch) {
         const startPos = cursorPos - hashMatch[1]!.length - 1;
         setTrigger({ kind: "issue", startPos, query: hashMatch[1]! });
+        setSelectedIndex(0);
       } else {
         setTrigger(null);
       }
@@ -222,9 +224,9 @@ export function MentionTextarea({
         }
         if (e.key === "Tab" || e.key === "Enter") {
           // Only intercept Enter if autocomplete is open
-          if (suggestions[selectedIndex]) {
+          if (suggestions[safeSelectedIndex]) {
             e.preventDefault();
-            insertSuggestion(suggestions[selectedIndex]!);
+            insertSuggestion(suggestions[safeSelectedIndex]!);
             return;
           }
         }
@@ -238,7 +240,7 @@ export function MentionTextarea({
       // Pass through to external handler
       externalOnKeyDown?.(e);
     },
-    [trigger, suggestions, selectedIndex, insertSuggestion, externalOnKeyDown],
+    [trigger, suggestions, safeSelectedIndex, insertSuggestion, externalOnKeyDown],
   );
 
   const showDropdown = trigger !== null && (suggestions.length > 0 || userSearchQuery.isFetching);
@@ -276,7 +278,7 @@ export function MentionTextarea({
                 insertSuggestion(suggestion);
               }}
               className={`flex w-full cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-left text-xs transition-colors ${
-                i === selectedIndex
+                i === safeSelectedIndex
                   ? "bg-accent-muted text-accent-text"
                   : "text-text-secondary hover:bg-bg-raised"
               }`}

@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { GitBranch, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useRef, useState } from "react";
 
 import { ipc } from "../lib/ipc";
 
@@ -44,9 +44,13 @@ export function UpdateBanner({
     !!bannerKey &&
     dismissedKey !== bannerKey;
 
-  useEffect(() => {
+  // Notify parent of visibility changes during render (no effect needed).
+  // This is safe because the call is conditional — it only fires on transitions.
+  const prevVisibleRef = useRef(visible);
+  if (prevVisibleRef.current !== visible) {
+    prevVisibleRef.current = visible;
     onVisibilityChange?.(visible);
-  }, [visible, onVisibilityChange]);
+  }
 
   if (!visible) {
     return null;
