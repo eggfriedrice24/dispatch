@@ -7,7 +7,9 @@ declare global {
     invoke(method: string, args: unknown): Promise<unknown>;
     openExternal(url: string): Promise<void>;
     setBadgeCount(count: number): void;
-    onNavigate(callback: (route: { view: string; prNumber?: number }) => void): () => void;
+    onNavigate(
+      callback: (route: { view: string; prNumber?: number; workspacePath?: string }) => void,
+    ): () => void;
   }
 
   var api: ElectronApi;

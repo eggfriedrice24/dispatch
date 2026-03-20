@@ -43,10 +43,12 @@ contextBridge.exposeInMainWorld("api", {
    * Listen for navigation events from main process (tray menu clicks).
    * Returns a cleanup function to remove the listener.
    */
-  onNavigate(callback: (route: { view: string; prNumber?: number }) => void): () => void {
+  onNavigate(
+    callback: (route: { view: string; prNumber?: number; workspacePath?: string }) => void,
+  ): () => void {
     const handler = (
       _event: Electron.IpcRendererEvent,
-      route: { view: string; prNumber?: number },
+      route: { view: string; prNumber?: number; workspacePath?: string },
     ) => {
       callback(route);
     };

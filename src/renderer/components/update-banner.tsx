@@ -67,8 +67,10 @@ export function UpdateBanner({
         <p className="text-text-primary text-[12px] leading-4">
           <span className="text-accent-text font-medium">Update available</span>
           <span className="text-text-tertiary mx-1">·</span>
-          <span className="text-text-secondary font-mono text-[10px]">{status!.currentBranch}</span> is{" "}
-          {commitLabel} behind{" "}
+          <span className="text-text-secondary font-mono text-[10px]">
+            {status!.currentBranch}
+          </span>{" "}
+          is {commitLabel} behind{" "}
           <span className="text-accent-text font-mono text-[10px]">{status!.upstreamBranch}</span>
         </p>
       </div>

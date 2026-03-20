@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 
 import { ipc } from "../lib/ipc";
-import { sendNotification } from "../lib/notifications";
+import { queryClient } from "../lib/query-client";
 import { useWorkspace } from "../lib/workspace-context";
 
 /**
@@ -53,11 +53,15 @@ export function useNotificationPolling(): void {
     // Check for new review requests
     for (const pr of reviewQuery.data) {
       if (!previousReviewPrs.current.has(pr.number)) {
-        sendNotification(
-          "Review requested",
-          `#${pr.number} ${pr.title} by ${pr.author.login}`,
-          "review",
-        );
+        void ipc("notifications.show", {
+          type: "review",
+          title: "Review requested",
+          body: `#${pr.number} ${pr.title} by ${pr.author.login}`,
+          prNumber: pr.number,
+          workspace: cwd,
+        }).then(() => {
+          queryClient.invalidateQueries({ queryKey: ["notifications"] });
+        });
       }
     }
 
@@ -72,12 +76,28 @@ export function useNotificationPolling(): void {
       const prevFailing = prev.statusCheckRollup.some((c) => c.conclusion === "failure");
       const nowFailing = pr.statusCheckRollup.some((c) => c.conclusion === "failure");
       if (nowFailing && !prevFailing) {
-        sendNotification("CI failed", `#${pr.number} ${pr.title}`, "ci-fail");
+        void ipc("notifications.show", {
+          type: "ci-fail",
+          title: "CI failed",
+          body: `#${pr.number} ${pr.title}`,
+          prNumber: pr.number,
+          workspace: cwd,
+        }).then(() => {
+          queryClient.invalidateQueries({ queryKey: ["notifications"] });
+        });
       }
 
       // Approved
       if (pr.reviewDecision === "APPROVED" && prev.reviewDecision !== "APPROVED") {
-        sendNotification("PR approved", `#${pr.number} ${pr.title}`, "approve");
+        void ipc("notifications.show", {
+          type: "approve",
+          title: "PR approved",
+          body: `#${pr.number} ${pr.title}`,
+          prNumber: pr.number,
+          workspace: cwd,
+        }).then(() => {
+          queryClient.invalidateQueries({ queryKey: ["notifications"] });
+        });
       }
     }
 

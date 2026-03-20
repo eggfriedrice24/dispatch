@@ -62,7 +62,9 @@ export function Navbar({
   return (
     <header
       className="border-border bg-bg-surface flex h-10 shrink-0 items-center border-b pr-3"
-      style={{ WebkitAppRegion: "drag", paddingLeft: bannerVisible ? 16 : 92 } as React.CSSProperties}
+      style={
+        { WebkitAppRegion: "drag", paddingLeft: bannerVisible ? 16 : 92 } as React.CSSProperties
+      }
     >
       {/* Logo */}
       <div

@@ -12,6 +12,8 @@ import { AlertCircle, Bell, CheckCircle2, GitMerge, GitPullRequest } from "lucid
 
 import { ipc } from "../lib/ipc";
 import { queryClient } from "../lib/query-client";
+import { useRouter } from "../lib/router";
+import { useWorkspace } from "../lib/workspace-context";
 
 /**
  * Notification center — Phase 3 §3.5
@@ -20,6 +22,9 @@ import { queryClient } from "../lib/query-client";
  */
 
 export function NotificationCenter() {
+  const { navigate } = useRouter();
+  const { switchWorkspace } = useWorkspace();
+
   const notificationsQuery = useQuery({
     queryKey: ["notifications", "list"],
     queryFn: () => ipc("notifications.list", { limit: 30 }),
@@ -119,6 +124,12 @@ export function NotificationCenter() {
                   onClick={() => {
                     if (!notification.read) {
                       markReadMutation.mutate(notification.id);
+                    }
+                    if (notification.workspace) {
+                      switchWorkspace(notification.workspace);
+                    }
+                    if (notification.prNumber) {
+                      navigate({ view: "review", prNumber: notification.prNumber });
                     }
                   }}
                 >

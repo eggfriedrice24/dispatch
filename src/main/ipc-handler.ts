@@ -7,6 +7,7 @@ import { getAiConfig } from "./services/ai-config";
 import { openExternalUrl } from "./services/external-links";
 import * as ghCli from "./services/gh-cli";
 import * as gitCli from "./services/git-cli";
+import { showDesktopNotification } from "./services/notifications";
 import { whichVersion } from "./services/shell";
 
 /**
@@ -233,6 +234,10 @@ const handlers: { [M in IpcMethod]: Handler<M> } = {
   },
   "notifications.insert": async (args) => {
     repo.insertNotification(args);
+  },
+  "notifications.show": async (args) => {
+    repo.insertNotification(args);
+    showDesktopNotification(args);
   },
 };
 

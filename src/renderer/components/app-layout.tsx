@@ -6,6 +6,7 @@ import { useKeyboardShortcuts } from "../hooks/use-keyboard-shortcuts";
 import { useNotificationPolling } from "../hooks/use-notification-polling";
 import { FileNavProvider } from "../lib/file-nav-context";
 import { RouterProvider, useRouter } from "../lib/router";
+import { useWorkspace } from "../lib/workspace-context";
 import { KeyboardShortcutsDialog } from "./keyboard-shortcuts-dialog";
 import { MetricsView } from "./metrics-view";
 import { Navbar } from "./navbar";
@@ -34,6 +35,7 @@ export function AppLayout() {
 
 function AppShell() {
   const { route, navigate } = useRouter();
+  const { switchWorkspace } = useWorkspace();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [bannerVisible, setBannerVisible] = useState(false);
@@ -52,10 +54,13 @@ function AppShell() {
   ]);
   useNotificationPolling();
 
-  // Listen for tray menu navigation events
+  // Listen for navigation events from main process (tray menu, notification clicks)
   useEffect(() => {
     const { api } = globalThis as typeof globalThis & { api: ElectronApi };
     const cleanup = api.onNavigate((trayRoute) => {
+      if (trayRoute.workspacePath) {
+        switchWorkspace(trayRoute.workspacePath);
+      }
       if (trayRoute.view === "settings") {
         navigate({ view: "settings" });
       } else if (trayRoute.view === "review" && trayRoute.prNumber) {
@@ -63,7 +68,7 @@ function AppShell() {
       }
     });
     return cleanup;
-  }, [navigate]);
+  }, [navigate, switchWorkspace]);
 
   const selectedPr = route.view === "review" ? route.prNumber : null;
 
@@ -93,7 +98,10 @@ function AppShell() {
       />
 
       {/* Navbar */}
-      <Navbar selectedPr={selectedPr} bannerVisible={bannerVisible} />
+      <Navbar
+        selectedPr={selectedPr}
+        bannerVisible={bannerVisible}
+      />
 
       {/* View content */}
       {route.view === "review" && (

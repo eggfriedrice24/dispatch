@@ -479,6 +479,16 @@ export interface IpcApi {
     };
     result: void;
   };
+  "notifications.show": {
+    args: {
+      type: "review" | "ci-fail" | "approve" | "merge";
+      title: string;
+      body: string;
+      prNumber: number;
+      workspace: string;
+    };
+    result: void;
+  };
 }
 
 export type IpcMethod = keyof IpcApi;
