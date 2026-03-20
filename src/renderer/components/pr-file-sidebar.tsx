@@ -48,14 +48,6 @@ export function PrFileSidebar({ prNumber, onBack }: PrFileSidebarProps) {
   });
   const viewedFiles = useMemo(() => new Set(viewedQuery.data), [viewedQuery.data]);
 
-  const detailQuery = useQuery({
-    queryKey: ["pr", "detail", cwd, prNumber],
-    queryFn: () => ipc("pr.detail", { cwd, prNumber }),
-    staleTime: 60_000,
-  });
-
-  const prTitle = detailQuery.data?.title ?? `Pull Request #${prNumber}`;
-
   // Comments for file badges
   const commentsQuery = useQuery({
     queryKey: ["pr", "comments", cwd, prNumber],
@@ -76,18 +68,15 @@ export function PrFileSidebar({ prNumber, onBack }: PrFileSidebarProps) {
   return (
     <div className="bg-bg-surface flex h-full flex-col">
       {/* Header with back button */}
-      <div className="border-border flex items-center gap-2 border-b px-3 py-2.5">
+      <div className="border-border flex items-center border-b px-3 py-2.5">
         <button
           type="button"
           onClick={onBack}
-          className="text-text-secondary hover:text-text-primary hover:bg-bg-raised flex h-6 w-6 cursor-pointer items-center justify-center rounded-sm transition-colors"
+          className="text-text-secondary hover:text-text-primary flex cursor-pointer items-center gap-1.5 rounded-sm text-xs transition-colors"
         >
           <ArrowLeft size={14} />
+          <span>All Pull Requests</span>
         </button>
-        <div className="min-w-0 flex-1">
-          <p className="text-text-primary truncate text-xs font-medium">{prTitle}</p>
-          <p className="text-text-tertiary font-mono text-[10px]">#{prNumber}</p>
-        </div>
       </div>
 
       {/* File tree */}
