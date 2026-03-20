@@ -1,3 +1,5 @@
+import type { DevRepoStatus } from "../../shared/ipc";
+
 import { execFile } from "./shell";
 
 /**
@@ -66,6 +68,122 @@ export interface LogEntry {
   author: string;
   date: string;
   message: string;
+}
+
+const GIT_STATUS_TIMEOUT = 5000;
+const GIT_FETCH_TIMEOUT = 15_000;
+
+function emptyDevRepoStatus(overrides: Partial<DevRepoStatus> = {}): DevRepoStatus {
+  return {
+    enabled: false,
+    hasUpdates: false,
+    currentBranch: null,
+    upstreamBranch: null,
+    aheadCount: 0,
+    behindCount: 0,
+    ...overrides,
+  };
+}
+
+export function parseAheadBehindCounts(
+  stdout: string,
+): Pick<DevRepoStatus, "aheadCount" | "behindCount"> {
+  const [aheadText = "0", behindText = "0"] = stdout.trim().split(/\s+/);
+  const aheadCount = Number.parseInt(aheadText, 10);
+  const behindCount = Number.parseInt(behindText, 10);
+
+  return {
+    aheadCount: Number.isNaN(aheadCount) ? 0 : aheadCount,
+    behindCount: Number.isNaN(behindCount) ? 0 : behindCount,
+  };
+}
+
+async function getCurrentBranch(cwd: string): Promise<string | null> {
+  try {
+    const { stdout } = await execFile("git", ["branch", "--show-current"], {
+      cwd,
+      timeout: GIT_STATUS_TIMEOUT,
+    });
+    return stdout || null;
+  } catch {
+    return null;
+  }
+}
+
+async function getUpstreamBranch(cwd: string): Promise<string | null> {
+  try {
+    const { stdout } = await execFile(
+      "git",
+      ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"],
+      {
+        cwd,
+        timeout: GIT_STATUS_TIMEOUT,
+      },
+    );
+    return stdout || null;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchUpstream(cwd: string, upstreamBranch: string): Promise<void> {
+  const [remoteName] = upstreamBranch.split("/");
+  if (!remoteName) {
+    return;
+  }
+
+  try {
+    await execFile("git", ["fetch", "--quiet", "--no-tags", "--prune", remoteName], {
+      cwd,
+      timeout: GIT_FETCH_TIMEOUT,
+    });
+  } catch {
+    // Keep going with the last fetched remote-tracking ref if the fetch fails.
+  }
+}
+
+export async function getDevRepoStatus(cwd: string): Promise<DevRepoStatus> {
+  const currentBranch = await getCurrentBranch(cwd);
+  if (!currentBranch) {
+    return emptyDevRepoStatus({ enabled: true });
+  }
+
+  const upstreamBranch = await getUpstreamBranch(cwd);
+  if (!upstreamBranch) {
+    return emptyDevRepoStatus({
+      enabled: true,
+      currentBranch,
+    });
+  }
+
+  await fetchUpstream(cwd, upstreamBranch);
+
+  try {
+    const { stdout } = await execFile(
+      "git",
+      ["rev-list", "--left-right", "--count", "HEAD...@{upstream}"],
+      {
+        cwd,
+        timeout: GIT_STATUS_TIMEOUT,
+      },
+    );
+    const { aheadCount, behindCount } = parseAheadBehindCounts(stdout);
+
+    return {
+      enabled: true,
+      hasUpdates: behindCount > 0,
+      currentBranch,
+      upstreamBranch,
+      aheadCount,
+      behindCount,
+    };
+  } catch {
+    return emptyDevRepoStatus({
+      enabled: true,
+      currentBranch,
+      upstreamBranch,
+    });
+  }
 }
 
 export async function fileHistory(cwd: string, filePath: string, limit = 20): Promise<LogEntry[]> {

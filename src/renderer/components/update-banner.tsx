@@ -1,59 +1,90 @@
 import { Button } from "@/components/ui/button";
-import { Download, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { GitBranch, X } from "lucide-react";
+import { useState } from "react";
+
+import { ipc } from "../lib/ipc";
 
 /**
- * Auto-update notification banner — Phase 4 §A2
+ * Dev-only repo update banner.
  *
- * Shows when an update has been downloaded and is ready to install.
- * Slides down from the top with accent styling.
+ * When Dispatch is running from the source repository via `bun run dev`,
+ * poll the local checkout's upstream tracking branch and surface when the
+ * current branch is behind. Packaged builds and non-repo runs stay silent.
  */
-
 export function UpdateBanner() {
-  const [updateVersion, setUpdateVersion] = useState<string | null>(null);
-  const [dismissed, setDismissed] = useState(false);
+  const [dismissedKey, setDismissedKey] = useState<string | null>(null);
 
-  useEffect(() => {
-    // Listen for update-downloaded event from main process
-    const handler = (_event: unknown, version: string) => {
-      setUpdateVersion(version);
-      setDismissed(false);
-    };
+  const statusQuery = useQuery({
+    queryKey: ["app", "dev-repo-status"],
+    queryFn: () => ipc("app.devRepoStatus"),
+    staleTime: 60_000,
+    refetchInterval: 120_000,
+    refetchOnWindowFocus: false,
+    retry: false,
+  });
 
-    // electron preload exposes window.api — check if on() exists
-    const api = (globalThis as unknown as { api?: { on?: (channel: string, cb: unknown) => void } })
-      .api;
-    if (api?.on) {
-      api.on("update-downloaded", handler);
-    }
-  }, []);
+  const status = statusQuery.data ?? null;
+  const bannerKey =
+    status?.enabled && status.currentBranch && status.upstreamBranch
+      ? [status.currentBranch, status.upstreamBranch, status.aheadCount, status.behindCount].join(
+          ":",
+        )
+      : null;
 
-  if (!updateVersion || dismissed) {
+  if (
+    !status?.enabled ||
+    !status.hasUpdates ||
+    !status.currentBranch ||
+    !status.upstreamBranch ||
+    !bannerKey ||
+    dismissedKey === bannerKey
+  ) {
     return null;
   }
 
+  const commitLabel = status.behindCount === 1 ? "1 commit" : `${status.behindCount} commits`;
+
   return (
-    <div
-      className="bg-accent-muted text-accent-text flex h-8 items-center justify-center gap-3 px-4 text-xs"
-      style={{ transition: "max-height 300ms var(--ease-out)" }}
-    >
-      <Download size={13} />
-      <span>Update v{updateVersion} ready — restart to apply</span>
+    <div className="border-border-accent bg-accent-muted/90 flex min-h-9 shrink-0 items-center gap-3 border-b px-4 py-1.5 shadow-sm">
+      <div className="bg-bg-root/45 border-border-accent flex h-6 w-6 shrink-0 items-center justify-center rounded-full border">
+        <GitBranch
+          size={13}
+          className="text-accent-text"
+        />
+      </div>
+
+      <div className="min-w-0 flex-1">
+        <p className="text-text-primary text-[12px] leading-4">
+          <span className="text-accent-text font-medium">Dispatch repo update available.</span> This
+          checkout is {commitLabel} behind{" "}
+          <span className="text-accent-text font-mono text-[10px]">{status.upstreamBranch}</span> on{" "}
+          <span className="text-text-secondary font-mono text-[10px]">{status.currentBranch}</span>.
+          Close Dispatch, pull latest, and run{" "}
+          <span className="text-text-primary font-mono text-[10px]">bun run dev</span> again.
+        </p>
+      </div>
+
+      <div className="border-border-accent bg-bg-root/45 text-text-secondary hidden items-center gap-1 rounded-full border px-2 py-1 font-mono text-[10px] md:flex">
+        <span>ahead {status.aheadCount}</span>
+        <span className="text-text-ghost">/</span>
+        <span className="text-accent-text">behind {status.behindCount}</span>
+      </div>
+
       <Button
-        size="sm"
+        size="xs"
         variant="ghost"
-        className="text-accent-text hover:bg-primary/20 h-5 text-[11px]"
-        onClick={() => {
-          // Tell main process to quit and install
-          window.api?.invoke("app.restart", null);
-        }}
+        className="text-accent-text hover:bg-bg-root/45 h-6 rounded-sm border border-transparent px-2 text-[10px] font-medium"
+        onClick={() => setDismissedKey(bannerKey)}
       >
-        Restart now
+        Dismiss
       </Button>
+
       <button
         type="button"
-        onClick={() => setDismissed(true)}
-        className="text-accent-text/60 hover:text-accent-text cursor-pointer p-0.5"
+        aria-label="Dismiss repo update banner"
+        onClick={() => setDismissedKey(bannerKey)}
+        className="text-text-tertiary hover:text-accent-text hover:bg-bg-root/45 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-sm transition-colors"
       >
         <X size={12} />
       </button>

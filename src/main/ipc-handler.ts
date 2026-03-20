@@ -31,6 +31,32 @@ const handlers: { [M in IpcMethod]: Handler<M> } = {
   "app.openExternal": async (args) => {
     await openExternalUrl(args.url);
   },
+  "app.devRepoStatus": async () => {
+    if (!process.env.VITE_DEV_SERVER_URL) {
+      return {
+        enabled: false,
+        hasUpdates: false,
+        currentBranch: null,
+        upstreamBranch: null,
+        aheadCount: 0,
+        behindCount: 0,
+      };
+    }
+
+    const repoRoot = await gitCli.getRepoRoot(process.cwd());
+    if (!repoRoot) {
+      return {
+        enabled: false,
+        hasUpdates: false,
+        currentBranch: null,
+        upstreamBranch: null,
+        aheadCount: 0,
+        behindCount: 0,
+      };
+    }
+
+    return gitCli.getDevRepoStatus(repoRoot);
+  },
 
   // Environment
   "env.check": async () => {

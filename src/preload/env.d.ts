@@ -10,6 +10,8 @@ declare global {
     onNavigate(callback: (route: { view: string; prNumber?: number }) => void): () => void;
   }
 
+  var api: ElectronApi;
+
   interface Window {
     api: ElectronApi;
   }

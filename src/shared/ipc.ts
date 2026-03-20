@@ -185,6 +185,15 @@ export interface EnvStatus {
   gitVersion: string | null;
   ghAuth: boolean;
 }
+export interface DevRepoStatus {
+  enabled: boolean;
+  hasUpdates: boolean;
+  currentBranch: string | null;
+  upstreamBranch: string | null;
+  aheadCount: number;
+  behindCount: number;
+}
+
 
 // ---------------------------------------------------------------------------
 // IPC Method Map
@@ -199,6 +208,7 @@ export interface IpcApi {
     result: Record<string, string | null>;
   };
   "app.openExternal": { args: { url: string }; result: void };
+  "app.devRepoStatus": { args: void; result: DevRepoStatus };
 
   "env.check": { args: void; result: EnvStatus };
   "env.user": { args: void; result: GhUser | null };
