@@ -1,13 +1,15 @@
 @import "tailwindcss";
 
 /* ---------------------------------------------------------------------------
- * Dispatch Design System — Dark-only theme
+ * Dispatch Design System — Dark (default) + Light theme
  *
  * This file maps the coss ui / shadcn token system onto the Dispatch
  * design system defined in DISPATCH-DESIGN-SYSTEM.md.
  *
- * Dispatch is dark-only. There is no light theme. The `.dark` class is
- * applied to <html> at boot and never removed.
+ * Dark is the default. The `.dark` or `.light` class is applied to <html>
+ * at boot based on the user's preference (persisted in localStorage and
+ * SQLite). An inline script in index.html applies the class synchronously
+ * before paint to prevent a flash-of-wrong-theme.
  * --------------------------------------------------------------------------- */
 
 @custom-variant dark (&:is(.dark *));
@@ -267,8 +269,8 @@
   --radius: 6px;
 }
 
-/* Dispatch is dark-only. The .dark class duplicates :root so coss ui
-   components that check for .dark still resolve correctly. */
+/* The .dark class duplicates :root so coss ui components that check
+   for .dark still resolve correctly. */
 .dark {
   --background: #08080a;
   --foreground: #f0ece6;
@@ -349,6 +351,127 @@
 }
 
 /* ---------------------------------------------------------------------------
+ * 3b. Light theme — "Warm Parchment"
+ *
+ * Maintains the warm personality of Dispatch on a light canvas.
+ * Copper accent stays. Backgrounds use warm cream/parchment tones.
+ * Semantic colors are darkened for contrast on light surfaces.
+ * --------------------------------------------------------------------------- */
+.light {
+  /* ---- Surfaces ---- */
+  --background: #f5f1eb;
+  --foreground: #1a1815;
+  --card: #ffffff;
+  --card-foreground: #1a1815;
+  --popover: #ffffff;
+  --popover-foreground: #1a1815;
+
+  /* ---- Primary = copper accent ---- */
+  --primary: #d4883a;
+  --primary-foreground: #ffffff;
+
+  /* ---- Secondary = surface ---- */
+  --secondary: #ece8e1;
+  --secondary-foreground: #1a1815;
+
+  /* ---- Muted ---- */
+  --muted: #ece8e1;
+  --muted-foreground: #6e6862;
+
+  /* ---- Accent = copper ---- */
+  --accent: rgba(212, 136, 58, 0.1);
+  --accent-foreground: #a86d25;
+
+  /* ---- Semantic (darkened for light-bg contrast) ---- */
+  --destructive: #d93838;
+  --destructive-foreground: #d93838;
+  --info: #3175be;
+  --info-foreground: #3175be;
+  --success: #1a9a5b;
+  --success-foreground: #1a9a5b;
+  --warning: #c4861a;
+  --warning-foreground: #c4861a;
+
+  /* ---- Borders & Input ---- */
+  --border: #dbd5cc;
+  --input: #c9c2b8;
+  --ring: #d4883a;
+
+  /* ---- Sidebar ---- */
+  --sidebar: #ece8e1;
+  --sidebar-foreground: #6e6862;
+  --sidebar-primary: #d4883a;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgba(212, 136, 58, 0.1);
+  --sidebar-accent-foreground: #1a1815;
+  --sidebar-border: #e8e3db;
+  --sidebar-ring: #d4883a;
+
+  /* ---- Code ---- */
+  --code: #ece8e1;
+  --code-highlight: rgba(212, 136, 58, 0.08);
+
+  /* ---- Charts ---- */
+  --chart-1: #d4883a;
+  --chart-2: #1a9a5b;
+  --chart-3: #3175be;
+  --chart-4: #7c5cc2;
+  --chart-5: #d93838;
+
+  /* ---- Dispatch surface tokens ---- */
+  --bg-root: #f5f1eb;
+  --bg-surface: #ece8e1;
+  --bg-raised: #ffffff;
+  --bg-elevated: #ffffff;
+  --bg-overlay: rgba(0, 0, 0, 0.4);
+
+  /* ---- Dispatch text hierarchy ---- */
+  --text-primary: #1a1815;
+  --text-secondary: #6e6862;
+  --text-tertiary: #a09a92;
+  --text-ghost: #ccc7c0;
+
+  /* ---- Dispatch accent variants ---- */
+  --accent-hover: #c47a2e;
+  --accent-muted: rgba(212, 136, 58, 0.1);
+  --accent-text: #a86d25;
+
+  /* ---- Dispatch border variants ---- */
+  --border-subtle: #e8e3db;
+  --border-strong: #c9c2b8;
+  --border-accent: rgba(212, 136, 58, 0.25);
+
+  /* ---- Dispatch diff colors ---- */
+  --diff-add-bg: rgba(26, 154, 91, 0.08);
+  --diff-add-bar: #1a9a5b;
+  --diff-add-word: rgba(26, 154, 91, 0.18);
+  --diff-del-bg: rgba(217, 56, 56, 0.08);
+  --diff-del-bar: #d93838;
+  --diff-del-word: rgba(217, 56, 56, 0.18);
+  --diff-hunk-bg: rgba(49, 117, 190, 0.06);
+
+  /* ---- Dispatch semantic muted ---- */
+  --success-muted: rgba(26, 154, 91, 0.1);
+  --danger-muted: rgba(217, 56, 56, 0.1);
+  --warning-muted: rgba(196, 134, 26, 0.1);
+  --info-muted: rgba(49, 117, 190, 0.1);
+  --purple: #7c5cc2;
+  --purple-muted: rgba(124, 92, 194, 0.1);
+
+  /* ---- Scrollbar ---- */
+  --scrollbar-thumb: #ccc7c0;
+  --scrollbar-hover: #b5afa7;
+
+  /* ---- Transitions (unchanged) ---- */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --duration-fast: 120ms;
+  --duration-normal: 200ms;
+  --duration-slow: 400ms;
+  --radius: 6px;
+}
+
+/* ---------------------------------------------------------------------------
  * 4. Base layer
  * --------------------------------------------------------------------------- */
 @layer base {
@@ -360,8 +483,12 @@
     @apply outline-ring/50 outline-2 outline-offset-2;
   }
 
-  html {
+  html,
+  html.dark {
     color-scheme: dark;
+  }
+  html.light {
+    color-scheme: light;
   }
 
   body {

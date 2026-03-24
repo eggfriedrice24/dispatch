@@ -1,8 +1,10 @@
 import { Spinner } from "@/components/ui/spinner";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { Monitor, Moon, Sun } from "lucide-react";
 
 import { ipc } from "../lib/ipc";
 import { queryClient } from "../lib/query-client";
+import { useTheme } from "../lib/theme-context";
 
 /**
  * Settings panel — persists all values via preferences IPC.
@@ -39,7 +41,15 @@ function getDefaultAiBaseUrl(provider: string): string {
   }
 }
 
+const THEME_OPTIONS = [
+  { value: "dark", label: "Dark", icon: Moon },
+  { value: "light", label: "Light", icon: Sun },
+  { value: "system", label: "System", icon: Monitor },
+] as const;
+
 export function SettingsView() {
+  const { theme, setTheme } = useTheme();
+
   // Load saved preferences
   const prefsQuery = useQuery({
     queryKey: ["preferences", PREF_KEYS],
@@ -94,6 +104,29 @@ export function SettingsView() {
         <p className="text-text-secondary mt-1 text-sm">
           Configure Dispatch behavior. Changes save automatically.
         </p>
+
+        {/* Appearance */}
+        <section className="mt-8">
+          <h2 className="text-text-primary text-sm font-semibold">Appearance</h2>
+          <p className="text-text-tertiary mt-0.5 text-xs">Choose your preferred color theme.</p>
+          <div className="border-border bg-bg-raised mt-3 flex rounded-md border p-[2px]">
+            {THEME_OPTIONS.map(({ value, label, icon: Icon }) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setTheme(value)}
+                className={`flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-sm px-3 py-1.5 text-xs ${
+                  theme === value
+                    ? "bg-bg-elevated text-text-primary shadow-sm"
+                    : "text-text-tertiary hover:text-text-secondary"
+                }`}
+              >
+                <Icon size={13} />
+                {label}
+              </button>
+            ))}
+          </div>
+        </section>
 
         {/* Merge strategy */}
         <section className="mt-8">

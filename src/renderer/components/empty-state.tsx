@@ -11,13 +11,12 @@ export function EmptyState() {
       <div
         className="pointer-events-none absolute top-1/2 left-1/2 h-[500px] w-[500px] -translate-x-1/2 -translate-y-1/2"
         style={{
-          background:
-            "radial-gradient(circle, rgba(212, 136, 58, 0.04) 0%, transparent 70%)",
+          background: "radial-gradient(circle, rgba(212, 136, 58, 0.04) 0%, transparent 70%)",
         }}
       />
 
       {/* Title */}
-      <h2 className="font-heading text-text-primary relative z-[1] text-4xl italic tracking-[-0.03em]">
+      <h2 className="font-heading text-text-primary relative z-[1] text-4xl tracking-[-0.03em] italic">
         Select a PR
       </h2>
 
@@ -28,9 +27,24 @@ export function EmptyState() {
 
       {/* Ghost activity feed */}
       <div className="relative z-[1] mt-3 flex flex-col gap-1">
-        <GhostActivity author="sarah-dev" action="opened" number="#247" time="2h ago" />
-        <GhostActivity author="alex-k" action="approved" number="#241" time="5h ago" />
-        <GhostActivity author="CI passed" action="on" number="#245" time="3h ago" />
+        <GhostActivity
+          author="sarah-dev"
+          action="opened"
+          number="#247"
+          time="2h ago"
+        />
+        <GhostActivity
+          author="alex-k"
+          action="approved"
+          number="#241"
+          time="5h ago"
+        />
+        <GhostActivity
+          author="CI passed"
+          action="on"
+          number="#245"
+          time="3h ago"
+        />
       </div>
 
       {/* Keyboard shortcuts */}
@@ -61,14 +75,14 @@ function GhostActivity({
     <div className="text-text-ghost text-center text-[11px] tracking-[-0.01em]">
       <span className="font-medium">{author}</span> {action}{" "}
       <span className="font-mono text-[10px]">{number}</span>
-      <span className="font-mono ml-0.5 text-[10px]">&mdash; {time}</span>
+      <span className="ml-0.5 font-mono text-[10px]">&mdash; {time}</span>
     </div>
   );
 }
 
 function Kbd({ children }: { children: React.ReactNode }) {
   return (
-    <kbd className="border-border-strong bg-bg-raised text-text-ghost inline-flex min-w-[20px] items-center justify-center rounded-sm border px-[5px] py-0 font-mono text-[10px] font-medium shadow-[0_1px_0_var(--border)] h-5">
+    <kbd className="border-border-strong bg-bg-raised text-text-ghost inline-flex h-5 min-w-[20px] items-center justify-center rounded-sm border px-[5px] py-0 font-mono text-[10px] font-medium shadow-[0_1px_0_var(--border)]">
       {children}
     </kbd>
   );

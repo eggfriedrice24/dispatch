@@ -214,7 +214,12 @@ function RequestChangesBarButton({ cwd, prNumber }: { cwd: string; prNumber: num
 
   const reviewMutation = useMutation({
     mutationFn: (reviewBody: string) =>
-      ipc("pr.submitReview", { cwd, prNumber, event: "REQUEST_CHANGES" as const, body: reviewBody }),
+      ipc("pr.submitReview", {
+        cwd,
+        prNumber,
+        event: "REQUEST_CHANGES" as const,
+        body: reviewBody,
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pr"] });
       toastManager.add({ title: "Changes requested", type: "success" });
@@ -292,7 +297,9 @@ function RequestChangesBarButton({ cwd, prNumber }: { cwd: string; prNumber: num
               }
             }}
           />
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: "4px", marginTop: "6px" }}>
+          <div
+            style={{ display: "flex", justifyContent: "flex-end", gap: "4px", marginTop: "6px" }}
+          >
             <button
               type="button"
               onClick={() => {

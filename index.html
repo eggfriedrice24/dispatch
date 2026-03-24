@@ -25,6 +25,22 @@
     />
   </head>
   <body class="relative h-full overflow-hidden">
+    <!-- Flash-prevention: apply theme class synchronously before paint -->
+    <script>
+      (function () {
+        var t = localStorage.getItem("dispatch-theme") || "dark";
+        var r =
+          t === "system"
+            ? window.matchMedia("(prefers-color-scheme: light)").matches
+              ? "light"
+              : "dark"
+            : t;
+        var d = document.documentElement;
+        d.classList.remove("dark", "light");
+        d.classList.add(r);
+        d.style.colorScheme = r;
+      })();
+    </script>
     <div
       id="app"
       class="relative isolate flex h-full flex-col"

@@ -9,6 +9,7 @@ import { SplashScreen } from "./components/splash-screen";
 import { ipc } from "./lib/ipc";
 import { initPostHog } from "./lib/posthog";
 import { queryClient } from "./lib/query-client";
+import { ThemeProvider } from "./lib/theme-context";
 import { WorkspaceProvider } from "./lib/workspace-context";
 
 /**
@@ -164,9 +165,11 @@ function AppScreen({
 export function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <ToastProvider position="bottom-right">
-        <AppContent />
-      </ToastProvider>
+      <ThemeProvider>
+        <ToastProvider position="bottom-right">
+          <AppContent />
+        </ToastProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }
