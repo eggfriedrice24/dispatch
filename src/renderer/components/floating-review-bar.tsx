@@ -11,7 +11,6 @@ import {
   MessageSquare,
   RefreshCw,
   ShieldAlert,
-  XCircle,
 } from "lucide-react";
 import { useRef, useState } from "react";
 
@@ -56,12 +55,8 @@ export function FloatingReviewBar({
   currentUserReview,
   panelOpen,
 }: FloatingReviewBarProps) {
-  const passCount = checkSummary.filter(
-    (c) => c.conclusion?.toUpperCase() === "SUCCESS",
-  ).length;
-  const failCount = checkSummary.filter(
-    (c) => c.conclusion?.toUpperCase() === "FAILURE",
-  ).length;
+  const passCount = checkSummary.filter((c) => c.conclusion?.toUpperCase() === "SUCCESS").length;
+  const failCount = checkSummary.filter((c) => c.conclusion?.toUpperCase() === "FAILURE").length;
   const allPassing = checkSummary.length > 0 && failCount === 0;
 
   return (
@@ -464,8 +459,7 @@ function MergeBarButton({
         cwd,
         prNumber,
         strategy: hasMergeQueue ? "squash" : strategy,
-        admin:
-          (args && args.admin) ?? (!requirementsMet && canAdmin ? true : undefined),
+        admin: (args && args.admin) ?? (!requirementsMet && canAdmin ? true : undefined),
       }),
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["pr"] });
@@ -484,17 +478,6 @@ function MergeBarButton({
     },
     onError: (err) => {
       toastManager.add({ title: "Merge failed", description: String(err.message), type: "error" });
-    },
-  });
-
-  const closeMutation = useMutation({
-    mutationFn: () => ipc("pr.close", { cwd, prNumber }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["pr"] });
-      toastManager.add({ title: `PR #${prNumber} closed`, type: "success" });
-    },
-    onError: (err) => {
-      toastManager.add({ title: "Close failed", description: String(err.message), type: "error" });
     },
   });
 
@@ -543,9 +526,7 @@ function MergeBarButton({
               background: mainBg,
               color: mainColor,
               borderColor: mainBorder,
-              borderLeft: disabled
-                ? "1px solid var(--border)"
-                : "1px solid rgba(0,0,0,0.2)",
+              borderLeft: disabled ? "1px solid var(--border)" : "1px solid rgba(0,0,0,0.2)",
               borderTopLeftRadius: 0,
               borderBottomLeftRadius: 0,
               padding: "5px 4px",
@@ -594,30 +575,6 @@ function MergeBarButton({
               <ShieldAlert size={11} />
               Merge now (admin)
             </button>
-            <div style={{ height: "1px", background: "var(--border)", margin: "4px 0" }} />
-            <button
-              type="button"
-              onClick={() => {
-                setMenuOpen(false);
-                closeMutation.mutate();
-              }}
-              style={{
-                display: "flex",
-                width: "100%",
-                alignItems: "center",
-                gap: "6px",
-                padding: "6px 10px",
-                borderRadius: "var(--radius-sm)",
-                fontSize: "11px",
-                cursor: "pointer",
-                border: "none",
-                background: "transparent",
-                color: "var(--danger)",
-              }}
-            >
-              <XCircle size={11} />
-              Close pull request
-            </button>
           </div>
         )}
       </div>
@@ -655,9 +612,7 @@ function MergeBarButton({
           background: mainBg,
           color: mainColor,
           borderColor: mainBorder,
-          borderLeft: disabled
-            ? "1px solid var(--border)"
-            : "1px solid rgba(0,0,0,0.2)",
+          borderLeft: disabled ? "1px solid var(--border)" : "1px solid rgba(0,0,0,0.2)",
           borderTopLeftRadius: 0,
           borderBottomLeftRadius: 0,
           padding: "5px 4px",
@@ -705,30 +660,6 @@ function MergeBarButton({
               {labels[s]}
             </button>
           ))}
-          <div style={{ height: "1px", background: "var(--border)", margin: "4px 0" }} />
-          <button
-            type="button"
-            onClick={() => {
-              setMenuOpen(false);
-              closeMutation.mutate();
-            }}
-            style={{
-              display: "flex",
-              width: "100%",
-              alignItems: "center",
-              gap: "6px",
-              padding: "6px 10px",
-              borderRadius: "var(--radius-sm)",
-              fontSize: "11px",
-              cursor: "pointer",
-              border: "none",
-              background: "transparent",
-              color: "var(--danger)",
-            }}
-          >
-            <XCircle size={11} />
-            Close pull request
-          </button>
         </div>
       )}
     </div>

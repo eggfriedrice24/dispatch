@@ -1,8 +1,12 @@
 import { Badge } from "@/components/ui/badge";
+import { Spinner } from "@/components/ui/spinner";
+import { toastManager } from "@/components/ui/toast";
 import { relativeTime } from "@/shared/format";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { XCircle } from "lucide-react";
 
 import { ipc } from "../lib/ipc";
+import { queryClient } from "../lib/query-client";
 import { useWorkspace } from "../lib/workspace-context";
 import { AiReviewSummary } from "./ai-review-summary";
 import { GitHubAvatar } from "./github-avatar";
@@ -49,6 +53,17 @@ export function OverviewTab({
   const submittedLogins = new Set(submittedReviews.map((r) => r.author.login));
   const pendingRequests = reviewRequests.filter((rr) => !submittedLogins.has(rr.login ?? ""));
   const hasReviewers = submittedReviews.length > 0 || pendingRequests.length > 0;
+
+  const closeMutation = useMutation({
+    mutationFn: () => ipc("pr.close", { cwd, prNumber }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pr"] });
+      toastManager.add({ title: `PR #${prNumber} closed`, type: "success" });
+    },
+    onError: (err) => {
+      toastManager.add({ title: "Close failed", description: String(err.message), type: "error" });
+    },
+  });
 
   return (
     <div className="flex flex-col gap-0">
@@ -141,6 +156,25 @@ export function OverviewTab({
           </div>
         </div>
       )}
+
+      {/* Close PR */}
+      <div className="border-border border-b px-4 py-3">
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => closeMutation.mutate()}
+            disabled={closeMutation.isPending}
+            className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-transparent px-2.5 py-1 text-[11px] font-medium transition-colors hover:border-[var(--danger)]/30 hover:bg-[var(--danger)]/10"
+            style={{
+              color: "var(--danger)",
+              opacity: closeMutation.isPending ? 0.5 : 1,
+            }}
+          >
+            {closeMutation.isPending ? <Spinner className="h-3 w-3" /> : <XCircle size={11} />}
+            Close pull request
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
