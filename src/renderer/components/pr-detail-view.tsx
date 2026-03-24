@@ -420,6 +420,11 @@ function PrDetail({ prNumber }: { prNumber: number }) {
         totalAdditions={totalAdditions}
         totalDeletions={totalDeletions}
         showPanelToggle={showPanelToggle}
+        onRefresh={() => {
+          queryClient.invalidateQueries({ queryKey: ["pr"] });
+          queryClient.invalidateQueries({ queryKey: ["checks"] });
+          queryClient.invalidateQueries({ queryKey: ["pr-activity"] });
+        }}
       />
 
       {/* Diff viewer area (relative for overlay positioning) */}

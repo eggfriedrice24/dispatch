@@ -1,7 +1,7 @@
 import type { GhPrDetail } from "@/shared/ipc";
 
 import { toastManager } from "@/components/ui/toast";
-import { Copy, ExternalLink, Link, PanelRight } from "lucide-react";
+import { Copy, ExternalLink, Link, PanelRight, RefreshCw } from "lucide-react";
 
 import { openExternal } from "../lib/open-external";
 import { GitHubAvatar } from "./github-avatar";
@@ -22,6 +22,7 @@ interface CompactPrHeaderProps {
   totalAdditions: number;
   totalDeletions: number;
   showPanelToggle: boolean;
+  onRefresh: () => void;
 }
 
 export function CompactPrHeader({
@@ -31,6 +32,7 @@ export function CompactPrHeader({
   totalAdditions,
   totalDeletions,
   showPanelToggle,
+  onRefresh,
 }: CompactPrHeaderProps) {
   return (
     <div className="border-border bg-bg-surface flex h-9 shrink-0 items-center gap-2 border-b px-4">
@@ -77,6 +79,16 @@ export function CompactPrHeader({
 
       {/* Spacer */}
       <div className="flex-1" />
+
+      {/* Refresh PR data */}
+      <button
+        type="button"
+        onClick={onRefresh}
+        className="text-text-tertiary hover:bg-bg-raised hover:text-text-primary hover:border-border flex h-[26px] w-[26px] shrink-0 cursor-pointer items-center justify-center rounded-sm border border-transparent transition-colors"
+        title="Refresh PR"
+      >
+        <RefreshCw size={13} />
+      </button>
 
       {/* Copy PR number */}
       <button
