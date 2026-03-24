@@ -180,13 +180,12 @@ export function ReviewSidebar({ prNumber, onBack, onSelectPr }: ReviewSidebarPro
             style={{
               width:
                 files.length > 0
-                  ? `${
-                      viewMode === "triage"
-                        ? ((files.length - attentionCount) / files.length) * 100
-                        : (viewedCount / files.length) * 100
-                    }%`
+                  ? `${(viewedCount / files.length) * 100}%`
                   : "0%",
-              background: viewMode === "triage" ? "var(--accent-text)" : "var(--accent)",
+              background:
+                viewMode === "triage" && attentionCount > 0
+                  ? "var(--accent-text)"
+                  : "var(--accent)",
             }}
           />
         </div>
@@ -199,10 +198,8 @@ export function ReviewSidebar({ prNumber, onBack, onSelectPr }: ReviewSidebarPro
                 : "var(--text-tertiary)",
           }}
         >
-          {viewMode === "triage"
-            ? attentionCount > 0
-              ? `${attentionCount} files need attention`
-              : "All files reviewed"
+          {viewMode === "triage" && attentionCount > 0
+            ? `${attentionCount} need attention · ${viewedCount}/${files.length} viewed`
             : `${viewedCount}/${files.length} viewed`}
         </span>
       </div>
