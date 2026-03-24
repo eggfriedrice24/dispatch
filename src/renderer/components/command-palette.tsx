@@ -4,7 +4,6 @@ import {
   Command,
   CommandDialog,
   CommandDialogPopup,
-  CommandEmpty,
   CommandFooter,
   CommandGroup,
   CommandGroupLabel,
@@ -41,7 +40,7 @@ import {
   XCircle,
   Zap,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import { useKeyboardShortcuts } from "../hooks/use-keyboard-shortcuts";
 import { useFileNav } from "../lib/file-nav-context";
@@ -69,6 +68,16 @@ export function CommandPalette() {
 
   const close = () => setOpen(false);
 
+  // Scroll the command list to the top on mount so it doesn't open at the bottom.
+  const scrollToTop = useCallback((el: HTMLDivElement | null) => {
+    if (el) {
+      requestAnimationFrame(() => {
+        const viewport = el.querySelector('[data-slot="scroll-area-viewport"]');
+        if (viewport) viewport.scrollTop = 0;
+      });
+    }
+  }, []);
+
   return (
     <CommandDialog
       open={open}
@@ -77,12 +86,8 @@ export function CommandPalette() {
       <CommandDialogPopup>
         <Command>
           <CommandInput placeholder="Type a command or search..." />
-          <CommandPanel>
+          <CommandPanel ref={scrollToTop}>
             <CommandList>
-              <CommandEmpty>
-                <div className="text-text-tertiary py-6 text-center text-sm">No results found.</div>
-              </CommandEmpty>
-
               <PullRequestGroup onSelect={close} />
               <CommandSeparator />
               <FileGroup onSelect={close} />
