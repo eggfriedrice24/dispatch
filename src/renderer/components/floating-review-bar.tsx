@@ -3,7 +3,8 @@ import type { GhPrDetail } from "@/shared/ipc";
 import { Spinner } from "@/components/ui/spinner";
 import { toastManager } from "@/components/ui/toast";
 import { useMutation } from "@tanstack/react-query";
-import { Check, Eye, GitMerge, MessageSquare } from "lucide-react";
+import { Check, ChevronDown, Eye, GitMerge, MessageSquare, XCircle } from "lucide-react";
+import { useRef, useState } from "react";
 
 import { ipc } from "../lib/ipc";
 import { queryClient } from "../lib/query-client";
@@ -52,7 +53,7 @@ export function FloatingReviewBar({
         bottom: "12px",
         left: "50%",
         transform: "translateX(-50%)",
-        zIndex: 20,
+        zIndex: 3,
         background: "rgba(28,28,34,0.85)",
         backdropFilter: "blur(12px)",
         WebkitBackdropFilter: "blur(12px)",
@@ -320,12 +321,16 @@ function MergeBarButton({
   const requirementsMet = hasApproval && allChecksPassing && pr.mergeable === "MERGEABLE";
   const canMerge = requirementsMet || canAdmin;
 
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [strategy, setStrategy] = useState<"squash" | "merge" | "rebase">("squash");
+  const menuRef = useRef<HTMLDivElement>(null);
+
   const mergeMutation = useMutation({
     mutationFn: () =>
       ipc("pr.merge", {
         cwd,
         prNumber,
-        strategy: "squash" as const,
+        strategy,
         admin: !requirementsMet && canAdmin ? true : undefined,
       }),
     onSuccess: () => {
@@ -341,22 +346,129 @@ function MergeBarButton({
     },
   });
 
+  const closeMutation = useMutation({
+    mutationFn: () => ipc("pr.close", { cwd, prNumber }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pr"] });
+      toastManager.add({ title: `PR #${prNumber} closed`, type: "success" });
+    },
+    onError: (err) => {
+      toastManager.add({ title: "Close failed", description: String(err.message), type: "error" });
+    },
+  });
+
+  const labels: Record<string, string> = {
+    squash: "Squash & Merge",
+    merge: "Merge",
+    rebase: "Rebase & Merge",
+  };
+
   return (
-    <button
-      type="button"
-      onClick={() => mergeMutation.mutate()}
-      disabled={isDraft || !canMerge || mergeMutation.isPending}
-      style={{
-        ...btnBase,
-        background: "var(--accent)",
-        color: "var(--bg-root)",
-        borderColor: "var(--accent)",
-        opacity: isDraft || !canMerge ? 0.4 : 1,
-        cursor: isDraft || !canMerge ? "not-allowed" : "pointer",
-      }}
+    <div
+      ref={menuRef}
+      style={{ position: "relative", display: "flex" }}
     >
-      {mergeMutation.isPending ? <Spinner className="h-3 w-3" /> : <GitMerge size={11} />}
-      Squash & Merge
-    </button>
+      <button
+        type="button"
+        onClick={() => mergeMutation.mutate()}
+        disabled={isDraft || !canMerge || mergeMutation.isPending}
+        style={{
+          ...btnBase,
+          background: "var(--accent)",
+          color: "var(--bg-root)",
+          borderColor: "var(--accent)",
+          opacity: isDraft || !canMerge ? 0.4 : 1,
+          cursor: isDraft || !canMerge ? "not-allowed" : "pointer",
+          borderTopRightRadius: 0,
+          borderBottomRightRadius: 0,
+        }}
+      >
+        {mergeMutation.isPending ? <Spinner className="h-3 w-3" /> : <GitMerge size={11} />}
+        {labels[strategy]}
+      </button>
+      <button
+        type="button"
+        onClick={() => setMenuOpen(!menuOpen)}
+        style={{
+          ...btnBase,
+          background: "var(--accent)",
+          color: "var(--bg-root)",
+          borderColor: "var(--accent)",
+          borderLeft: "1px solid rgba(0,0,0,0.2)",
+          borderTopLeftRadius: 0,
+          borderBottomLeftRadius: 0,
+          padding: "5px 4px",
+          opacity: isDraft ? 0.4 : 1,
+        }}
+      >
+        <ChevronDown size={10} />
+      </button>
+      {menuOpen && (
+        <div
+          style={{
+            position: "absolute",
+            bottom: "100%",
+            right: 0,
+            marginBottom: "4px",
+            width: "180px",
+            background: "var(--bg-elevated)",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius-md)",
+            padding: "4px",
+            boxShadow: "var(--shadow-lg)",
+            zIndex: 50,
+          }}
+        >
+          {(["squash", "merge", "rebase"] as const).map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => {
+                setStrategy(s);
+                setMenuOpen(false);
+              }}
+              style={{
+                display: "flex",
+                width: "100%",
+                padding: "6px 10px",
+                borderRadius: "var(--radius-sm)",
+                fontSize: "11px",
+                cursor: "pointer",
+                border: "none",
+                background: strategy === s ? "var(--accent-muted)" : "transparent",
+                color: strategy === s ? "var(--accent-text)" : "var(--text-secondary)",
+                textAlign: "left",
+              }}
+            >
+              {labels[s]}
+            </button>
+          ))}
+          <div style={{ height: "1px", background: "var(--border)", margin: "4px 0" }} />
+          <button
+            type="button"
+            onClick={() => {
+              setMenuOpen(false);
+              closeMutation.mutate();
+            }}
+            style={{
+              display: "flex",
+              width: "100%",
+              alignItems: "center",
+              gap: "6px",
+              padding: "6px 10px",
+              borderRadius: "var(--radius-sm)",
+              fontSize: "11px",
+              cursor: "pointer",
+              border: "none",
+              background: "transparent",
+              color: "var(--danger)",
+            }}
+          >
+            <XCircle size={11} />
+            Close pull request
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
