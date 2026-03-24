@@ -1,4 +1,5 @@
 import type { GhPrEnrichment, GhPrListItemCore } from "@/shared/ipc";
+import type { LucideIcon } from "lucide-react";
 
 import { Kbd } from "@/components/ui/kbd";
 import { MenuItem, MenuPopup, MenuSeparator } from "@/components/ui/menu";
@@ -7,15 +8,19 @@ import { clamp, relativeTime } from "@/shared/format";
 import { ContextMenu } from "@base-ui/react/context-menu";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
+  AlertCircle,
+  AlertTriangle,
   Bot,
   Check,
   CheckCircle2,
+  CircleDot,
   Copy,
-  GitPullRequestClosed,
-  Loader2,
   ExternalLink,
   GitMerge,
+  GitPullRequestClosed,
+  GitPullRequestDraft,
   Inbox,
+  Loader2,
   Search,
   X,
   XCircle,
@@ -50,41 +55,55 @@ interface PrInboxProps {
 type FilterTab = "review" | "mine" | "all";
 
 // ---------------------------------------------------------------------------
-// Status dot color mapping
+// Status indicator — icon-based state representation
 // ---------------------------------------------------------------------------
 
-function resolveStatusDot(
+interface StatusIndicator {
+  icon: LucideIcon;
+  color: string;
+  pulse: boolean;
+  label: string;
+}
+
+function resolveStatusIndicator(
   pr: GhPrListItemCore,
   enrichment: GhPrEnrichment | undefined,
   checkSummary: PrCheckSummary,
-): { color: string; pulse: boolean } {
+): StatusIndicator {
   // Closed → red
   if (pr.state === "CLOSED") {
-    return { color: "bg-destructive", pulse: false };
+    return { icon: GitPullRequestClosed, color: "text-destructive", pulse: false, label: "Closed" };
   }
   // Merged → purple
   if (pr.state === "MERGED") {
-    return { color: "bg-purple", pulse: false };
+    return { icon: GitMerge, color: "text-purple", pulse: false, label: "Merged" };
   }
-  // In merge queue → flashing orange
+  // In merge queue → pulsing
   if (enrichment?.autoMergeRequest) {
-    return { color: "bg-warning", pulse: true };
+    return { icon: GitMerge, color: "text-info", pulse: true, label: "Auto-merge" };
   }
-  // Ready to merge → green (approved + checks passing + no conflicts)
-  if (
-    !pr.isDraft &&
-    pr.reviewDecision === "APPROVED" &&
-    checkSummary.state === "passing" &&
-    enrichment?.mergeable !== "CONFLICTING"
-  ) {
-    return { color: "bg-success", pulse: false };
+  // Conflicts → red warning
+  if (enrichment?.mergeable === "CONFLICTING") {
+    return { icon: AlertTriangle, color: "text-destructive", pulse: false, label: "Conflicts" };
   }
-  // Draft → grey
+  // Changes requested → orange
+  if (pr.reviewDecision === "CHANGES_REQUESTED") {
+    return { icon: AlertCircle, color: "text-warning", pulse: false, label: "Changes requested" };
+  }
+  // Ready to merge → green (approved + checks passing)
+  if (!pr.isDraft && pr.reviewDecision === "APPROVED" && checkSummary.state === "passing") {
+    return { icon: CheckCircle2, color: "text-success", pulse: false, label: "Ready to merge" };
+  }
+  // Approved (checks still running or not all passing)
+  if (!pr.isDraft && pr.reviewDecision === "APPROVED") {
+    return { icon: Check, color: "text-success", pulse: false, label: "Approved" };
+  }
+  // Draft → ghost
   if (pr.isDraft) {
-    return { color: "bg-text-ghost", pulse: false };
+    return { icon: GitPullRequestDraft, color: "text-text-ghost", pulse: false, label: "Draft" };
   }
-  // Default → subtle neutral
-  return { color: "bg-text-tertiary", pulse: false };
+  // Default → open, needs review
+  return { icon: CircleDot, color: "text-text-tertiary", pulse: false, label: "Open" };
 }
 
 // ---------------------------------------------------------------------------
@@ -403,7 +422,7 @@ export function PrInbox({ selectedPr, onSelectPr }: PrInboxProps) {
                 enrichment={enrichment}
                 cwd={cwd}
                 checkSummary={checkSummary}
-                statusDot={resolveStatusDot(pr, enrichment, checkSummary)}
+                statusIndicator={resolveStatusIndicator(pr, enrichment, checkSummary)}
                 isActive={selectedPr === pr.number}
                 isFocused={safeFocusIndex === index}
                 hasNewActivity={item.hasNewActivity ?? false}
@@ -486,7 +505,7 @@ function PrItem({
   pr,
   enrichment,
   checkSummary,
-  statusDot,
+  statusIndicator,
   isActive,
   isFocused,
   hasNewActivity,
@@ -497,7 +516,7 @@ function PrItem({
   pr: GhPrListItemCore;
   enrichment?: GhPrEnrichment;
   checkSummary: PrCheckSummary;
-  statusDot: { color: string; pulse: boolean };
+  statusIndicator: StatusIndicator;
   isActive: boolean;
   isFocused: boolean;
   hasNewActivity: boolean;
@@ -506,6 +525,7 @@ function PrItem({
   cwd: string;
 }) {
   const size = enrichment ? prSizeLabel(enrichment.additions, enrichment.deletions) : null;
+  const StatusIcon = statusIndicator.icon;
 
   const approveMutation = useMutation({
     mutationFn: () => ipc("pr.submitReview", { cwd, prNumber: pr.number, event: "APPROVE" }),
@@ -603,9 +623,12 @@ function PrItem({
             )}
           </div>
           <div className="text-text-tertiary mt-0.5 flex items-center gap-1 font-mono text-[10px]">
-            <span
-              className={`inline-block h-2 w-2 shrink-0 rounded-full ${statusDot.color} ${statusDot.pulse ? "animate-pulse" : ""}`}
-            />
+            <span title={statusIndicator.label}>
+              <StatusIcon
+                size={10}
+                className={`shrink-0 ${statusIndicator.color} ${statusIndicator.pulse ? "animate-pulse" : ""}`}
+              />
+            </span>
             <span>#{pr.number}</span>
             <span className="text-text-ghost">·</span>
             <span className="truncate">{pr.author.name || pr.author.login}</span>

@@ -1,7 +1,16 @@
 import type { GhPrListItemCore } from "@/shared/ipc";
+import type { LucideIcon } from "lucide-react";
 
+import {
+  AlertCircle,
+  ArrowLeft,
+  Check,
+  CircleDot,
+  GitMerge,
+  GitPullRequestClosed,
+  GitPullRequestDraft,
+} from "lucide-react";
 import { useCallback } from "react";
-import { ArrowLeft } from "lucide-react";
 
 /**
  * Queue zone — PR-REVIEW-REDESIGN.md § Queue zone
@@ -16,6 +25,29 @@ interface QueueZoneProps {
   onBack: () => void;
   onSelectPr: (prNumber: number) => void;
   hideWhenEmpty?: boolean;
+}
+
+function resolveQueueIndicator(pr: GhPrListItemCore): {
+  icon: LucideIcon;
+  color: string;
+  label: string;
+} {
+  if (pr.state === "CLOSED") {
+    return { icon: GitPullRequestClosed, color: "text-destructive", label: "Closed" };
+  }
+  if (pr.state === "MERGED") {
+    return { icon: GitMerge, color: "text-purple", label: "Merged" };
+  }
+  if (pr.isDraft) {
+    return { icon: GitPullRequestDraft, color: "text-text-ghost", label: "Draft" };
+  }
+  if (pr.reviewDecision === "CHANGES_REQUESTED") {
+    return { icon: AlertCircle, color: "text-warning", label: "Changes requested" };
+  }
+  if (pr.reviewDecision === "APPROVED") {
+    return { icon: Check, color: "text-success", label: "Approved" };
+  }
+  return { icon: CircleDot, color: "text-text-tertiary", label: "Open" };
 }
 
 export function QueueZone({ queuePrs, activePrNumber, onBack, onSelectPr }: QueueZoneProps) {
@@ -59,16 +91,8 @@ export function QueueZone({ queuePrs, activePrNumber, onBack, onSelectPr }: Queu
         <div className="flex max-h-[120px] flex-col overflow-y-auto px-1 pb-1">
           {queuePrs.map((pr) => {
             const isActive = pr.number === activePrNumber;
-            const dotColor =
-              pr.state === "CLOSED"
-                ? "bg-destructive"
-                : pr.state === "MERGED"
-                  ? "bg-purple"
-                  : pr.isDraft
-                    ? "bg-text-ghost"
-                    : pr.reviewDecision === "APPROVED"
-                      ? "bg-success"
-                      : "bg-text-tertiary";
+            const indicator = resolveQueueIndicator(pr);
+            const QueueIcon = indicator.icon;
 
             return (
               <button
@@ -83,7 +107,12 @@ export function QueueZone({ queuePrs, activePrNumber, onBack, onSelectPr }: Queu
                 }`}
                 style={{ padding: "3px 8px" }}
               >
-                <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${dotColor}`} />
+                <span title={indicator.label}>
+                  <QueueIcon
+                    size={10}
+                    className={`shrink-0 ${indicator.color}`}
+                  />
+                </span>
                 <span
                   className={`min-w-0 flex-1 truncate ${
                     isActive ? "text-text-primary font-medium" : "text-text-secondary font-[450]"
