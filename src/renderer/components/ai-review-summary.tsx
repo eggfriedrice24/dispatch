@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { useMutation } from "@tanstack/react-query";
 import { Sparkles, X } from "lucide-react";
@@ -125,9 +126,18 @@ export function AiReviewSummary({
             />
           </div>
         ) : summarizeMutation.isPending ? (
-          <div className="mt-2 flex items-center gap-2">
-            <Spinner className="text-primary h-3 w-3" />
-            <span className="text-text-tertiary text-xs">Generating summary...</span>
+          <div className="mt-2 flex flex-col gap-2.5">
+            <div className="flex items-center gap-2">
+              <Spinner className="text-primary h-3.5 w-3.5" />
+              <span className="text-text-secondary text-xs">Generating summary…</span>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Skeleton className="h-3 w-full rounded-sm" />
+              <Skeleton className="h-3 w-5/6 rounded-sm" />
+              <Skeleton className="h-3 w-4/6 rounded-sm" />
+              <Skeleton className="mt-1 h-3 w-full rounded-sm" />
+              <Skeleton className="h-3 w-3/4 rounded-sm" />
+            </div>
           </div>
         ) : summarizeMutation.isError ? (
           <p className="text-destructive mt-2 text-xs">
