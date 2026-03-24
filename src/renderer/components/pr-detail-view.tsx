@@ -353,6 +353,17 @@ function PrDetail({ prNumber }: { prNumber: number }) {
     },
   ]);
 
+  // Build set of resolved thread IDs for inline comment display
+  const resolvedThreadIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const thread of reviewThreadsQuery.data ?? []) {
+      if (thread.isResolved) {
+        ids.add(thread.id);
+      }
+    }
+    return ids;
+  }, [reviewThreadsQuery.data]);
+
   // Loading
   if (detailQuery.isLoading) {
     return <PrDetailSkeleton />;
@@ -372,17 +383,6 @@ function PrDetail({ prNumber }: { prNumber: number }) {
   const isAuthor = currentUser !== null && pr.author.login === currentUser;
   // Derive repo "owner/repo" from the PR URL for #123 linkification
   const repoSlug = pr.url.match(/github\.com\/([^/]+\/[^/]+)/)?.[1] ?? "";
-
-  // Build set of resolved thread IDs for inline comment display
-  const resolvedThreadIds = useMemo(() => {
-    const ids = new Set<string>();
-    for (const thread of reviewThreadsQuery.data ?? []) {
-      if (thread.isResolved) {
-        ids.add(thread.id);
-      }
-    }
-    return ids;
-  }, [reviewThreadsQuery.data]);
 
   // Always show the panel toggle — the Overview tab is useful even without conversation
   const showPanelToggle = true;
