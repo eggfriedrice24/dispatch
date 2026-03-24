@@ -16,7 +16,7 @@ export function EmptyState() {
       />
 
       {/* Title */}
-      <h2 className="font-heading text-text-primary relative z-[1] text-4xl tracking-[-0.03em] italic">
+      <h2 className="font-heading text-text-primary relative z-[1] text-4xl font-bold tracking-[-0.03em] italic">
         Select a PR
       </h2>
 
