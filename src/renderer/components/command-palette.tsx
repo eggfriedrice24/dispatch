@@ -40,7 +40,7 @@ import {
   XCircle,
   Zap,
 } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { useKeyboardShortcuts } from "../hooks/use-keyboard-shortcuts";
 import { useFileNav } from "../lib/file-nav-context";
@@ -68,33 +68,15 @@ export function CommandPalette() {
 
   const close = () => setOpen(false);
 
-  // Scroll the command list to the top each time the dialog opens.
-  // Including `open` in deps ensures the ref re-fires when the dialog
-  // reopens (handles dialogs that keep content mounted between opens).
-  // Double rAF waits for the autoHighlight scroll-into-view to complete
-  // before overriding it.
-  const scrollToTop = useCallback(
-    (el: HTMLDivElement | null) => {
-      if (!el || !open) return;
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          const viewport = el.querySelector('[data-slot="scroll-area-viewport"]');
-          if (viewport) viewport.scrollTop = 0;
-        });
-      });
-    },
-    [open],
-  );
-
   return (
     <CommandDialog
       open={open}
       onOpenChange={setOpen}
     >
       <CommandDialogPopup>
-        <Command>
+        <Command key={open ? "open" : "closed"}>
           <CommandInput placeholder="Type a command or search..." />
-          <CommandPanel ref={scrollToTop}>
+          <CommandPanel>
             <CommandList>
               <PullRequestGroup onSelect={close} />
               <CommandSeparator />
