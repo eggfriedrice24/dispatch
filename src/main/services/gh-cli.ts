@@ -508,7 +508,6 @@ const PR_DETAIL_FIELDS = [
   "autoMergeRequest",
   "statusCheckRollup",
   "reviews",
-  "reviewThreads",
   "files",
   "labels",
   "updatedAt",
@@ -534,6 +533,32 @@ export async function getPrDetail(cwd: string, prNumber: number): Promise<GhPrDe
 export async function getPrDiff(cwd: string, prNumber: number): Promise<string> {
   const { stdout } = await execFile("gh", ["pr", "diff", String(prNumber)], { cwd });
   return stdout;
+}
+
+/**
+ * Fetch a file's content from GitHub at a specific ref (SHA or branch name).
+ * Uses the raw media type to avoid base64 encoding and the 1 MB limit.
+ */
+export async function getFileAtRef(
+  cwd: string,
+  ref: string,
+  filePath: string,
+): Promise<string | null> {
+  try {
+    const { stdout } = await execFile(
+      "gh",
+      [
+        "api",
+        `repos/{owner}/{repo}/contents/${filePath}?ref=${ref}`,
+        "-H",
+        "Accept: application/vnd.github.raw+json",
+      ],
+      { cwd, timeout: 15_000 },
+    );
+    return stdout;
+  } catch {
+    return null;
+  }
 }
 
 export async function getPrCommits(
@@ -999,6 +1024,69 @@ export async function unresolveReviewThread(cwd: string, threadId: string): Prom
     { cwd, timeout: 10_000 },
   );
   invalidatePrListCaches(cwd);
+}
+
+export async function getPrReviewThreads(
+  cwd: string,
+  prNumber: number,
+): Promise<
+  Array<{
+    id: string;
+    isResolved: boolean;
+    path: string;
+    line: number | null;
+    comments: Array<{ author: { login: string }; body: string }>;
+  }>
+> {
+  const query = `query {
+    repository(owner: "{owner}", name: "{repo}") {
+      pullRequest(number: ${prNumber}) {
+        reviewThreads(first: 100) {
+          nodes {
+            id
+            isResolved
+            path
+            line
+            comments(first: 3) {
+              nodes {
+                author { login }
+                body
+              }
+            }
+          }
+        }
+      }
+    }
+  }`;
+  const { stdout } = await execFile("gh", ["api", "graphql", "-f", `query=${query}`], {
+    cwd,
+    timeout: 15_000,
+  });
+  const data = JSON.parse(stdout) as {
+    data?: {
+      repository?: {
+        pullRequest?: {
+          reviewThreads?: {
+            nodes: Array<{
+              id: string;
+              isResolved: boolean;
+              path: string;
+              line: number | null;
+              comments: { nodes: Array<{ author: { login: string }; body: string }> };
+            }>;
+          };
+        };
+      };
+    };
+  };
+  const threads = data.data?.repository?.pullRequest?.reviewThreads?.nodes ?? [];
+  return threads.map((t) => ({
+    id: t.id,
+    isResolved: t.isResolved,
+    path: t.path,
+    line: t.line,
+    comments: t.comments.nodes,
+  }));
 }
 
 export async function createReviewComment(args: {

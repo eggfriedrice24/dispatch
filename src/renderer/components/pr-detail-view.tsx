@@ -202,6 +202,13 @@ function PrDetail({ prNumber }: { prNumber: number }) {
     return map;
   }, [annotationsQuery.data]);
 
+  // Review threads (for resolved/unresolved state)
+  const reviewThreadsQuery = useQuery({
+    queryKey: ["pr", "reviewThreads", cwd, prNumber],
+    queryFn: () => ipc("pr.reviewThreads", { cwd, prNumber }),
+    staleTime: 30_000,
+  });
+
   const currentFile = files[currentFileIndex] ?? null;
   const currentFilePath = currentFile ? getDiffFilePath(currentFile) : "";
   const currentLanguage = inferLanguage(currentFilePath);
@@ -218,9 +225,9 @@ function PrDetail({ prNumber }: { prNumber: number }) {
 
   // Full file content (for "show full file" mode)
   const fullFileQuery = useQuery({
-    queryKey: ["git", "showFile", cwd, headSha, currentFilePath],
-    queryFn: () => ipc("git.showFile", { cwd, ref: headSha || "HEAD", filePath: currentFilePath }),
-    enabled: showFullFile && !!currentFilePath,
+    queryKey: ["gh", "fileAtRef", cwd, headSha, currentFilePath],
+    queryFn: () => ipc("gh.fileAtRef", { cwd, ref: headSha || "HEAD", filePath: currentFilePath }),
+    enabled: showFullFile && !!currentFilePath && !!headSha,
     staleTime: 120_000,
   });
 
@@ -364,6 +371,17 @@ function PrDetail({ prNumber }: { prNumber: number }) {
   // Derive repo "owner/repo" from the PR URL for #123 linkification
   const repoSlug = pr.url.match(/github\.com\/([^/]+\/[^/]+)/)?.[1] ?? "";
 
+  // Build set of resolved thread IDs for inline comment display
+  const resolvedThreadIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const thread of reviewThreadsQuery.data ?? []) {
+      if (thread.isResolved) {
+        ids.add(thread.id);
+      }
+    }
+    return ids;
+  }, [reviewThreadsQuery.data]);
+
   // Always show the panel toggle — the Overview tab is useful even without conversation
   const showPanelToggle = true;
 
@@ -447,6 +465,7 @@ function PrDetail({ prNumber }: { prNumber: number }) {
               onCloseComposer={() => setActiveComposer(null)}
               fullFileContent={showFullFile ? (fullFileQuery.data ?? null) : null}
               diffMode={viewMode}
+              resolvedThreadIds={resolvedThreadIds}
             />
           ) : (
             <div className="flex flex-1 items-center justify-center">
@@ -468,6 +487,7 @@ function PrDetail({ prNumber }: { prNumber: number }) {
           diffSnippet={rawDiff ?? ""}
           activeTab={panelTab}
           onTabChange={setPanelTab}
+          reviewThreads={reviewThreadsQuery.data}
         />
 
         {/* Floating review bar */}

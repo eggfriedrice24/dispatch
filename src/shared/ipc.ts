@@ -96,16 +96,6 @@ export interface GhPrDetail {
     state: string;
     submittedAt: string;
   }>;
-  reviewThreads: Array<{
-    id: string;
-    isResolved: boolean;
-    path: string;
-    line: number | null;
-    comments: Array<{
-      author: { login: string };
-      body: string;
-    }>;
-  }>;
   files: Array<{
     path: string;
     additions: number;
@@ -153,6 +143,17 @@ export interface GhReviewComment {
   in_reply_to_id?: number;
   /** GraphQL node ID for thread resolution (only on root comments) */
   node_id?: string;
+}
+
+export interface GhReviewThread {
+  id: string;
+  isResolved: boolean;
+  path: string;
+  line: number | null;
+  comments: Array<{
+    author: { login: string };
+    body: string;
+  }>;
 }
 
 export interface GhAnnotation {
@@ -388,6 +389,10 @@ export interface IpcApi {
     args: { cwd: string; prNumber: number; commentId: number; body: string };
     result: void;
   };
+  "pr.reviewThreads": {
+    args: { cwd: string; prNumber: number };
+    result: GhReviewThread[];
+  };
   "pr.resolveThread": { args: { cwd: string; threadId: string }; result: void };
   "pr.unresolveThread": { args: { cwd: string; threadId: string }; result: void };
   "pr.submitReview": {
@@ -416,6 +421,7 @@ export interface IpcApi {
   "git.diff": { args: { cwd: string; fromRef: string; toRef: string }; result: string };
   "git.showFile": { args: { cwd: string; ref: string; filePath: string }; result: string | null };
   "git.repoRoot": { args: { cwd: string }; result: string | null };
+  "gh.fileAtRef": { args: { cwd: string; ref: string; filePath: string }; result: string | null };
 
   // Workflows
   "workflows.list": { args: { cwd: string }; result: GhWorkflow[] };

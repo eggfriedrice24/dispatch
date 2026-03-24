@@ -1,8 +1,10 @@
+import type { GhReviewThread } from "@/shared/ipc";
+
 import { toastManager } from "@/components/ui/toast";
 import { relativeTime } from "@/shared/format";
 import { useMutation } from "@tanstack/react-query";
 import { ChevronDown, ChevronRight, Copy, ExternalLink, MessageSquare } from "lucide-react";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useMinimizedComments } from "../hooks/use-minimized-comments";
 import { ipc } from "../lib/ipc";
@@ -35,19 +37,11 @@ function isBot(login: string): boolean {
   return BOT_PATTERNS.some((p) => p.test(login));
 }
 
-interface ReviewThread {
-  id: string;
-  isResolved: boolean;
-  path: string;
-  line: number | null;
-  comments: Array<{ author: { login: string }; body: string }>;
-}
-
 interface ConversationTabProps {
   prNumber: number;
   reviews: Array<{ author: { login: string }; state: string; submittedAt: string }>;
   issueComments: Array<{ id: string; body: string; author: { login: string }; createdAt: string }>;
-  reviewThreads?: ReviewThread[];
+  reviewThreads?: GhReviewThread[];
   repo: string;
   onReviewClick: (login: string) => void;
 }
@@ -507,14 +501,15 @@ function ConvoContextMenu({
     [onClose],
   );
 
-  useState(() => {
+  // Register global listeners for click-outside and Escape
+  useEffect(() => {
     document.addEventListener("click", handleClick);
     document.addEventListener("keydown", handleEscape);
     return () => {
       document.removeEventListener("click", handleClick);
       document.removeEventListener("keydown", handleEscape);
     };
-  });
+  }, [handleClick, handleEscape]);
 
   const repoSlug = cwd.split("/").slice(-2).join("/");
   const commentUrl = `https://github.com/${repoSlug}/pull/${prNumber}#issuecomment-${commentId}`;
@@ -596,7 +591,13 @@ function ConvoMenuItem({
   );
 }
 
-function UnresolvedThreadItem({ thread, onClick }: { thread: ReviewThread; onClick: () => void }) {
+function UnresolvedThreadItem({
+  thread,
+  onClick,
+}: {
+  thread: GhReviewThread;
+  onClick: () => void;
+}) {
   const firstComment = thread.comments[0];
   if (!firstComment) {
     return null;

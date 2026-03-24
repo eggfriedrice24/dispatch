@@ -1,4 +1,4 @@
-import type { GhPrDetail } from "@/shared/ipc";
+import type { GhPrDetail, GhReviewThread } from "@/shared/ipc";
 
 import { Spinner } from "@/components/ui/spinner";
 import { relativeTime } from "@/shared/format";
@@ -36,6 +36,7 @@ interface SidePanelOverlayProps {
   diffSnippet: string;
   activeTab: PanelTab;
   onTabChange: (tab: PanelTab) => void;
+  reviewThreads?: GhReviewThread[];
 }
 
 export function SidePanelOverlay({
@@ -48,6 +49,7 @@ export function SidePanelOverlay({
   onReviewClick,
   activeTab,
   onTabChange,
+  reviewThreads,
 }: SidePanelOverlayProps) {
   const setActiveTab = onTabChange;
 
@@ -123,7 +125,7 @@ export function SidePanelOverlay({
             prNumber={prNumber}
             reviews={pr.reviews}
             issueComments={issueComments}
-            reviewThreads={pr.reviewThreads}
+            reviewThreads={reviewThreads}
             repo={repo}
             onReviewClick={onReviewClick}
           />

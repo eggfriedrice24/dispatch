@@ -14,7 +14,7 @@ import {
   MessageSquare,
   Reply,
 } from "lucide-react";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useMinimizedComments } from "../hooks/use-minimized-comments";
 import { ipc } from "../lib/ipc";
@@ -53,6 +53,8 @@ interface InlineCommentProps {
   comments: ReviewComment[];
   prNumber?: number;
   repo?: string;
+  /** Set of thread node IDs that are resolved (from reviewThreads) */
+  resolvedThreadIds?: Set<string>;
 }
 
 // Known bot patterns
@@ -71,7 +73,7 @@ function isBot(login: string): boolean {
   return BOT_PATTERNS.some((p) => p.test(login));
 }
 
-export function InlineComment({ comments, prNumber, repo }: InlineCommentProps) {
+export function InlineComment({ comments, prNumber, repo, resolvedThreadIds }: InlineCommentProps) {
   const { cwd } = useWorkspace();
   const repoKey = repo || cwd;
   const { minimizedSet, toggleMinimized } = useMinimizedComments(repoKey, prNumber ?? 0);
@@ -95,6 +97,7 @@ export function InlineComment({ comments, prNumber, repo }: InlineCommentProps) 
             showBorder={i > 0}
             minimizedSet={minimizedSet}
             toggleMinimized={toggleMinimized}
+            resolvedThreadIds={resolvedThreadIds}
           />
         );
       })}
@@ -124,6 +127,7 @@ function CommentThread({
   showBorder,
   minimizedSet,
   toggleMinimized,
+  resolvedThreadIds,
 }: {
   root: ReviewComment;
   replies: ReviewComment[];
@@ -131,6 +135,7 @@ function CommentThread({
   showBorder: boolean;
   minimizedSet: Set<string>;
   toggleMinimized: (commentId: string) => void;
+  resolvedThreadIds?: Set<string>;
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const [showReply, setShowReply] = useState(false);
@@ -161,6 +166,7 @@ function CommentThread({
             prNumber={prNumber}
             minimized={minimizedSet.has(String(root.id))}
             onToggleMinimized={() => toggleMinimized(String(root.id))}
+            resolvedThreadIds={resolvedThreadIds}
           />
           {replies.map((reply) => (
             <div
@@ -356,9 +362,15 @@ function BotCommentGroup({
 // Thread resolution
 // ---------------------------------------------------------------------------
 
-function ThreadResolveButton({ comment }: { comment: ReviewComment }) {
+function ThreadResolveButton({
+  comment,
+  initialResolved = false,
+}: {
+  comment: ReviewComment;
+  initialResolved?: boolean;
+}) {
   const { cwd } = useWorkspace();
-  const [resolved, setResolved] = useState(false);
+  const [resolved, setResolved] = useState(initialResolved);
 
   const resolveMutation = useMutation({
     mutationFn: () => {
@@ -444,15 +456,15 @@ function CommentContextMenu({
     [onClose],
   );
 
-  // Register global listeners
-  useState(() => {
+  // Register global listeners for click-outside and Escape
+  useEffect(() => {
     document.addEventListener("click", handleClick);
     document.addEventListener("keydown", handleEscape);
     return () => {
       document.removeEventListener("click", handleClick);
       document.removeEventListener("keydown", handleEscape);
     };
-  });
+  }, [handleClick, handleEscape]);
 
   return (
     <div
@@ -554,6 +566,7 @@ function CommentBody({
   prNumber,
   minimized,
   onToggleMinimized,
+  resolvedThreadIds,
 }: {
   comment: ReviewComment;
   isRoot?: boolean;
@@ -561,6 +574,7 @@ function CommentBody({
   prNumber?: number;
   minimized: boolean;
   onToggleMinimized: () => void;
+  resolvedThreadIds?: Set<string>;
 }) {
   const isBotUser = isBot(comment.user.login);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
@@ -678,7 +692,14 @@ function CommentBody({
               <Reply size={12} />
             </button>
           )}
-          {isRoot && <ThreadResolveButton comment={comment} />}
+          {isRoot && (
+            <ThreadResolveButton
+              comment={comment}
+              initialResolved={
+                comment.node_id ? (resolvedThreadIds?.has(comment.node_id) ?? false) : false
+              }
+            />
+          )}
           {/* Minimize toggle */}
           <button
             type="button"

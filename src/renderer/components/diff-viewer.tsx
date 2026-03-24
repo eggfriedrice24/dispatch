@@ -44,6 +44,8 @@ interface DiffViewerProps {
   /** Full file content for "show full file" mode */
   fullFileContent?: string | null;
   diffMode?: DiffMode;
+  /** Set of thread node IDs that are resolved (from reviewThreads) */
+  resolvedThreadIds?: Set<string>;
 }
 
 // ---------------------------------------------------------------------------
@@ -160,6 +162,7 @@ export function DiffViewer({
   onCloseComposer,
   fullFileContent,
   diffMode = "unified",
+  resolvedThreadIds,
 }: DiffViewerProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const { hoveredLine, anchorRect, onLineEnter, onLineLeave } = useBlameHover();
@@ -471,6 +474,7 @@ export function DiffViewer({
           onLineHover={handleLineHover}
           onGutterClick={handleGutterClick}
           onCloseComposer={onCloseComposer}
+          resolvedThreadIds={resolvedThreadIds}
         />
       )}
 
@@ -672,6 +676,7 @@ function UnifiedDiffView({
   onLineHover,
   onGutterClick,
   onCloseComposer,
+  resolvedThreadIds,
 }: {
   rows: FlatRow[];
   highlighter: Highlighter | null;
@@ -691,6 +696,7 @@ function UnifiedDiffView({
   onLineHover: (lineNum: number) => void;
   onGutterClick: (lineNum: number, shiftKey: boolean) => void;
   onCloseComposer?: () => void;
+  resolvedThreadIds?: Set<string>;
 }) {
   // Precompute search match offsets for all rows
   const searchMatchOffsets = useMemo(() => {
@@ -751,6 +757,7 @@ function UnifiedDiffView({
               key={row.key}
               comments={row.comments}
               prNumber={prNumber}
+              resolvedThreadIds={resolvedThreadIds}
             />
           );
         }

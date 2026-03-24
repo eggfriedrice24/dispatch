@@ -186,6 +186,7 @@ const handlers: { [M in IpcMethod]: Handler<M> } = {
   "pr.contributors": async (args) => ghCli.getPrContributors(args.cwd, args.prNumber),
   "pr.searchUsers": async (args) => ghCli.searchUsers(args.cwd, args.query),
   "pr.issuesList": async (args) => ghCli.listIssuesAndPrs(args.cwd, args.limit),
+  "pr.reviewThreads": async (args) => ghCli.getPrReviewThreads(args.cwd, args.prNumber),
   "pr.resolveThread": async (args) => {
     await ghCli.resolveReviewThread(args.cwd, args.threadId);
   },
@@ -212,6 +213,7 @@ const handlers: { [M in IpcMethod]: Handler<M> } = {
   "git.fileHistory": async (args) => gitCli.fileHistory(args.cwd, args.filePath, args.limit),
   "git.diff": async (args) => gitCli.diff(args.cwd, args.fromRef, args.toRef),
   "git.showFile": async (args) => gitCli.showFile(args.cwd, args.ref, args.filePath),
+  "gh.fileAtRef": async (args) => ghCli.getFileAtRef(args.cwd, args.ref, args.filePath),
   "git.repoRoot": async (args) => gitCli.getRepoRoot(args.cwd),
 
   // Workflows
