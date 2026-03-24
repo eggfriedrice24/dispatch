@@ -1,17 +1,14 @@
-import { Button } from "@/components/ui/button";
-import { Spinner } from "@/components/ui/spinner";
 import { toastManager } from "@/components/ui/toast";
 import { relativeTime } from "@/shared/format";
 import { useMutation } from "@tanstack/react-query";
 import { ChevronRight } from "lucide-react";
-import { useRef, useState } from "react";
+import { useState } from "react";
 
 import { ipc } from "../lib/ipc";
 import { queryClient } from "../lib/query-client";
 import { useWorkspace } from "../lib/workspace-context";
 import { GitHubAvatar } from "./github-avatar";
 import { MarkdownBody } from "./markdown-body";
-import { MentionTextarea } from "./mention-textarea";
 
 /**
  * Conversation tab — PR-REVIEW-REDESIGN.md § Side Panel → Conversation tab
@@ -358,7 +355,6 @@ function ContentEvent({
 function PanelComposer({ prNumber }: { prNumber: number }) {
   const { cwd } = useWorkspace();
   const [body, setBody] = useState("");
-  const composerRef = useRef<HTMLDivElement>(null);
 
   const commentMutation = useMutation({
     mutationFn: (args: { cwd: string; prNumber: number; body: string }) => ipc("pr.comment", args),
@@ -376,33 +372,34 @@ function PanelComposer({ prNumber }: { prNumber: number }) {
 
   return (
     <div
-      ref={composerRef}
       className="shrink-0"
       style={{ borderTop: "1px solid var(--border)", padding: "8px 12px" }}
     >
-      <MentionTextarea
+      <textarea
         value={body}
-        onChange={setBody}
+        onChange={(e) => setBody(e.target.value)}
         placeholder="Leave a comment..."
-        rows={2}
-        prNumber={prNumber}
+        rows={1}
         onKeyDown={(e) => {
           if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && body.trim()) {
             e.preventDefault();
             commentMutation.mutate({ cwd, prNumber, body: body.trim() });
           }
         }}
+        className="text-text-primary placeholder:text-text-ghost focus:border-border-strong w-full resize-none rounded-lg outline-none"
+        style={{
+          background: "var(--bg-raised)",
+          border: "1px solid var(--border)",
+          padding: "6px 10px",
+          fontSize: "12px",
+          minHeight: "32px",
+        }}
       />
-      <div className="mt-1.5 flex items-center justify-between">
-        <span className="text-text-ghost text-[10px]">{isMac ? "⌘" : "Ctrl"}+Enter</span>
-        <Button
-          size="sm"
-          className="bg-primary text-primary-foreground hover:bg-accent-hover"
-          disabled={!body.trim() || commentMutation.isPending}
-          onClick={() => commentMutation.mutate({ cwd, prNumber, body: body.trim() })}
-        >
-          {commentMutation.isPending ? <Spinner className="h-3 w-3" /> : "Comment"}
-        </Button>
+      <div
+        className="text-text-ghost font-mono"
+        style={{ fontSize: "10px", marginTop: "3px" }}
+      >
+        {isMac ? "⌘" : "Ctrl"}+Enter to submit
       </div>
     </div>
   );

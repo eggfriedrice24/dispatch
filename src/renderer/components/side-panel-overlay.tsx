@@ -107,37 +107,38 @@ export function SidePanelOverlay({
           </button>
         </div>
 
-        {/* Tab content */}
-        <div
-          className="flex-1 overflow-y-auto"
-          style={{ padding: activeTab === "overview" ? "0" : "12px" }}
-        >
-          {activeTab === "overview" && (
-            <OverviewTab
-              pr={pr}
-              prNumber={prNumber}
-              repo={repo}
-              highlightedLogin={highlightedLogin}
-              onReviewClick={onReviewClick}
-              diffSnippet={diffSnippet}
-            />
-          )}
-          {activeTab === "conversation" && (
-            <ConversationTab
-              prNumber={prNumber}
-              reviews={pr.reviews}
-              issueComments={issueComments}
-              repo={repo}
-              onReviewClick={onReviewClick}
-            />
-          )}
-          {activeTab === "commits" && (
-            <div>
-              <p className="text-text-tertiary text-xs">{pr.files.length} files changed</p>
-            </div>
-          )}
-          {activeTab === "checks" && <ChecksPanel prNumber={prNumber} />}
-        </div>
+        {/* Tab content — conversation tab manages its own scroll + composer */}
+        {activeTab === "conversation" ? (
+          <ConversationTab
+            prNumber={prNumber}
+            reviews={pr.reviews}
+            issueComments={issueComments}
+            repo={repo}
+            onReviewClick={onReviewClick}
+          />
+        ) : (
+          <div
+            className="flex-1 overflow-y-auto"
+            style={{ padding: activeTab === "overview" ? "0" : "12px" }}
+          >
+            {activeTab === "overview" && (
+              <OverviewTab
+                pr={pr}
+                prNumber={prNumber}
+                repo={repo}
+                highlightedLogin={highlightedLogin}
+                onReviewClick={onReviewClick}
+                diffSnippet={diffSnippet}
+              />
+            )}
+            {activeTab === "commits" && (
+              <div>
+                <p className="text-text-tertiary text-xs">{pr.files.length} files changed</p>
+              </div>
+            )}
+            {activeTab === "checks" && <ChecksPanel prNumber={prNumber} />}
+          </div>
+        )}
       </div>
     </>
   );
