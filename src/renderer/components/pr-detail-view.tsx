@@ -441,6 +441,7 @@ function PrDetail({ prNumber }: { prNumber: number }) {
           prNumber={prNumber}
           canAdmin={canPush}
           currentUserReview={currentUserReview}
+          panelOpen={panelOpen}
         />
       </div>
     </div>

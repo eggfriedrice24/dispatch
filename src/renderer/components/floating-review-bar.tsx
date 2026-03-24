@@ -27,6 +27,7 @@ interface FloatingReviewBarProps {
   prNumber: number;
   canAdmin: boolean;
   currentUserReview: string | null;
+  panelOpen?: boolean;
 }
 
 export function FloatingReviewBar({
@@ -41,6 +42,7 @@ export function FloatingReviewBar({
   prNumber,
   canAdmin,
   currentUserReview,
+  panelOpen,
 }: FloatingReviewBarProps) {
   const passCount = checkSummary.filter((c) => c.conclusion === "success").length;
   const failCount = checkSummary.filter((c) => c.conclusion === "failure").length;
@@ -51,8 +53,9 @@ export function FloatingReviewBar({
       style={{
         position: "absolute",
         bottom: "12px",
-        left: "50%",
+        left: panelOpen ? "calc(50% - 190px)" : "50%",
         transform: "translateX(-50%)",
+        transition: "left 400ms cubic-bezier(0.16, 1, 0.3, 1)",
         zIndex: 3,
         background: "rgba(28,28,34,0.85)",
         backdropFilter: "blur(12px)",
