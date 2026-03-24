@@ -64,6 +64,7 @@ const BOT_PATTERNS = [
   /^codecov$/i,
   /^vercel$/i,
   /^github-actions$/i,
+  /^copilot$/i,
 ];
 
 function isBot(login: string): boolean {

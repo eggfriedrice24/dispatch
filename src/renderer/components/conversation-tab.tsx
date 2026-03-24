@@ -29,6 +29,7 @@ const BOT_PATTERNS = [
   /^github-actions$/i,
   /^codecov$/i,
   /^coderabbit$/i,
+  /^copilot$/i,
 ];
 function isBot(login: string): boolean {
   return BOT_PATTERNS.some((p) => p.test(login));
