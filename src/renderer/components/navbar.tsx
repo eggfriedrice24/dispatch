@@ -18,7 +18,6 @@ import {
   FolderOpen,
   GitBranch,
   GitPullRequest,
-  Keyboard,
   LogOut,
   Tag,
   RefreshCw,
@@ -262,14 +261,6 @@ function UserMenu({
           >
             <ExternalLink size={14} />
             Open repo on GitHub
-          </MenuItem>
-          <MenuItem
-            onClick={() => {
-              void openExternal("https://github.com/settings/tokens");
-            }}
-          >
-            <Keyboard size={14} />
-            Manage tokens
           </MenuItem>
         </MenuGroup>
 
