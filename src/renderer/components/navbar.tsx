@@ -27,6 +27,7 @@ import {
   Zap,
 } from "lucide-react";
 
+import { resizeGitHubAvatarUrl } from "../lib/github-avatar";
 import { ipc } from "../lib/ipc";
 import { openExternal } from "../lib/open-external";
 import { queryClient } from "../lib/query-client";
@@ -176,7 +177,7 @@ function UserMenu({
       <MenuTrigger className="border-border-strong ml-1 h-6 w-6 shrink-0 cursor-pointer overflow-hidden rounded-full border-[1.5px] transition-opacity hover:opacity-80">
         {user ? (
           <img
-            src={`${user.avatarUrl}&s=48`}
+            src={resizeGitHubAvatarUrl(user.avatarUrl, 48)}
             alt={user.login}
             className="h-full w-full object-cover"
             loading="eager"
@@ -202,7 +203,7 @@ function UserMenu({
             <div className="flex items-center gap-2.5 px-2 py-2">
               <div className="border-border-strong h-8 w-8 shrink-0 overflow-hidden rounded-full border">
                 <img
-                  src={`${user.avatarUrl}&s=64`}
+                  src={resizeGitHubAvatarUrl(user.avatarUrl, 64)}
                   alt={user.login}
                   className="h-full w-full object-cover"
                 />

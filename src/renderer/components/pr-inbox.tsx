@@ -623,6 +623,7 @@ function PrItem({
           login={pr.author.login}
           size={20}
           className="border-border mt-0.5 border"
+          cwd={cwd}
         />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
