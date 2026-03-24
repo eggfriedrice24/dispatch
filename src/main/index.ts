@@ -85,8 +85,20 @@ function configureExternalNavigation(win: BrowserWindow): void {
 // ---------------------------------------------------------------------------
 
 /** Cache of hostname → token so we don't shell out on every image. */
-const tokenCache = new Map<string, { token: string; fetchedAt: number }>();
+const tokenCache = new Map<string, { token: string | null; fetchedAt: number }>();
 const TOKEN_TTL = 300_000; // 5 min
+
+/**
+ * Map CDN / auxiliary GitHub domains to the GitHub host that `gh auth token`
+ * understands.  e.g. `avatars.githubusercontent.com` → `github.com`.
+ * Enterprise hosts pass through unchanged.
+ */
+function resolveGitHubHost(hostname: string): string {
+  if (hostname.endsWith(".githubusercontent.com") || hostname === "github.com") {
+    return "github.com";
+  }
+  return hostname;
+}
 
 async function getGhToken(host: string): Promise<string | null> {
   const cached = tokenCache.get(host);
@@ -97,13 +109,13 @@ async function getGhToken(host: string): Promise<string | null> {
     const { stdout } = await execFile("gh", ["auth", "token", "--hostname", host], {
       timeout: 5_000,
     });
-    const token = stdout.trim();
-    if (token) {
-      tokenCache.set(host, { token, fetchedAt: Date.now() });
-      return token;
-    }
+    const token = stdout.trim() || null;
+    tokenCache.set(host, { token, fetchedAt: Date.now() });
+    return token;
   } catch {
-    // gh auth not configured for this host
+    // gh auth not configured for this host — cache the miss to avoid repeated
+    // shell-outs for domains that will never have a token (e.g. third-party CDNs).
+    tokenCache.set(host, { token: null, fetchedAt: Date.now() });
   }
   return null;
 }
@@ -128,20 +140,12 @@ function setupImageAuth(): void {
         return;
       }
 
-      // Skip public github.com (avatars work without auth)
+      // Resolve the GitHub host for token lookup (maps CDN domains like
+      // avatars.githubusercontent.com → github.com, leaves enterprise hosts as-is).
       const url = new URL(details.url);
-      const host = url.hostname;
-      if (
-        host === "github.com" ||
-        host === "avatars.githubusercontent.com" ||
-        host === "user-images.githubusercontent.com"
-      ) {
-        callback({ cancel: false });
-        return;
-      }
+      const tokenHost = resolveGitHubHost(url.hostname);
 
-      // For enterprise hosts, attach the token
-      getGhToken(host)
+      getGhToken(tokenHost)
         .then((token) => {
           if (token) {
             callback({
