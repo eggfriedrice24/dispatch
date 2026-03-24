@@ -460,6 +460,7 @@ const PR_DETAIL_FIELDS = [
   "statusCheckRollup",
   "reviews",
   "files",
+  "labels",
   "updatedAt",
   "url",
   "isDraft",

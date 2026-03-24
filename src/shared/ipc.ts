@@ -88,6 +88,7 @@ export interface GhPrDetail {
     additions: number;
     deletions: number;
   }>;
+  labels: Array<{ name: string; color: string }>;
   updatedAt: string;
   url: string;
   isDraft: boolean;

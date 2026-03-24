@@ -1,5 +1,6 @@
 import type { GhPrDetail } from "@/shared/ipc";
 
+import { Spinner } from "@/components/ui/spinner";
 import { relativeTime } from "@/shared/format";
 import { useQuery } from "@tanstack/react-query";
 import { Check, X, XCircle } from "lucide-react";
@@ -196,7 +197,24 @@ function PanelOverviewContent({ pr, repo }: { pr: GhPrDetail; prNumber: number; 
           Labels
         </div>
         <div className="flex flex-wrap gap-1">
-          {/* TODO: wire to actual PR labels when available */}
+          {pr.labels.map((label) => (
+            <span
+              key={label.name}
+              style={{
+                display: "inline-flex",
+                padding: "1px 8px",
+                borderRadius: "var(--radius-full)",
+                fontSize: "10px",
+                fontWeight: 500,
+                background: `#${label.color}20`,
+                color: `#${label.color}`,
+                marginRight: "4px",
+                marginBottom: "4px",
+              }}
+            >
+              {label.name}
+            </span>
+          ))}
           <span
             style={{
               display: "inline-flex",
@@ -336,8 +354,12 @@ function PanelCommitsContent({ prNumber }: { prNumber: number }) {
 
   const commits = commitsQuery.data ?? [];
 
-  if (commits.length === 0 && commitsQuery.isLoading) {
-    return <p className="text-text-tertiary text-xs">Loading commits...</p>;
+  if (commitsQuery.isLoading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Spinner className="text-primary h-4 w-4" />
+      </div>
+    );
   }
 
   if (commits.length === 0) {
@@ -392,9 +414,8 @@ function PanelChecksContent({ prNumber }: { prNumber: number }) {
 
   if (checksQuery.isLoading) {
     return (
-      <div className="flex items-center gap-2 py-4">
-        <div className="bg-bg-raised h-3 w-3 animate-pulse rounded-full" />
-        <span className="text-text-tertiary text-xs">Loading checks...</span>
+      <div className="flex items-center justify-center py-8">
+        <Spinner className="text-primary h-4 w-4" />
       </div>
     );
   }
