@@ -30,6 +30,9 @@ const handlers: { [M in IpcMethod]: Handler<M> } = {
     }
     return result;
   },
+  "preferences.deleteMany": async (args) => {
+    repo.deletePreferences(args.keys);
+  },
   "app.openExternal": async (args) => {
     await openExternalUrl(args.url);
   },

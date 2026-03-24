@@ -280,6 +280,7 @@ export interface IpcApi {
     args: { keys: string[] };
     result: Record<string, string | null>;
   };
+  "preferences.deleteMany": { args: { keys: string[] }; result: void };
   "app.openExternal": { args: { url: string }; result: void };
   "app.devRepoStatus": { args: void; result: DevRepoStatus };
 

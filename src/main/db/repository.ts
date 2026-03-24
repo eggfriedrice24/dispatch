@@ -111,6 +111,12 @@ export function setPreference(key: string, value: string): void {
   `).run(key, value);
 }
 
+export function deletePreferences(keys: string[]): void {
+  const db = getDatabase();
+  const placeholders = keys.map(() => "?").join(", ");
+  db.prepare(`DELETE FROM preferences WHERE key IN (${placeholders})`).run(...keys);
+}
+
 // ---------------------------------------------------------------------------
 // Workspaces
 // ---------------------------------------------------------------------------

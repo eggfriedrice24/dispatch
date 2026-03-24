@@ -7,6 +7,7 @@ import { clamp, relativeTime } from "@/shared/format";
 import { ContextMenu } from "@base-ui/react/context-menu";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
+  Bot,
   Check,
   CheckCircle2,
   Copy,
@@ -21,7 +22,9 @@ import {
 } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 
+import { useBotSettings } from "../hooks/use-bot-settings";
 import { useKeyboardShortcuts } from "../hooks/use-keyboard-shortcuts";
+import { useKeybindings } from "../lib/keybinding-context";
 import { ipc } from "../lib/ipc";
 import { openExternal } from "../lib/open-external";
 import { getPrActivityKey, hasNewPrActivity, indexPrActivityStates } from "../lib/pr-activity";
@@ -50,24 +53,38 @@ type FilterTab = "review" | "mine" | "all";
 // Status dot color mapping
 // ---------------------------------------------------------------------------
 
-function resolveStatusColor(
-  reviewDecision: string,
+function resolveStatusDot(
+  pr: GhPrListItemCore,
+  enrichment: GhPrEnrichment | undefined,
   checkSummary: PrCheckSummary,
-  isDraft: boolean,
-): string {
-  if (reviewDecision === "APPROVED" && checkSummary.state === "passing") {
-    return "bg-success";
+): { color: string; pulse: boolean } {
+  // Closed → red
+  if (pr.state === "CLOSED") {
+    return { color: "bg-destructive", pulse: false };
   }
-  if (checkSummary.state === "failing") {
-    return "bg-destructive";
+  // Merged → purple
+  if (pr.state === "MERGED") {
+    return { color: "bg-purple", pulse: false };
   }
-  if (isDraft || checkSummary.state === "pending") {
-    return "bg-warning";
+  // In merge queue → flashing orange
+  if (enrichment?.autoMergeRequest) {
+    return { color: "bg-warning", pulse: true };
   }
-  if (reviewDecision === "REVIEW_REQUIRED") {
-    return "bg-purple";
+  // Ready to merge → green (approved + checks passing + no conflicts)
+  if (
+    !pr.isDraft &&
+    pr.reviewDecision === "APPROVED" &&
+    checkSummary.state === "passing" &&
+    enrichment?.mergeable !== "CONFLICTING"
+  ) {
+    return { color: "bg-success", pulse: false };
   }
-  return "bg-text-ghost";
+  // Draft → grey
+  if (pr.isDraft) {
+    return { color: "bg-text-ghost", pulse: false };
+  }
+  // Default → subtle neutral
+  return { color: "bg-text-tertiary", pulse: false };
 }
 
 // ---------------------------------------------------------------------------
@@ -208,17 +225,19 @@ export function PrInbox({ selectedPr, onSelectPr }: PrInboxProps) {
   const safeFocusIndex =
     filteredResults.length > 0 ? clamp(focusIndex, 0, filteredResults.length - 1) : 0;
 
+  const { getBinding } = useKeybindings();
+
   useKeyboardShortcuts([
     {
-      key: "j",
+      ...getBinding("navigation.prevPr"),
       handler: () => setFocusIndex((i) => Math.min(i + 1, filteredResults.length - 1)),
     },
     {
-      key: "k",
+      ...getBinding("navigation.nextPr"),
       handler: () => setFocusIndex((i) => Math.max(i - 1, 0)),
     },
     {
-      key: "Enter",
+      ...getBinding("navigation.openPr"),
       handler: () => {
         const match = filteredResults[safeFocusIndex];
         if (match) {
@@ -227,7 +246,7 @@ export function PrInbox({ selectedPr, onSelectPr }: PrInboxProps) {
       },
     },
     {
-      key: "/",
+      ...getBinding("search.focusSearch"),
       handler: () => searchRef.current?.focus(),
     },
   ]);
@@ -382,7 +401,7 @@ export function PrInbox({ selectedPr, onSelectPr }: PrInboxProps) {
                 enrichment={enrichment}
                 cwd={cwd}
                 checkSummary={checkSummary}
-                statusColor={resolveStatusColor(pr.reviewDecision, checkSummary, pr.isDraft)}
+                statusDot={resolveStatusDot(pr, enrichment, checkSummary)}
                 isActive={selectedPr === pr.number}
                 isFocused={safeFocusIndex === index}
                 hasNewActivity={item.hasNewActivity ?? false}
@@ -464,7 +483,7 @@ function PrItem({
   pr,
   enrichment,
   checkSummary,
-  statusColor,
+  statusDot,
   isActive,
   isFocused,
   hasNewActivity,
@@ -474,7 +493,7 @@ function PrItem({
   pr: GhPrListItemCore;
   enrichment?: GhPrEnrichment;
   checkSummary: PrCheckSummary;
-  statusColor: string;
+  statusDot: { color: string; pulse: boolean };
   isActive: boolean;
   isFocused: boolean;
   hasNewActivity: boolean;
@@ -573,7 +592,7 @@ function PrItem({
             )}
           </div>
           <div className="text-text-tertiary mt-0.5 flex items-center gap-1 font-mono text-[10px]">
-            <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${statusColor}`} />
+            <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${statusDot.color} ${statusDot.pulse ? "animate-pulse" : ""}`} />
             <span>#{pr.number}</span>
             <span className="text-text-ghost">·</span>
             <span className="truncate">{pr.author.login}</span>

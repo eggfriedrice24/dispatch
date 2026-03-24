@@ -2,15 +2,15 @@ import type { Highlighter } from "shiki";
 
 import { Spinner } from "@/components/ui/spinner";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Bot, Check, GitMerge, Info, Keyboard, Monitor, Moon, Palette, RotateCcw, Shield, Sparkles, Sun, X } from "lucide-react";
-import { memo, useEffect, useMemo, useState } from "react";
+import { Bot, Check, GitMerge, Info, Keyboard, Monitor, Moon, Palette, RotateCcw, Shield, Sparkles, Sun, TriangleAlert, X } from "lucide-react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 
 import { DEFAULT_BOT_USERNAMES, parseJsonArray } from "../hooks/use-bot-settings";
 
 import { ensureTheme, getHighlighter } from "../lib/highlighter";
 import { ipc } from "../lib/ipc";
 import { useKeybindings } from "../lib/keybinding-context";
-import { DEFAULT_KEYBINDINGS, DEFAULT_KEYBINDINGS_MAP, type ShortcutCategory } from "../lib/keybinding-registry";
+import { DEFAULT_KEYBINDINGS, type ShortcutCategory } from "../lib/keybinding-registry";
 import { queryClient } from "../lib/query-client";
 import { useTheme } from "../lib/theme-context";
 import { KeyRecorder } from "./key-recorder";
@@ -303,6 +303,18 @@ export function SettingsView() {
     saveMutation.mutate({ key, value });
   }
 
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+
+  const resetDefaults = useCallback(async () => {
+    await ipc("preferences.deleteMany", { keys: PREF_KEYS });
+    setTheme("dark");
+    setCodeTheme("github-dark-default");
+    resetAll();
+    queryClient.invalidateQueries({ queryKey: ["preferences"] });
+    queryClient.invalidateQueries({ queryKey: ["ai"] });
+    setShowResetConfirm(false);
+  }, [setTheme, setCodeTheme, resetAll]);
+
   if (prefsQuery.isLoading) {
     return (
       <div className="flex flex-1 items-center justify-center">
@@ -335,6 +347,42 @@ export function SettingsView() {
               {label}
             </button>
           ))}
+        </div>
+        <div className="mt-auto px-2 pt-4">
+          {showResetConfirm ? (
+            <div className="border-border bg-bg-raised flex flex-col gap-2 rounded-md border p-3">
+              <div className="flex items-center gap-1.5">
+                <TriangleAlert size={12} className="text-[--warning]" />
+                <span className="text-text-primary text-[11px] font-medium">Reset all settings?</span>
+              </div>
+              <p className="text-text-tertiary text-[10px]">This will restore all preferences, keybindings, and themes to their defaults.</p>
+              <div className="flex gap-1.5">
+                <button
+                  type="button"
+                  onClick={resetDefaults}
+                  className="bg-[--danger] text-text-primary flex-1 cursor-pointer rounded-md px-2 py-1 text-[11px] font-medium transition-colors hover:opacity-90"
+                >
+                  Reset
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowResetConfirm(false)}
+                  className="border-border text-text-secondary hover:text-text-primary flex-1 cursor-pointer rounded-md border px-2 py-1 text-[11px] transition-colors hover:bg-[--bg-elevated]"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowResetConfirm(true)}
+              className="text-text-tertiary hover:text-text-secondary flex w-full cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-left text-xs transition-colors hover:bg-[--bg-raised]"
+            >
+              <RotateCcw size={14} />
+              Reset to defaults
+            </button>
+          )}
         </div>
       </nav>
 
@@ -397,6 +445,58 @@ export function SettingsView() {
                   <CodeThemePreview themeId={codeTheme} />
                 </div>
               </section>
+            </>
+          )}
+
+          {activeSection === "keybindings" && (
+            <>
+              <h2 className="text-text-primary text-base font-semibold">Keyboard Shortcuts</h2>
+              <p className="text-text-tertiary mt-0.5 text-xs">
+                Customize keyboard shortcuts. Click a binding to record a new key.
+              </p>
+
+              {KEYBINDING_CATEGORIES.map((category) => (
+                <section
+                  key={category}
+                  className="mt-6"
+                >
+                  <h3 className="text-text-tertiary mb-2 text-[10px] font-semibold tracking-[0.06em] uppercase">
+                    {category}
+                  </h3>
+                  <div className="flex flex-col gap-1">
+                    {DEFAULT_KEYBINDINGS.filter((def) => def.category === category).map((def) => {
+                      const binding = getBinding(def.id);
+                      const isCustomized = def.id in overrides;
+                      return (
+                        <div
+                          key={def.id}
+                          className="flex items-center justify-between py-1.5"
+                        >
+                          <span className="text-text-secondary text-xs">{def.label}</span>
+                          <KeyRecorder
+                            currentKey={binding.key}
+                            currentModifiers={binding.modifiers}
+                            isCustomized={isCustomized}
+                            onRecord={(key, modifiers) => setBinding(def.id, key, modifiers)}
+                            onReset={() => resetBinding(def.id)}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+              ))}
+
+              {Object.keys(overrides).length > 0 && (
+                <button
+                  type="button"
+                  onClick={resetAll}
+                  className="text-text-tertiary hover:text-text-secondary mt-6 flex cursor-pointer items-center gap-1.5 text-xs transition-colors"
+                >
+                  <RotateCcw size={12} />
+                  Reset all to defaults
+                </button>
+              )}
             </>
           )}
 

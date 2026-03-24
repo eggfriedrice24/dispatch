@@ -24,6 +24,7 @@ function createItem(
     pr: {
       number: 1,
       title: "Untitled pull request",
+      state: "OPEN",
       author: { login: "octocat" },
       headRefName: "feature/example",
       baseRefName: "main",

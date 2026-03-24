@@ -193,6 +193,7 @@ function parseJsonOutput<T>(stdout: string): T {
 const PR_LIST_CORE_FIELDS = [
   "number",
   "title",
+  "state",
   "author",
   "headRefName",
   "baseRefName",
