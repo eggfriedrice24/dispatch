@@ -13,7 +13,7 @@ import { trackPage } from "./posthog";
 
 export type Route =
   | { view: "review"; prNumber: number | null }
-  | { view: "workflows" }
+  | { view: "workflows"; runId?: number; fromPr?: number }
   | { view: "metrics" }
   | { view: "releases" }
   | { view: "settings" };

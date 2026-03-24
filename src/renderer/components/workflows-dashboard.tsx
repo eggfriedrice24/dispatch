@@ -7,6 +7,7 @@ import { toastManager } from "@/components/ui/toast";
 import { relativeTime } from "@/shared/format";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
+  ArrowLeft,
   CheckCircle2,
   ChevronDown,
   Clock,
@@ -21,6 +22,7 @@ import { useMemo, useState } from "react";
 
 import { ipc } from "../lib/ipc";
 import { queryClient } from "../lib/query-client";
+import { useRouter } from "../lib/router";
 import { useWorkspace } from "../lib/workspace-context";
 import { WorkflowRunsSkeleton } from "./loading-skeletons";
 import { RunComparison } from "./run-comparison";
@@ -35,8 +37,11 @@ import { RunDetail } from "./run-detail";
 
 export function WorkflowsDashboard() {
   const { cwd } = useWorkspace();
+  const { route, navigate } = useRouter();
+  const initialRunId = route.view === "workflows" ? route.runId ?? null : null;
+  const fromPr = route.view === "workflows" ? route.fromPr ?? null : null;
   const [selectedWorkflow, setSelectedWorkflow] = useState<number | null>(null);
-  const [selectedRun, setSelectedRun] = useState<number | null>(null);
+  const [selectedRun, setSelectedRun] = useState<number | null>(initialRunId);
   const [compareRun, setCompareRun] = useState<number | null>(null);
   const [workflowMenuOpen, setWorkflowMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -96,6 +101,22 @@ export function WorkflowsDashboard() {
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
+      {/* Back to PR header */}
+      {fromPr && (
+        <div className="border-border bg-bg-surface flex shrink-0 items-center border-b px-4 py-2">
+          <button
+            type="button"
+            onClick={() => navigate({ view: "review", prNumber: fromPr })}
+            className="text-text-tertiary hover:text-text-primary hover:bg-bg-raised flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-1 text-xs transition-colors"
+          >
+            <ArrowLeft size={13} />
+            <span>
+              Back to PR <span className="font-mono">#{fromPr}</span>
+            </span>
+          </button>
+        </div>
+      )}
+
       {/* Toolbar */}
       <div className="border-border bg-bg-surface flex shrink-0 items-center gap-3 border-b px-5 py-3">
         {/* Workflow selector */}
