@@ -49,6 +49,8 @@ const PREF_KEYS = [
   "aiBaseUrl",
   "botTitleTags",
   "botUsernames",
+  "defaultDiffView",
+  "defaultFileNav",
 ];
 
 function getDefaultAiBaseUrl(provider: string): string {
@@ -297,6 +299,8 @@ export function SettingsView() {
   const mergeStrategy = prefs.mergeStrategy ?? "squash";
   const prPollInterval = prefs.prPollInterval ?? "30";
   const checksPollInterval = prefs.checksPollInterval ?? "10";
+  const defaultDiffView = prefs.defaultDiffView ?? "unified";
+  const defaultFileNav = prefs.defaultFileNav ?? "auto";
 
   const navSections = useMemo(
     () => (aiEnabled ? NAV_SECTIONS_BASE : NAV_SECTIONS_BASE.filter((s) => s.id !== "ai")),
@@ -560,6 +564,63 @@ export function SettingsView() {
                 </div>
               </section>
 
+              {/* Default diff view */}
+              <section className="mt-8">
+                <h3 className="text-text-primary text-sm font-medium">Default Diff View</h3>
+                <p className="text-text-tertiary mt-0.5 text-xs">
+                  How diffs are displayed when reviewing files.
+                </p>
+                <div className="border-border bg-bg-raised mt-3 flex rounded-md border p-[2px]">
+                  {(["unified", "split"] as const).map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => savePref("defaultDiffView", s)}
+                      className={`flex-1 cursor-pointer rounded-sm px-3 py-1.5 text-xs capitalize ${
+                        defaultDiffView === s
+                          ? "bg-bg-elevated text-text-primary shadow-sm"
+                          : "text-text-tertiary hover:text-text-secondary"
+                      }`}
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </section>
+
+              {/* Default file navigation */}
+              <section className="mt-8">
+                <h3 className="text-text-primary text-sm font-medium">Default File Navigation</h3>
+                <p className="text-text-tertiary mt-0.5 text-xs">
+                  How files are organized in the review sidebar.
+                </p>
+                <div className="border-border bg-bg-raised mt-3 flex rounded-md border p-[2px]">
+                  {(
+                    [
+                      { value: "auto", label: "Auto" },
+                      { value: "triage", label: "Triage" },
+                      { value: "tree", label: "Tree" },
+                    ] as const
+                  ).map(({ value, label }) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => savePref("defaultFileNav", value)}
+                      className={`flex-1 cursor-pointer rounded-sm px-3 py-1.5 text-xs ${
+                        defaultFileNav === value
+                          ? "bg-bg-elevated text-text-primary shadow-sm"
+                          : "text-text-tertiary hover:text-text-secondary"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-text-ghost mt-1.5 text-[10px]">
+                  Auto uses triage for PRs with more than 5 files, tree otherwise.
+                </p>
+              </section>
+
               {/* Polling intervals */}
               <section className="mt-8">
                 <h3 className="text-text-primary text-sm font-medium">Polling Intervals</h3>
@@ -602,9 +663,7 @@ export function SettingsView() {
                   <span className="text-text-secondary text-xs">Use AI</span>
                   <Switch
                     checked={aiEnabled}
-                    onCheckedChange={(checked) =>
-                      savePref("aiEnabled", checked ? "true" : "false")
-                    }
+                    onCheckedChange={(checked) => savePref("aiEnabled", checked ? "true" : "false")}
                   />
                 </label>
               </section>

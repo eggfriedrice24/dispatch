@@ -7,6 +7,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useKeyboardShortcuts } from "../hooks/use-keyboard-shortcuts";
+import { usePreference } from "../hooks/use-preference";
 import { useSyntaxHighlighter } from "../hooks/use-syntax-highlight";
 import { getDiffFilePath, parseDiff, type DiffFile } from "../lib/diff-parser";
 import { useFileNav } from "../lib/file-nav-context";
@@ -50,8 +51,12 @@ export function PrDetailView({ prNumber }: PrDetailViewProps) {
 function PrDetail({ prNumber }: { prNumber: number }) {
   const { cwd } = useWorkspace();
   const { currentFileIndex, setCurrentFileIndex } = useFileNav();
+  const defaultDiffView = usePreference("defaultDiffView");
   const [diffMode, setDiffMode] = useState<"all" | "since-review">("all");
-  const [viewMode, setViewMode] = useState<DiffMode>("unified");
+  const [viewModeOverride, setViewModeOverride] = useState<DiffMode | null>(null);
+  const viewMode: DiffMode =
+    viewModeOverride ?? (defaultDiffView === "split" ? "split" : "unified");
+  const setViewMode = setViewModeOverride;
   const [showFullFile, setShowFullFile] = useState(false);
   const [activeComposer, setActiveComposer] = useState<CommentRange | null>(null);
 
@@ -410,8 +415,7 @@ function PrDetail({ prNumber }: { prNumber: number }) {
     : null;
 
   const isReRequested =
-    currentUser !== null &&
-    (reviewRequestsQuery.data ?? []).some((rr) => rr.login === currentUser);
+    currentUser !== null && (reviewRequestsQuery.data ?? []).some((rr) => rr.login === currentUser);
 
   // Count inline comments for the floating bar
   const totalCommentCount = commentsQuery.data?.length ?? 0;

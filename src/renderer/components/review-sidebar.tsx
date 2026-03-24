@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Search } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 
+import { usePreference } from "../hooks/use-preference";
 import { parseDiff, type DiffFile } from "../lib/diff-parser";
 import { useFileNav } from "../lib/file-nav-context";
 import { ipc } from "../lib/ipc";
@@ -46,10 +47,16 @@ export function ReviewSidebar({ prNumber, onBack, onSelectPr }: ReviewSidebarPro
     return parseDiff(diffQuery.data);
   }, [diffQuery.data]);
 
-  // Default view mode based on file count
-  const [viewMode, setViewMode] = useState<"triage" | "tree">(() =>
-    files.length > 5 ? "triage" : "tree",
-  );
+  // View mode — user toggle overrides the saved preference (or auto default)
+  const defaultFileNav = usePreference("defaultFileNav");
+  const [viewModeOverride, setViewModeOverride] = useState<"triage" | "tree" | null>(null);
+  const viewMode: "triage" | "tree" =
+    viewModeOverride ??
+    (defaultFileNav === "triage" || defaultFileNav === "tree"
+      ? defaultFileNav
+      : files.length > 5
+        ? "triage"
+        : "tree");
 
   // Viewed files
   const viewedQuery = useQuery({
@@ -125,7 +132,6 @@ export function ReviewSidebar({ prNumber, onBack, onSelectPr }: ReviewSidebarPro
   const [fileSearch, setFileSearch] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
 
-
   return (
     <div className="bg-bg-surface flex h-full flex-col">
       {/* Queue zone — only show queue list if there are PRs to review */}
@@ -145,7 +151,7 @@ export function ReviewSidebar({ prNumber, onBack, onSelectPr }: ReviewSidebarPro
         <div className="bg-bg-raised flex gap-px rounded-md p-0.5">
           <button
             type="button"
-            onClick={() => setViewMode("triage")}
+            onClick={() => setViewModeOverride("triage")}
             className={`cursor-pointer rounded-sm text-[10px] font-medium select-none ${
               viewMode === "triage"
                 ? "bg-accent-muted text-text-primary shadow-sm"
@@ -157,7 +163,7 @@ export function ReviewSidebar({ prNumber, onBack, onSelectPr }: ReviewSidebarPro
           </button>
           <button
             type="button"
-            onClick={() => setViewMode("tree")}
+            onClick={() => setViewModeOverride("tree")}
             className={`cursor-pointer rounded-sm text-[10px] font-medium select-none ${
               viewMode === "tree"
                 ? "bg-accent-muted text-text-primary shadow-sm"
