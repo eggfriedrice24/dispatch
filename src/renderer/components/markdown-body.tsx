@@ -78,6 +78,18 @@ export function MarkdownBody({ content, repo, className = "" }: MarkdownBodyProp
         remarkPlugins={[remarkGfm, remarkGemoji]}
         rehypePlugins={[rehypeRaw]}
         components={{
+          // Images: no-referrer to avoid leaking origin, lazy load
+          img({ src, alt, ...rest }) {
+            return (
+              <img
+                src={src}
+                alt={alt ?? ""}
+                referrerPolicy="no-referrer"
+                loading="lazy"
+                {...rest}
+              />
+            );
+          },
           // Open external links in browser
           a({ href, children, ...rest }) {
             return (

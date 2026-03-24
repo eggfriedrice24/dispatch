@@ -1,4 +1,6 @@
+import { execFile as execFileCb } from "node:child_process";
 import { join } from "node:path";
+import { promisify } from "node:util";
 
 import {
   type BrowserWindowConstructorOptions,
@@ -10,7 +12,10 @@ import {
   globalShortcut,
   ipcMain,
   nativeImage,
+  session,
 } from "electron";
+
+const execFile = promisify(execFileCb);
 
 import { BADGE_COUNT_CHANNEL } from "../shared/ipc";
 import { closeDatabase, initDatabase } from "./db/database";
@@ -73,9 +78,94 @@ function configureExternalNavigation(win: BrowserWindow): void {
   });
 }
 
+// ---------------------------------------------------------------------------
+// GitHub image auth — attach tokens for enterprise avatar/image requests
+// ---------------------------------------------------------------------------
+
+/** Cache of hostname → token so we don't shell out on every image. */
+const tokenCache = new Map<string, { token: string; fetchedAt: number }>();
+const TOKEN_TTL = 300_000; // 5 min
+
+async function getGhToken(host: string): Promise<string | null> {
+  const cached = tokenCache.get(host);
+  if (cached && Date.now() - cached.fetchedAt < TOKEN_TTL) {
+    return cached.token;
+  }
+  try {
+    const { stdout } = await execFile("gh", ["auth", "token", "--hostname", host], {
+      timeout: 5_000,
+    });
+    const token = stdout.trim();
+    if (token) {
+      tokenCache.set(host, { token, fetchedAt: Date.now() });
+      return token;
+    }
+  } catch {
+    // gh auth not configured for this host
+  }
+  return null;
+}
+
+function setupImageAuth(): void {
+  session.defaultSession.webRequest.onBeforeSendHeaders(
+    { urls: ["https://*/*"] },
+    (details, callback) => {
+      // Only intercept image requests (avatars, PR body images)
+      const isImage =
+        details.resourceType === "image" ||
+        details.url.endsWith(".png") ||
+        details.url.endsWith(".jpg") ||
+        details.url.endsWith(".jpeg") ||
+        details.url.endsWith(".gif") ||
+        details.url.endsWith(".webp") ||
+        details.url.includes("/avatars/") ||
+        details.url.includes("/storage/");
+
+      if (!isImage) {
+        callback({ cancel: false });
+        return;
+      }
+
+      // Skip public github.com (avatars work without auth)
+      const url = new URL(details.url);
+      const host = url.hostname;
+      if (
+        host === "github.com" ||
+        host === "avatars.githubusercontent.com" ||
+        host === "user-images.githubusercontent.com"
+      ) {
+        callback({ cancel: false });
+        return;
+      }
+
+      // For enterprise hosts, attach the token
+      getGhToken(host)
+        .then((token) => {
+          if (token) {
+            callback({
+              cancel: false,
+              requestHeaders: {
+                ...details.requestHeaders,
+                Authorization: `token ${token}`,
+              },
+            });
+          } else {
+            callback({ cancel: false });
+          }
+        })
+        .catch(() => {
+          callback({ cancel: false });
+        });
+    },
+  );
+}
+
+// ---------------------------------------------------------------------------
+
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow(WINDOW_CONFIG);
   configureExternalNavigation(win);
+  setupImageAuth();
 
   // macOS: hide instead of quit on close (tray keeps running)
   win.on("close", (event) => {
