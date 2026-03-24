@@ -1,43 +1,69 @@
 name: Release
+
 on:
+  workflow_dispatch:
   push:
-    tags: ["v*"]
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  build-mac:
-    runs-on: macos-latest
+  build-release:
+    name: Build ${{ matrix.label }}
+    runs-on: ${{ matrix.runner }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: macOS x64
+            runner: macos-13
+            platform: mac
+            arch: x64
+          - label: macOS arm64
+            runner: macos-14
+            platform: mac
+            arch: arm64
+          - label: Windows x64
+            runner: windows-latest
+            platform: win
+            arch: x64
+          - label: Linux x64
+            runner: ubuntu-latest
+            platform: linux
+            arch: x64
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-      - run: bun install --frozen-lockfile
-      - run: bun run build
-      - name: Build & sign macOS app
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build release artifact
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           CSC_LINK: ${{ secrets.MAC_CERT_BASE64 }}
           CSC_KEY_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
-        run: npx electron-builder --mac --publish always
-
-  build-windows:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-      - run: bun install --frozen-lockfile
-      - run: bun run build
-      - name: Build & sign Windows app
-        env:
           WIN_CSC_LINK: ${{ secrets.WIN_CERT_BASE64 }}
           WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CERT_PASSWORD }}
-        run: npx electron-builder --win --publish always
+        run: bun run build:app -- --${{ matrix.platform }} --${{ matrix.arch }} --publish ${{ github.event_name == 'push' && 'always' || 'never' }}
 
-  build-linux:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-      - run: bun install --frozen-lockfile
-      - run: bun run build
-      - run: npx electron-builder --linux --publish always
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dispatch-${{ matrix.platform }}-${{ matrix.arch }}
+          path: release/**
+          if-no-files-found: error

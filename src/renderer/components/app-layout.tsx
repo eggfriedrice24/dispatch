@@ -11,9 +11,9 @@ import { KeyboardShortcutsDialog } from "./keyboard-shortcuts-dialog";
 import { MetricsView } from "./metrics-view";
 import { Navbar } from "./navbar";
 import { PrDetailView } from "./pr-detail-view";
-import { PrFileSidebar } from "./pr-file-sidebar";
 import { PrInbox } from "./pr-inbox";
 import { ReleasesView } from "./releases-view";
+import { ReviewSidebar } from "./review-sidebar";
 import { SettingsView } from "./settings-view";
 import { UpdateBanner } from "./update-banner";
 import { WorkflowsDashboard } from "./workflows-dashboard";
@@ -118,9 +118,10 @@ function AppShell() {
                   maxSize="35%"
                 >
                   {selectedPr ? (
-                    <PrFileSidebar
+                    <ReviewSidebar
                       prNumber={selectedPr}
                       onBack={() => navigate({ view: "review", prNumber: null })}
+                      onSelectPr={(pr) => navigate({ view: "review", prNumber: pr })}
                     />
                   ) : (
                     <PrInbox

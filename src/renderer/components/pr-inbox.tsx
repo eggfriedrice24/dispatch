@@ -6,7 +6,17 @@ import { toastManager } from "@/components/ui/toast";
 import { clamp, relativeTime } from "@/shared/format";
 import { ContextMenu } from "@base-ui/react/context-menu";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Check, Clock, Copy, ExternalLink, GitMerge, Inbox, Search, XCircle } from "lucide-react";
+import {
+  Check,
+  Clock,
+  Copy,
+  ExternalLink,
+  GitMerge,
+  Inbox,
+  Search,
+  X,
+  XCircle,
+} from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 
 import { useKeyboardShortcuts } from "../hooks/use-keyboard-shortcuts";
@@ -14,6 +24,7 @@ import { ipc } from "../lib/ipc";
 import { openExternal } from "../lib/open-external";
 import { getPrActivityKey, hasNewPrActivity, indexPrActivityStates } from "../lib/pr-activity";
 import { summarizePrChecks, type PrCheckSummary } from "../lib/pr-check-status";
+import { searchPrs, type SearchablePrItem } from "../lib/pr-search";
 import { queryClient } from "../lib/query-client";
 import { useWorkspace } from "../lib/workspace-context";
 import { GitHubAvatar } from "./github-avatar";
@@ -153,27 +164,72 @@ export function PrInbox({ selectedPr, onSelectPr }: PrInboxProps) {
     [prActivityQuery.data],
   );
 
-  // Filter by active tab + search
-  const filteredPrs = useMemo(() => {
-    const prs: GhPrListItemCore[] = multiRepo
-      ? multiRepoPrs
-      : activeFilter === "review"
-        ? reviewPrs
-        : activeFilter === "mine"
-          ? authorPrs
-          : allPrs;
-
-    if (!searchQuery) {
-      return prs;
+  const visiblePrs = useMemo(() => {
+    if (multiRepo) {
+      return multiRepoPrs;
     }
-    const q = searchQuery.toLowerCase();
-    return prs.filter(
-      (pr) =>
-        pr.title.toLowerCase().includes(q) ||
-        String(pr.number).includes(q) ||
-        pr.author.login.toLowerCase().includes(q),
-    );
-  }, [reviewPrs, authorPrs, allPrs, multiRepoPrs, activeFilter, searchQuery, multiRepo]);
+
+    if (activeFilter === "review") {
+      return reviewPrs;
+    }
+
+    if (activeFilter === "mine") {
+      return authorPrs;
+    }
+
+    return allPrs;
+  }, [activeFilter, allPrs, authorPrs, multiRepo, multiRepoPrs, reviewPrs]);
+
+  const searchablePrs = useMemo<SearchablePrItem[]>(
+    () =>
+      visiblePrs.map((pr) => {
+        const prAny = pr as GhPrListItemCore & { workspace?: string; workspacePath?: string };
+        const prCwd = multiRepo ? (prAny.workspacePath ?? cwd) : cwd;
+        const enrichmentKey = multiRepo ? `${prCwd}:${pr.number}` : String(pr.number);
+
+        return {
+          enrichment: enrichmentIndex.get(enrichmentKey),
+          hasNewActivity: hasNewPrActivity(
+            pr.updatedAt,
+            prActivityIndex.get(getPrActivityKey(prCwd, pr.number)),
+          ),
+          pr: {
+            ...prAny,
+            workspace: prAny.workspace,
+            workspacePath: prAny.workspacePath,
+          },
+        };
+      }),
+    [cwd, enrichmentIndex, multiRepo, prActivityIndex, visiblePrs],
+  );
+
+  const filteredResults = useMemo(
+    () => searchPrs(searchablePrs, searchQuery),
+    [searchQuery, searchablePrs],
+  );
+
+  const focusSearchInput = useCallback(() => {
+    if (typeof globalThis.requestAnimationFrame !== "function") {
+      searchRef.current?.focus();
+      return;
+    }
+
+    globalThis.requestAnimationFrame(() => {
+      const input = searchRef.current;
+      if (!input) {
+        return;
+      }
+
+      input.focus();
+      const cursorPosition = input.value.length;
+      input.setSelectionRange(cursorPosition, cursorPosition);
+    });
+  }, []);
+
+  const updateSearchQuery = useCallback((nextQuery: string) => {
+    setSearchQuery(nextQuery);
+    setFocusIndex(0);
+  }, []);
 
   const handleSelectPr = useCallback(
     (pr: GhPrListItemCore) => {
@@ -200,13 +256,14 @@ export function PrInbox({ selectedPr, onSelectPr }: PrInboxProps) {
   );
 
   // Derive a safe focus index — stays valid when the list shrinks without
-  // needing an effect to sync state after render.
-  const safeFocusIndex = filteredPrs.length > 0 ? clamp(focusIndex, 0, filteredPrs.length - 1) : 0;
+  // Needing an effect to sync state after render.
+  const safeFocusIndex =
+    filteredResults.length > 0 ? clamp(focusIndex, 0, filteredResults.length - 1) : 0;
 
   useKeyboardShortcuts([
     {
       key: "j",
-      handler: () => setFocusIndex((i) => Math.min(i + 1, filteredPrs.length - 1)),
+      handler: () => setFocusIndex((i) => Math.min(i + 1, filteredResults.length - 1)),
     },
     {
       key: "k",
@@ -215,9 +272,9 @@ export function PrInbox({ selectedPr, onSelectPr }: PrInboxProps) {
     {
       key: "Enter",
       handler: () => {
-        const pr = filteredPrs[safeFocusIndex];
-        if (pr) {
-          handleSelectPr(pr);
+        const match = filteredResults[safeFocusIndex];
+        if (match) {
+          handleSelectPr(match.item.pr);
         }
       },
     },
@@ -226,6 +283,8 @@ export function PrInbox({ selectedPr, onSelectPr }: PrInboxProps) {
       handler: () => searchRef.current?.focus(),
     },
   ]);
+
+  const hasSearch = searchQuery.trim().length > 0;
 
   const isLoading = multiRepo
     ? multiRepoQuery.isLoading
@@ -302,26 +361,45 @@ export function PrInbox({ selectedPr, onSelectPr }: PrInboxProps) {
             ref={searchRef}
             type="text"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search PRs..."
+            onChange={(e) => updateSearchQuery(e.target.value)}
+            placeholder="Search title, #123, @author, branch..."
             className="text-text-primary placeholder:text-text-tertiary min-w-0 flex-1 bg-transparent text-xs focus:outline-none"
-            onKeyDown={(e) => {
-              if (e.key === "Escape") {
-                setSearchQuery("");
-                (e.target as HTMLElement).blur();
+            title="Search title, #123, @author, branch, repo, or use status:, is:, size:, and base:"
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                const match = filteredResults[safeFocusIndex];
+                if (match) {
+                  event.preventDefault();
+                  handleSelectPr(match.item.pr);
+                }
+                return;
+              }
+
+              if (event.key === "Escape") {
+                event.preventDefault();
+                if (searchQuery) {
+                  updateSearchQuery("");
+                  return;
+                }
+
+                (event.target as HTMLElement).blur();
               }
             }}
           />
-          {searchQuery ? (
+          {hasSearch ? (
             <button
               type="button"
-              onClick={() => setSearchQuery("")}
-              className="text-text-tertiary hover:text-text-primary cursor-pointer text-[10px]"
+              onClick={() => {
+                updateSearchQuery("");
+                focusSearchInput();
+              }}
+              className="text-text-tertiary hover:text-text-primary flex h-4 w-4 cursor-pointer items-center justify-center rounded-sm transition-colors"
+              aria-label="Clear pull request search"
             >
-              esc
+              <X size={12} />
             </button>
           ) : (
-            <Kbd>/</Kbd>
+            <Kbd className="h-4 min-w-4 px-1 font-mono text-[10px]">/</Kbd>
           )}
         </div>
       </div>
@@ -334,32 +412,41 @@ export function PrInbox({ selectedPr, onSelectPr }: PrInboxProps) {
       )}
 
       {/* Empty state */}
-      {!isLoading && filteredPrs.length === 0 && (
-        <div className="flex flex-1 flex-col items-center justify-center gap-2 px-4">
-          <Inbox
-            size={24}
-            className="text-text-ghost"
-          />
-          <p className="text-text-tertiary text-center text-xs">
-            {searchQuery
-              ? "No PRs match your search"
-              : activeFilter === "review"
-                ? "No PRs need your review"
-                : activeFilter === "mine"
-                  ? "You have no open PRs"
-                  : "No pull requests found"}
-          </p>
+      {!isLoading && filteredResults.length === 0 && (
+        <div className="flex flex-1 flex-col items-center justify-center gap-2 px-4 text-center">
+          {hasSearch ? (
+            <>
+              <Search
+                size={20}
+                className="text-text-ghost"
+              />
+              <p className="text-text-tertiary text-center text-xs">No PRs match your search.</p>
+            </>
+          ) : (
+            <>
+              <Inbox
+                size={24}
+                className="text-text-ghost"
+              />
+              <p className="text-text-tertiary text-center text-xs">
+                {activeFilter === "review"
+                  ? "No PRs need your review"
+                  : activeFilter === "mine"
+                    ? "You have no open PRs"
+                    : "No pull requests found"}
+              </p>
+            </>
+          )}
         </div>
       )}
 
       {/* PR list */}
-      {!isLoading && filteredPrs.length > 0 && (
+      {!isLoading && filteredResults.length > 0 && (
         <div className="flex-1 overflow-y-auto">
-          {filteredPrs.map((pr, index) => {
+          {filteredResults.map(({ item }, index) => {
+            const { enrichment, pr } = item;
             const prAny = pr as GhPrListItemCore & { workspace?: string; workspacePath?: string };
             const prCwd = multiRepo ? (prAny.workspacePath ?? cwd) : cwd;
-            const enrichmentKey = multiRepo ? `${prCwd}:${pr.number}` : String(pr.number);
-            const enrichment = enrichmentIndex.get(enrichmentKey);
             const checkSummary = summarizePrChecks(enrichment?.statusCheckRollup ?? []);
 
             return (
@@ -372,10 +459,7 @@ export function PrInbox({ selectedPr, onSelectPr }: PrInboxProps) {
                 statusColor={resolveStatusColor(pr.reviewDecision, checkSummary, pr.isDraft)}
                 isActive={selectedPr === pr.number}
                 isFocused={safeFocusIndex === index}
-                hasNewActivity={hasNewPrActivity(
-                  pr.updatedAt,
-                  prActivityIndex.get(getPrActivityKey(prCwd, pr.number)),
-                )}
+                hasNewActivity={item.hasNewActivity ?? false}
                 workspace={multiRepo ? prAny.workspace : undefined}
                 onClick={() => {
                   setFocusIndex(index);

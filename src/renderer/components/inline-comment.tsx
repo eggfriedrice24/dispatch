@@ -262,15 +262,45 @@ function BotCommentGroup({ comments }: { comments: ReviewComment[] }) {
   const botNames = [...new Set(comments.map((c) => c.user.login))];
 
   return (
-    <div className="border-dashed">
+    <div
+      className="border-t border-b"
+      style={{
+        borderColor: "var(--border)",
+        borderLeft: "2px solid var(--accent)",
+        background: "rgba(212,136,58,0.03)",
+      }}
+    >
       <button
         type="button"
         onClick={() => setExpanded(!expanded)}
-        className="text-text-tertiary hover:bg-bg-raised flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-[11px]"
+        className="text-text-secondary hover:bg-bg-raised/50 flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-[11px]"
       >
-        {expanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
-        <span className="opacity-60">
-          {comments.length} bot comment{comments.length > 1 ? "s" : ""} from {botNames.join(", ")}
+        {/* Bot avatar icon */}
+        <span
+          className="bg-accent-muted border-border-accent flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[8px]"
+          style={{ color: "var(--accent-text)" }}
+        >
+          ✦
+        </span>
+        <span className="text-accent-text font-medium">{botNames.join(", ")}</span>
+        <span className="bg-accent-muted text-accent-text border-border-accent rounded-xs border px-1 text-[9px] font-semibold tracking-[0.04em] uppercase">
+          Bot
+        </span>
+        <span className="text-text-tertiary">
+          {comments.length} comment{comments.length > 1 ? "s" : ""}
+        </span>
+        <span className="ml-auto">
+          {expanded ? (
+            <ChevronDown
+              size={11}
+              className="text-text-ghost"
+            />
+          ) : (
+            <ChevronRight
+              size={11}
+              className="text-text-ghost"
+            />
+          )}
         </span>
       </button>
       {expanded &&
@@ -467,7 +497,7 @@ function CommentBody({
 
   return (
     <div
-      className={`px-3 py-2.5 ${isBotUser ? "opacity-70" : ""}`}
+      className={`px-3 py-2.5 ${isBotUser ? "" : ""}`}
       onContextMenu={(e) => {
         e.preventDefault();
         setContextMenu({ x: e.clientX, y: e.clientY });
@@ -477,10 +507,13 @@ function CommentBody({
         <GitHubAvatar
           login={comment.user.login}
           size={20}
+          avatarUrl={comment.user.avatar_url}
         />
         <span className="text-text-primary text-[11px] font-medium">{comment.user.login}</span>
         {isBotUser && (
-          <span className="bg-bg-raised text-text-ghost rounded-sm px-1 text-[9px]">bot</span>
+          <span className="bg-accent-muted text-accent-text border-border-accent rounded-xs border px-1 text-[9px] font-semibold tracking-[0.04em] uppercase">
+            Bot
+          </span>
         )}
         <span className="text-text-tertiary font-mono text-[10px]">
           {relativeTime(new Date(comment.created_at))}

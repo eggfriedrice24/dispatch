@@ -869,8 +869,10 @@ function DiffLineRow({
       }}
       onMouseLeave={onLineLeave}
     >
-      {/* Color bar */}
-      <div className={`sticky left-0 z-[1] w-[3px] shrink-0 ${barColor}`} />
+      {/* Color bar — subtle accent inset on hover */}
+      <div
+        className={`sticky left-0 z-[1] w-[3px] shrink-0 ${barColor} group-hover/line:shadow-[inset_2px_0_0_rgba(212,136,58,0.15)]`}
+      />
       {/* Line number gutter */}
       <div
         className={`sticky left-[3px] z-[1] w-10 shrink-0 border-r pr-2 text-right text-[11px] select-none ${

@@ -33,7 +33,6 @@ export function AiReviewSummary({
   diffSnippet,
 }: AiReviewSummaryProps) {
   const config = useAiConfig();
-  const [summary, setSummary] = useState<string | null>(null);
   const [dismissed, setDismissed] = useState(false);
 
   const summarizeMutation = useMutation({
@@ -61,13 +60,32 @@ export function AiReviewSummary({
         maxTokens: 1024,
       });
     },
-    onSuccess: (text) => {
-      setSummary(text);
-    },
   });
 
-  if (!config.isConfigured || dismissed) {
+  const summary = summarizeMutation.data;
+
+  if (!config.isConfigured) {
     return null;
+  }
+
+  if (dismissed) {
+    return (
+      <div className="border-border border-b">
+        <button
+          type="button"
+          onClick={() => setDismissed(false)}
+          className="hover:bg-bg-raised/60 flex w-full cursor-pointer items-center gap-2 px-4 py-2 transition-colors"
+        >
+          <Sparkles
+            size={12}
+            className="text-primary"
+          />
+          <span className="text-text-ghost text-[10px] font-semibold tracking-[0.06em] uppercase">
+            AI Summary
+          </span>
+        </button>
+      </div>
+    );
   }
 
   // Estimate token count (rough: ~4 chars per token)
@@ -99,10 +117,10 @@ export function AiReviewSummary({
           </button>
         </div>
 
-        {summary ? (
+        {summarizeMutation.isSuccess ? (
           <div className="mt-2">
             <MarkdownBody
-              content={summary}
+              content={summary || "No summary was returned."}
               className="text-xs"
             />
           </div>

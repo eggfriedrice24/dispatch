@@ -2,11 +2,17 @@
   "name": "dispatch",
   "version": "0.0.1",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/binbandit/dispatch.git"
+  },
   "main": "dist-electron/index.js",
   "scripts": {
     "postinstall": "electron-rebuild -m . -o better-sqlite3",
     "dev": "vite",
     "build": "vite build",
+    "build:app": "bun ./scripts/build-app.mjs",
+    "release:app": "bun ./scripts/build-app.mjs --publish always",
     "preview": "vite preview",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
@@ -64,6 +70,13 @@
   "build": {
     "appId": "dev.dispatch.app",
     "productName": "Dispatch",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "binbandit",
+        "repo": "dispatch"
+      }
+    ],
     "directories": {
       "output": "release"
     },

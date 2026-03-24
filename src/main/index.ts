@@ -103,6 +103,7 @@ function createWindow(): BrowserWindow {
 // ---------------------------------------------------------------------------
 
 let tray: Tray | null = null;
+let trayMenuSignature: string | null = null;
 
 function setupTray(win: BrowserWindow): void {
   try {
@@ -145,6 +146,12 @@ function updateTrayMenu(win: BrowserWindow, state: TrayState): void {
   if (process.platform === "darwin") {
     tray.setTitle(reviewCount > 0 ? `${reviewCount}` : "");
   }
+
+  const nextSignature = getTrayMenuSignature(state);
+  if (trayMenuSignature === nextSignature) {
+    return;
+  }
+  trayMenuSignature = nextSignature;
 
   const menuItems: Electron.MenuItemConstructorOptions[] = [];
 
@@ -248,6 +255,25 @@ function updateTrayMenu(win: BrowserWindow, state: TrayState): void {
 
   const contextMenu = Menu.buildFromTemplate(menuItems);
   tray.setContextMenu(contextMenu);
+}
+
+function getTrayMenuSignature(state: TrayState): string {
+  return JSON.stringify({
+    reviewPrs: state.reviewPrs.map((pr) => ({
+      number: pr.number,
+      title: pr.title,
+      author: pr.author.login,
+      additions: pr.additions,
+      deletions: pr.deletions,
+    })),
+    authorPrs: state.authorPrs.map((pr) => ({
+      number: pr.number,
+      title: pr.title,
+      headRefName: pr.headRefName,
+      reviewDecision: pr.reviewDecision,
+      statusCheckRollup: pr.statusCheckRollup.map((check) => check.conclusion),
+    })),
+  });
 }
 
 function showAndFocusWindow(win: BrowserWindow): void {
