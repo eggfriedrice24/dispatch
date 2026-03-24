@@ -315,17 +315,42 @@ function ContentEvent({
         </span>
         {isBotUser && (
           <span
-            className="rounded-xs text-[8px] font-semibold tracking-[0.04em] uppercase"
             style={{
+              fontSize: "8px",
+              fontWeight: 600,
               padding: "0 3px",
+              borderRadius: "2px",
               background: "var(--accent-muted)",
               color: "var(--accent-text)",
               border: "1px solid var(--border-accent)",
+              textTransform: "uppercase",
+              letterSpacing: "0.04em",
             }}
           >
             Bot
           </span>
         )}
+        {isBotUser &&
+          (() => {
+            const sev = parseBotSeverity(body);
+            if (!sev) return null;
+            return (
+              <span
+                style={{
+                  fontSize: "8px",
+                  fontWeight: 700,
+                  padding: "0 3px",
+                  borderRadius: "2px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.04em",
+                  background: sev.bg,
+                  color: sev.color,
+                }}
+              >
+                {sev.label}
+              </span>
+            );
+          })()}
         <span className="text-text-tertiary text-[11px]">{action}</span>
         <span className="text-text-tertiary ml-auto font-mono text-[10px]">
           {relativeTime(time)}
@@ -350,6 +375,20 @@ function ContentEvent({
       </div>
     </div>
   );
+}
+
+function parseBotSeverity(body: string): { label: string; bg: string; color: string } | null {
+  const lower = body.toLowerCase();
+  if (lower.includes("[critical]") || lower.includes("**critical") || lower.includes("🔴")) {
+    return { label: "Critical", bg: "var(--danger-muted)", color: "var(--danger)" };
+  }
+  if (lower.includes("[suggestion]") || lower.includes("**suggestion")) {
+    return { label: "Suggestion", bg: "var(--warning-muted)", color: "var(--warning)" };
+  }
+  if (lower.includes("[nitpick]") || lower.includes("**nitpick") || lower.includes("nit:")) {
+    return { label: "Nitpick", bg: "var(--bg-raised)", color: "var(--text-tertiary)" };
+  }
+  return null;
 }
 
 function PanelComposer({ prNumber }: { prNumber: number }) {

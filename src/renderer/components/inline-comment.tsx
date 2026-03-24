@@ -495,27 +495,104 @@ function CommentBody({
 
   const { bodyParts, suggestions } = useMemo(() => parseSuggestions(comment.body), [comment.body]);
 
+  // Parse severity from bot comments (look for [Critical], [Suggestion], [Nitpick] patterns)
+  const severity = isBotUser ? parseSeverity(comment.body) : null;
+
   return (
     <div
-      className={`px-3 py-2.5 ${isBotUser ? "" : ""}`}
+      style={
+        isBotUser
+          ? {
+              background: "rgba(212,136,58,0.03)",
+              borderLeft: "2px solid var(--accent)",
+              borderTop: "1px solid var(--border)",
+              borderBottom: "1px solid var(--border)",
+              padding: "8px 12px 8px 66px",
+            }
+          : { padding: "8px 12px 8px 68px" }
+      }
       onContextMenu={(e) => {
         e.preventDefault();
         setContextMenu({ x: e.clientX, y: e.clientY });
       }}
     >
-      <div className="flex items-center gap-2">
-        <GitHubAvatar
-          login={comment.user.login}
-          size={20}
-          avatarUrl={comment.user.avatar_url}
-        />
-        <span className="text-text-primary text-[11px] font-medium">{comment.user.login}</span>
+      {/* Header */}
+      <div className="mb-1 flex items-center gap-1.5">
+        {isBotUser ? (
+          /* Bot avatar — accent sparkle icon */
+          <span
+            className="flex shrink-0 items-center justify-center rounded-full"
+            style={{
+              width: "20px",
+              height: "20px",
+              background: "var(--accent-muted)",
+              border: "1px solid var(--accent)",
+              fontSize: "8px",
+              fontWeight: 600,
+              color: "var(--accent-text)",
+            }}
+          >
+            <svg
+              width="10"
+              height="10"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
+            </svg>
+          </span>
+        ) : (
+          <GitHubAvatar
+            login={comment.user.login}
+            size={18}
+            avatarUrl={comment.user.avatar_url}
+          />
+        )}
+        <span
+          className="text-xs font-medium"
+          style={{ color: isBotUser ? "var(--accent-text)" : "var(--text-primary)" }}
+        >
+          {comment.user.login}
+        </span>
         {isBotUser && (
-          <span className="bg-accent-muted text-accent-text border-border-accent rounded-xs border px-1 text-[9px] font-semibold tracking-[0.04em] uppercase">
+          <span
+            style={{
+              fontSize: "9px",
+              fontWeight: 600,
+              padding: "0 4px",
+              borderRadius: "2px",
+              background: "var(--accent-muted)",
+              color: "var(--accent-text)",
+              border: "1px solid var(--border-accent)",
+              textTransform: "uppercase",
+              letterSpacing: "0.04em",
+            }}
+          >
             Bot
           </span>
         )}
-        <span className="text-text-tertiary font-mono text-[10px]">
+        {severity && (
+          <span
+            style={{
+              fontSize: "9px",
+              fontWeight: 700,
+              padding: "0 5px",
+              borderRadius: "2px",
+              textTransform: "uppercase",
+              letterSpacing: "0.04em",
+              background: severity.bg,
+              color: severity.color,
+            }}
+          >
+            {severity.label}
+          </span>
+        )}
+        <span
+          className="font-mono text-[10px]"
+          style={{ color: "var(--text-tertiary)" }}
+        >
           {relativeTime(new Date(comment.created_at))}
         </span>
         <div className="ml-auto flex items-center gap-1">
@@ -530,10 +607,16 @@ function CommentBody({
             </button>
           )}
           {isRoot && <ThreadResolveButton comment={comment} />}
+          {isBotUser && (
+            <span style={{ color: "var(--text-ghost)", cursor: "pointer" }}>
+              <ChevronDown size={12} />
+            </span>
+          )}
         </div>
       </div>
 
-      <div className="mt-1.5">
+      {/* Body */}
+      <div>
         {bodyParts.map((part, i) => {
           if (part.type === "text") {
             return (
@@ -606,18 +689,104 @@ function parseSuggestions(body: string): { bodyParts: BodyPart[]; suggestions: s
 }
 
 function SuggestionBlock({ suggestion }: { suggestion: string }) {
+  // Parse suggestion lines into del/add
+  const lines = suggestion.split("\n");
+
   return (
-    <div className="border-success/30 bg-diff-add-bg/30 my-2 overflow-hidden rounded-md border">
-      <div className="border-success/20 flex items-center gap-1.5 border-b px-3 py-1.5">
-        <Check
-          size={11}
-          className="text-success"
-        />
-        <span className="text-success text-[10px] font-medium">Suggested change</span>
+    <div
+      className="my-2 overflow-hidden"
+      style={{
+        background: "rgba(61,214,140,0.06)",
+        border: "1px solid rgba(61,214,140,0.15)",
+        borderRadius: "var(--radius-md)",
+      }}
+    >
+      <div
+        className="flex items-center gap-[5px]"
+        style={{ padding: "5px 8px", fontSize: "10px", fontWeight: 600, color: "var(--success)" }}
+      >
+        <Check size={11} />
+        Suggested fix
+        <button
+          type="button"
+          className="ml-auto cursor-pointer border-none"
+          style={{
+            padding: "3px 12px",
+            borderRadius: "var(--radius-sm)",
+            background: "var(--success)",
+            color: "var(--bg-root)",
+            fontSize: "11px",
+            fontWeight: 600,
+          }}
+        >
+          Apply
+        </button>
       </div>
-      <pre className="text-text-primary overflow-x-auto px-3 py-2 font-mono text-[11px] leading-relaxed">
-        {suggestion}
-      </pre>
+      <div
+        style={{
+          fontFamily: "var(--font-mono)",
+          fontSize: "11px",
+          lineHeight: "18px",
+          padding: "4px 10px 6px",
+        }}
+      >
+        {lines.map((line, i) => {
+          const trimmed = line;
+          if (trimmed.startsWith("-")) {
+            return (
+              <div
+                key={i}
+                style={{ color: "var(--danger)", textDecoration: "line-through", opacity: 0.7 }}
+              >
+                {trimmed.slice(1)}
+              </div>
+            );
+          }
+          if (trimmed.startsWith("+")) {
+            return (
+              <div
+                key={i}
+                style={{ color: "var(--success)" }}
+              >
+                {trimmed.slice(1)}
+              </div>
+            );
+          }
+          return <div key={i}>{line}</div>;
+        })}
+      </div>
     </div>
   );
+}
+
+/**
+ * Parse severity from bot comment body.
+ * Looks for patterns like [Critical], [Suggestion], [Nitpick], **Critical:**, etc.
+ */
+function parseSeverity(body: string): { label: string; bg: string; color: string } | null {
+  const lower = body.toLowerCase();
+  if (
+    lower.includes("[critical]") ||
+    lower.includes("**critical") ||
+    lower.includes("severity: critical") ||
+    lower.includes("🔴")
+  ) {
+    return { label: "Critical", bg: "var(--danger-muted)", color: "var(--danger)" };
+  }
+  if (
+    lower.includes("[suggestion]") ||
+    lower.includes("**suggestion") ||
+    lower.includes("severity: suggestion")
+  ) {
+    return { label: "Suggestion", bg: "var(--warning-muted)", color: "var(--warning)" };
+  }
+  if (
+    lower.includes("[nitpick]") ||
+    lower.includes("**nitpick") ||
+    lower.includes("severity: nitpick") ||
+    lower.includes("nit:")
+  ) {
+    return { label: "Nitpick", bg: "var(--bg-raised)", color: "var(--text-tertiary)" };
+  }
+  return null;
 }
