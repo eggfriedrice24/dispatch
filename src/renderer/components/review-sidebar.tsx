@@ -136,9 +136,6 @@ export function ReviewSidebar({ prNumber, onBack, onSelectPr }: ReviewSidebarPro
         className="flex items-center gap-1.5"
         style={{ padding: "6px 10px 2px" }}
       >
-        <span className="text-text-tertiary text-[9px] font-semibold tracking-[0.06em] uppercase">
-          View
-        </span>
         <div className="bg-bg-raised flex gap-px rounded-md p-0.5">
           <button
             type="button"
