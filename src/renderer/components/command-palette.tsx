@@ -68,15 +68,23 @@ export function CommandPalette() {
 
   const close = () => setOpen(false);
 
-  // Scroll the command list to the top on mount so it doesn't open at the bottom.
-  const scrollToTop = useCallback((el: HTMLDivElement | null) => {
-    if (el) {
+  // Scroll the command list to the top each time the dialog opens.
+  // Including `open` in deps ensures the ref re-fires when the dialog
+  // reopens (handles dialogs that keep content mounted between opens).
+  // Double rAF waits for the autoHighlight scroll-into-view to complete
+  // before overriding it.
+  const scrollToTop = useCallback(
+    (el: HTMLDivElement | null) => {
+      if (!el || !open) return;
       requestAnimationFrame(() => {
-        const viewport = el.querySelector('[data-slot="scroll-area-viewport"]');
-        if (viewport) viewport.scrollTop = 0;
+        requestAnimationFrame(() => {
+          const viewport = el.querySelector('[data-slot="scroll-area-viewport"]');
+          if (viewport) viewport.scrollTop = 0;
+        });
       });
-    }
-  }, []);
+    },
+    [open],
+  );
 
   return (
     <CommandDialog
