@@ -91,6 +91,23 @@ export async function switchAccount(host: string, login: string): Promise<void> 
 // ---------------------------------------------------------------------------
 
 /**
+ * Parse owner and repo name from the git remote URL.
+ * Works with HTTPS, SSH, and ssh:// URL formats.
+ */
+async function getOwnerRepo(cwd: string): Promise<{ owner: string; repo: string }> {
+  const { stdout } = await execFile("git", ["remote", "get-url", "origin"], {
+    cwd,
+    timeout: 5_000,
+  });
+  const url = stdout.trim();
+  const match = url.match(/[/:]([\w.-]+)\/([\w.-]+?)(?:\.git)?$/);
+  if (!match) {
+    throw new Error(`Could not parse owner/repo from remote URL: ${url}`);
+  }
+  return { owner: match[1]!, repo: match[2]! };
+}
+
+/**
  * Determine the GitHub host for a repository by parsing its git remote URL.
  * Returns a hostname like "github.com" or "ghes.company.com", or null on failure.
  */
@@ -753,13 +770,18 @@ export async function getMergeQueueStatus(
   estimatedTimeToMerge: number | null;
 } | null> {
   try {
+    const { owner, repo } = await getOwnerRepo(cwd);
     const { stdout } = await execFile(
       "gh",
       [
         "api",
         "graphql",
         "-f",
-        `query=query { repository(owner: "{owner}", name: "{repo}") { pullRequest(number: ${prNumber}) { mergeQueueEntry { position state estimatedTimeToMerge } } } }`,
+        `owner=${owner}`,
+        "-f",
+        `repo=${repo}`,
+        "-f",
+        `query=query($owner: String!, $repo: String!) { repository(owner: $owner, name: $repo) { pullRequest(number: ${prNumber}) { mergeQueueEntry { position state estimatedTimeToMerge } } } }`,
       ],
       { cwd, timeout: 10_000 },
     );
@@ -1039,8 +1061,9 @@ export async function getPrReviewThreads(
     comments: Array<{ author: { login: string }; body: string }>;
   }>
 > {
-  const query = `query {
-    repository(owner: "{owner}", name: "{repo}") {
+  const { owner, repo } = await getOwnerRepo(cwd);
+  const query = `query($owner: String!, $repo: String!) {
+    repository(owner: $owner, name: $repo) {
       pullRequest(number: ${prNumber}) {
         reviewThreads(first: 100) {
           nodes {
@@ -1059,10 +1082,11 @@ export async function getPrReviewThreads(
       }
     }
   }`;
-  const { stdout } = await execFile("gh", ["api", "graphql", "-f", `query=${query}`], {
-    cwd,
-    timeout: 15_000,
-  });
+  const { stdout } = await execFile(
+    "gh",
+    ["api", "graphql", "-f", `owner=${owner}`, "-f", `repo=${repo}`, "-f", `query=${query}`],
+    { cwd, timeout: 15_000 },
+  );
   const data = JSON.parse(stdout) as {
     data?: {
       repository?: {
