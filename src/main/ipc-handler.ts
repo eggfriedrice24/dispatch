@@ -70,6 +70,20 @@ const handlers: { [M in IpcMethod]: Handler<M> } = {
     return { ghVersion, gitVersion, ghAuth };
   },
   "env.user": async () => ghCli.getAuthenticatedUser(),
+  "env.repoAccount": async (args) => {
+    const saved = repo.getRepoAccount(args.cwd);
+    if (saved) {
+      return saved;
+    }
+
+    const accounts = await ghCli.listAccounts();
+    const active = accounts.find((account) => account.active);
+    if (!active) {
+      return null;
+    }
+
+    return { host: active.host, login: active.login };
+  },
 
   "repo.info": async (args) => ghCli.getRepoInfo(args.cwd),
   "env.accounts": async () => ghCli.listAccounts(),
@@ -128,6 +142,7 @@ const handlers: { [M in IpcMethod]: Handler<M> } = {
   "pr.list": async (args) => ghCli.listPrsCore(args.cwd, args.filter),
   "pr.listEnrichment": async (args) => ghCli.listPrsEnrichment(args.cwd, args.filter),
   "pr.detail": async (args) => ghCli.getPrDetail(args.cwd, args.prNumber),
+  "pr.commits": async (args) => ghCli.getPrCommits(args.cwd, args.prNumber),
   "pr.diff": async (args) => ghCli.getPrDiff(args.cwd, args.prNumber),
   "pr.updateTitle": async (args) => {
     await ghCli.updatePrTitle(args.cwd, args.prNumber, args.title);

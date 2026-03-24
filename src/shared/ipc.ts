@@ -210,6 +210,11 @@ export interface GhAccount {
   gitProtocol: string;
 }
 
+export interface GhRepoAccount {
+  login: string;
+  host: string;
+}
+
 export interface RepoInfo {
   nameWithOwner: string;
   isFork: boolean;
@@ -250,6 +255,7 @@ export interface IpcApi {
   "env.check": { args: void; result: EnvStatus };
   "env.user": { args: void; result: GhUser | null };
   "env.accounts": { args: void; result: GhAccount[] };
+  "env.repoAccount": { args: { cwd: string }; result: GhRepoAccount | null };
   "env.switchAccount": { args: { host: string; login: string }; result: void };
 
   "repo.info": { args: { cwd: string }; result: RepoInfo };
@@ -270,6 +276,10 @@ export interface IpcApi {
     result: GhPrEnrichment[];
   };
   "pr.detail": { args: { cwd: string; prNumber: number }; result: GhPrDetail };
+  "pr.commits": {
+    args: { cwd: string; prNumber: number };
+    result: Array<{ oid: string; message: string; author: string; committedDate: string }>;
+  };
   "pr.diff": { args: { cwd: string; prNumber: number }; result: string };
   "pr.updateTitle": {
     args: { cwd: string; prNumber: number; title: string };

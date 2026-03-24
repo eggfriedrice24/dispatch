@@ -485,6 +485,30 @@ export async function getPrDiff(cwd: string, prNumber: number): Promise<string> 
   return stdout;
 }
 
+export async function getPrCommits(
+  cwd: string,
+  prNumber: number,
+): Promise<Array<{ oid: string; message: string; author: string; committedDate: string }>> {
+  const { stdout } = await execFile(
+    "gh",
+    [
+      "pr",
+      "view",
+      String(prNumber),
+      "--json",
+      "commits",
+      "--jq",
+      ".commits[] | {oid: .oid, message: .messageHeadline, author: .authors[0].login, committedDate: .committedDate}",
+    ],
+    { cwd, timeout: 15_000 },
+  );
+  return stdout
+    .trim()
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => JSON.parse(line));
+}
+
 export async function updatePrTitle(cwd: string, prNumber: number, title: string): Promise<void> {
   await execFile("gh", ["pr", "edit", String(prNumber), "--title", title], {
     cwd,

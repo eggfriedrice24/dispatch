@@ -1,11 +1,16 @@
 import type { GhPrDetail } from "@/shared/ipc";
 
-import { X } from "lucide-react";
-import { useState } from "react";
+import { relativeTime } from "@/shared/format";
+import { useQuery } from "@tanstack/react-query";
+import { Check, X, XCircle } from "lucide-react";
+import { useMemo, useState } from "react";
 
-import { ChecksPanel } from "./checks-panel";
+import { ipc } from "../lib/ipc";
+import { summarizePrChecks } from "../lib/pr-check-status";
+import { useWorkspace } from "../lib/workspace-context";
 import { ConversationTab } from "./conversation-tab";
-import { OverviewTab } from "./overview-tab";
+import { GitHubAvatar } from "./github-avatar";
+import { MarkdownBody } from "./markdown-body";
 
 /**
  * Side panel overlay — PR-REVIEW-REDESIGN.md § Side Panel
@@ -35,9 +40,7 @@ export function SidePanelOverlay({
   prNumber,
   issueComments,
   repo,
-  highlightedLogin,
   onReviewClick,
-  diffSnippet,
 }: SidePanelOverlayProps) {
   const [activeTab, setActiveTab] = useState<PanelTab>("overview");
 
@@ -63,7 +66,7 @@ export function SidePanelOverlay({
           transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)",
         }}
       >
-        {/* Header with tabs — 36px, border-bottom + shadow */}
+        {/* Header — 36px, tabs + close */}
         <div
           className="flex shrink-0 items-center"
           style={{
@@ -107,7 +110,7 @@ export function SidePanelOverlay({
           </button>
         </div>
 
-        {/* Tab content — conversation tab manages its own scroll + composer */}
+        {/* Conversation tab manages its own scroll + composer */}
         {activeTab === "conversation" ? (
           <ConversationTab
             prNumber={prNumber}
@@ -119,30 +122,315 @@ export function SidePanelOverlay({
         ) : (
           <div
             className="flex-1 overflow-y-auto"
-            style={{ padding: activeTab === "overview" ? "0" : "12px" }}
+            style={{ padding: "12px" }}
           >
             {activeTab === "overview" && (
-              <OverviewTab
+              <PanelOverviewContent
                 pr={pr}
                 prNumber={prNumber}
                 repo={repo}
-                highlightedLogin={highlightedLogin}
-                onReviewClick={onReviewClick}
-                diffSnippet={diffSnippet}
               />
             )}
-            {activeTab === "commits" && (
-              <div>
-                <p className="text-text-tertiary text-xs">{pr.files.length} files changed</p>
-              </div>
-            )}
-            {activeTab === "checks" && <ChecksPanel prNumber={prNumber} />}
+            {activeTab === "commits" && <PanelCommitsContent prNumber={prNumber} />}
+            {activeTab === "checks" && <PanelChecksContent prNumber={prNumber} />}
           </div>
         )}
       </div>
     </>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Overview tab — matches mockup's overview-card, labels, reviewers, AI summary
+// ---------------------------------------------------------------------------
+
+function PanelOverviewContent({ pr, repo }: { pr: GhPrDetail; prNumber: number; repo: string }) {
+  return (
+    <>
+      {/* Description card */}
+      <div
+        style={{
+          background: "var(--bg-raised)",
+          border: "1px solid var(--border)",
+          borderRadius: "var(--radius-lg)",
+          padding: "10px 12px",
+          marginBottom: "10px",
+        }}
+      >
+        <div
+          style={{
+            fontSize: "11px",
+            fontWeight: 600,
+            color: "var(--text-tertiary)",
+            textTransform: "uppercase",
+            letterSpacing: "0.06em",
+            marginBottom: "6px",
+          }}
+        >
+          Description
+        </div>
+        <div style={{ fontSize: "12px", color: "var(--text-secondary)", lineHeight: 1.5 }}>
+          {pr.body ? (
+            <MarkdownBody
+              content={pr.body}
+              repo={repo}
+            />
+          ) : (
+            <span style={{ fontStyle: "italic" }}>No description provided.</span>
+          )}
+        </div>
+      </div>
+
+      {/* Reviewers */}
+      {pr.reviews.length > 0 && (
+        <div style={{ marginBottom: "12px" }}>
+          <div
+            style={{
+              fontSize: "10px",
+              fontWeight: 600,
+              color: "var(--text-tertiary)",
+              textTransform: "uppercase",
+              letterSpacing: "0.06em",
+              marginBottom: "6px",
+            }}
+          >
+            Reviewers
+          </div>
+          {dedupeReviews(pr.reviews).map((review) => (
+            <div
+              key={review.author.login}
+              className="flex items-center gap-2"
+              style={{ padding: "4px 0", fontSize: "12px" }}
+            >
+              <GitHubAvatar
+                login={review.author.login}
+                size={20}
+              />
+              <span>{review.author.login}</span>
+              <span
+                className="ml-auto rounded-sm text-[10px] font-medium"
+                style={{
+                  padding: "0 6px",
+                  background:
+                    review.state === "APPROVED"
+                      ? "var(--success-muted)"
+                      : review.state === "CHANGES_REQUESTED"
+                        ? "var(--danger-muted)"
+                        : "var(--warning-muted)",
+                  color:
+                    review.state === "APPROVED"
+                      ? "var(--success)"
+                      : review.state === "CHANGES_REQUESTED"
+                        ? "var(--danger)"
+                        : "var(--warning)",
+                }}
+              >
+                {review.state === "APPROVED"
+                  ? "Approved"
+                  : review.state === "CHANGES_REQUESTED"
+                    ? "Changes"
+                    : "Pending"}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* AI Summary card */}
+      <div
+        style={{
+          background: "var(--bg-raised)",
+          border: "1px solid var(--border)",
+          borderRadius: "var(--radius-lg)",
+          overflow: "hidden",
+          marginTop: "10px",
+        }}
+      >
+        <div
+          className="text-accent-text hover:bg-bg-elevated flex cursor-pointer items-center gap-1.5 select-none"
+          style={{
+            padding: "8px 10px",
+            fontSize: "11px",
+            fontWeight: 500,
+          }}
+        >
+          <svg
+            width="10"
+            height="10"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
+            <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
+          </svg>
+          AI Summary
+        </div>
+      </div>
+    </>
+  );
+}
+
+function dedupeReviews(
+  reviews: Array<{ author: { login: string }; state: string; submittedAt: string }>,
+) {
+  const latestByUser = new Map<
+    string,
+    { author: { login: string }; state: string; submittedAt: string }
+  >();
+  for (const review of reviews) {
+    const existing = latestByUser.get(review.author.login);
+    if (!existing || new Date(review.submittedAt) > new Date(existing.submittedAt)) {
+      latestByUser.set(review.author.login, review);
+    }
+  }
+  return [...latestByUser.values()];
+}
+
+// ---------------------------------------------------------------------------
+// Commits tab — SHA pill + message + author · time
+// ---------------------------------------------------------------------------
+
+function PanelCommitsContent({ prNumber }: { prNumber: number }) {
+  const { cwd } = useWorkspace();
+
+  const commitsQuery = useQuery({
+    queryKey: ["pr", "commits", cwd, prNumber],
+    queryFn: () => ipc("pr.commits", { cwd, prNumber }),
+    staleTime: 60_000,
+  });
+
+  const commits = commitsQuery.data ?? [];
+
+  if (commits.length === 0 && commitsQuery.isLoading) {
+    return <p className="text-text-tertiary text-xs">Loading commits...</p>;
+  }
+
+  if (commits.length === 0) {
+    return <p className="text-text-tertiary text-xs">No commits.</p>;
+  }
+
+  return (
+    <div>
+      {commits.map((commit, i) => (
+        <div
+          key={commit.oid}
+          className="flex items-start gap-2"
+          style={{
+            padding: "8px 0",
+            borderBottom: i < commits.length - 1 ? "1px solid var(--border-subtle)" : "none",
+          }}
+        >
+          <span
+            className="text-info bg-info-muted shrink-0 rounded-sm font-mono text-[10px]"
+            style={{ padding: "1px 5px" }}
+          >
+            {commit.oid.slice(0, 7)}
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="text-text-primary text-xs">{commit.message.split("\n")[0]}</div>
+            <div className="text-text-tertiary mt-0.5 text-[10px]">
+              {commit.author} · {relativeTime(new Date(commit.committedDate))}
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Checks tab — summary + flat item list (compact, matching mockup)
+// ---------------------------------------------------------------------------
+
+function PanelChecksContent({ prNumber }: { prNumber: number }) {
+  const { cwd } = useWorkspace();
+
+  const checksQuery = useQuery({
+    queryKey: ["checks", "list", cwd, prNumber],
+    queryFn: () => ipc("checks.list", { cwd, prNumber }),
+    staleTime: 10_000,
+    refetchInterval: 10_000,
+  });
+
+  const checks = checksQuery.data ?? [];
+  const summary = useMemo(() => summarizePrChecks(checks), [checks]);
+
+  return (
+    <div>
+      {/* Summary line */}
+      <div
+        className="flex items-center gap-[5px] font-medium"
+        style={{
+          padding: "6px 0 10px",
+          fontSize: "12px",
+          color: summary.failed > 0 ? "var(--danger)" : "var(--success)",
+        }}
+      >
+        {summary.failed > 0 ? <XCircle size={13} /> : <Check size={13} />}
+        {summary.failed > 0
+          ? `${summary.failed} failed, ${summary.passed} passed`
+          : `${summary.passed} passed`}
+      </div>
+
+      {/* Check items */}
+      {checks.map((check, i) => {
+        const failed = check.conclusion === "failure";
+        const duration =
+          check.completedAt && check.startedAt
+            ? formatDuration(
+                new Date(check.completedAt).getTime() - new Date(check.startedAt).getTime(),
+              )
+            : "—";
+
+        return (
+          <div
+            key={check.name}
+            className="flex items-center gap-1.5"
+            style={{
+              padding: "5px 0",
+              borderBottom: i < checks.length - 1 ? "1px solid var(--border-subtle)" : "none",
+              fontSize: "12px",
+            }}
+          >
+            <span
+              className="shrink-0"
+              style={{ color: failed ? "var(--danger)" : "var(--success)" }}
+            >
+              {failed ? <XCircle size={12} /> : <Check size={12} />}
+            </span>
+            <span
+              className="min-w-0 flex-1 truncate"
+              style={{ color: "var(--text-secondary)" }}
+            >
+              {check.name}
+            </span>
+            <span
+              className="font-mono"
+              style={{ fontSize: "10px", color: "var(--text-tertiary)" }}
+            >
+              {duration}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function formatDuration(ms: number): string {
+  const seconds = Math.floor(ms / 1000);
+  if (seconds < 60) {
+    return `${seconds}s`;
+  }
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  return `${minutes}m ${remainingSeconds}s`;
+}
+
+// ---------------------------------------------------------------------------
+// Tab button
+// ---------------------------------------------------------------------------
 
 function PanelTabButton({
   label,
