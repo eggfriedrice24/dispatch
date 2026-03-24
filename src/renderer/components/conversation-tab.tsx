@@ -1,10 +1,11 @@
 import { toastManager } from "@/components/ui/toast";
 import { relativeTime } from "@/shared/format";
 import { useMutation } from "@tanstack/react-query";
-import { ChevronRight } from "lucide-react";
-import { useState } from "react";
+import { ChevronDown, ChevronRight, Copy, ExternalLink, MessageSquare } from "lucide-react";
+import { useCallback, useRef, useState } from "react";
 
 import { ipc } from "../lib/ipc";
+import { openExternal } from "../lib/open-external";
 import { queryClient } from "../lib/query-client";
 import { useWorkspace } from "../lib/workspace-context";
 import { GitHubAvatar } from "./github-avatar";
@@ -93,6 +94,7 @@ export function ConversationTab({
           return (
             <ContentEvent
               key={event.key}
+              commentId={event.commentId}
               login={event.login}
               action={event.action}
               time={event.time}
@@ -100,6 +102,7 @@ export function ConversationTab({
               filePath={event.filePath}
               repo={repo}
               isBot={event.isBot}
+              prNumber={prNumber}
               onClick={() => onReviewClick(event.login)}
             />
           );
@@ -147,6 +150,7 @@ interface StatusTimelineEvent {
 interface ContentTimelineEvent {
   type: "content";
   key: string;
+  commentId: string;
   login: string;
   action: string;
   time: Date;
@@ -202,6 +206,7 @@ function buildTimeline(
     events.push({
       type: "content",
       key: `comment-${comment.id}`,
+      commentId: comment.id,
       login: comment.author.login,
       action: "commented",
       time: new Date(comment.createdAt),
@@ -275,6 +280,7 @@ function StatusEvent({
 }
 
 function ContentEvent({
+  commentId,
   login,
   action,
   time,
@@ -282,8 +288,10 @@ function ContentEvent({
   filePath,
   repo,
   isBot: isBotUser,
+  prNumber,
   onClick,
 }: {
+  commentId: string;
   login: string;
   action: string;
   time: Date;
@@ -291,14 +299,25 @@ function ContentEvent({
   filePath?: string;
   repo: string;
   isBot: boolean;
+  prNumber: number;
   onClick: () => void;
 }) {
+  const { cwd } = useWorkspace();
+  const [minimized, setMinimized] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+
+  const severity = isBotUser ? parseBotSeverity(body) : null;
+
   return (
     <div
-      className="border-border-subtle cursor-pointer border-b"
+      className="border-border-subtle border-b"
       style={{ padding: isBotUser ? "8px 0 8px 4px" : "8px 0" }}
-      onClick={onClick}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        setContextMenu({ x: e.clientX, y: e.clientY });
+      }}
     >
+      {/* Header */}
       <div className="mb-[3px] flex items-center gap-1.5">
         <GitHubAvatar
           login={login}
@@ -308,8 +327,9 @@ function ContentEvent({
           }
         />
         <span
-          className="text-xs font-medium"
+          className="cursor-pointer text-xs font-medium"
           style={{ color: isBotUser ? "var(--accent-text)" : "var(--text-primary)" }}
+          onClick={onClick}
         >
           {login}
         </span>
@@ -330,50 +350,201 @@ function ContentEvent({
             Bot
           </span>
         )}
-        {isBotUser &&
-          (() => {
-            const sev = parseBotSeverity(body);
-            if (!sev) return null;
-            return (
-              <span
-                style={{
-                  fontSize: "8px",
-                  fontWeight: 700,
-                  padding: "0 3px",
-                  borderRadius: "2px",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.04em",
-                  background: sev.bg,
-                  color: sev.color,
-                }}
-              >
-                {sev.label}
-              </span>
-            );
-          })()}
+        {severity && (
+          <span
+            style={{
+              fontSize: "8px",
+              fontWeight: 700,
+              padding: "0 3px",
+              borderRadius: "2px",
+              textTransform: "uppercase",
+              letterSpacing: "0.04em",
+              background: severity.bg,
+              color: severity.color,
+            }}
+          >
+            {severity.label}
+          </span>
+        )}
         <span className="text-text-tertiary text-[11px]">{action}</span>
         <span className="text-text-tertiary ml-auto font-mono text-[10px]">
           {relativeTime(time)}
         </span>
-      </div>
-      {filePath && (
-        <div
-          className="text-info cursor-pointer font-mono text-[10px] hover:underline"
-          style={{ paddingLeft: "24px", marginTop: "2px" }}
+        {/* Minimize toggle */}
+        <button
+          type="button"
+          onClick={() => setMinimized(!minimized)}
+          className="text-text-ghost hover:text-text-primary cursor-pointer rounded-sm p-0.5 transition-colors"
+          title={minimized ? "Expand" : "Minimize"}
         >
-          {filePath}
-        </div>
-      )}
-      <div
-        className="text-text-secondary text-xs leading-[1.5]"
-        style={{ paddingLeft: "24px" }}
-      >
-        <MarkdownBody
-          content={body}
-          repo={repo}
-        />
+          {minimized ? <ChevronRight size={11} /> : <ChevronDown size={11} />}
+        </button>
       </div>
+
+      {/* Body — hidden when minimized */}
+      {!minimized && (
+        <>
+          {filePath && (
+            <div
+              className="text-info cursor-pointer font-mono text-[10px] hover:underline"
+              style={{ paddingLeft: "24px", marginTop: "2px" }}
+              onClick={onClick}
+            >
+              {filePath}
+            </div>
+          )}
+          <div
+            className="text-text-secondary text-xs leading-[1.5]"
+            style={{ paddingLeft: "24px" }}
+          >
+            <MarkdownBody
+              content={body}
+              repo={repo}
+            />
+          </div>
+        </>
+      )}
+
+      {/* Context menu */}
+      {contextMenu && (
+        <ConvoContextMenu
+          commentId={commentId}
+          body={body}
+          prNumber={prNumber}
+          cwd={cwd}
+          position={contextMenu}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Context menu for conversation panel comments
+// ---------------------------------------------------------------------------
+
+function ConvoContextMenu({
+  commentId,
+  body,
+  prNumber,
+  cwd,
+  position,
+  onClose,
+}: {
+  commentId: string;
+  body: string;
+  prNumber: number;
+  cwd: string;
+  position: { x: number; y: number };
+  onClose: () => void;
+}) {
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  const handleClick = useCallback(
+    (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        onClose();
+      }
+    },
+    [onClose],
+  );
+
+  const handleEscape = useCallback(
+    (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    },
+    [onClose],
+  );
+
+  useState(() => {
+    document.addEventListener("click", handleClick);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("click", handleClick);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  });
+
+  const repoSlug = cwd.split("/").slice(-2).join("/");
+  const commentUrl = `https://github.com/${repoSlug}/pull/${prNumber}#issuecomment-${commentId}`;
+
+  return (
+    <div
+      ref={menuRef}
+      className="fixed z-50 rounded-md p-1 shadow-lg"
+      style={{
+        left: position.x,
+        top: position.y,
+        background: "var(--bg-elevated)",
+        border: "1px solid var(--border)",
+      }}
+    >
+      <ConvoMenuItem
+        icon={<Copy size={12} />}
+        label="Copy text"
+        onClick={() => {
+          navigator.clipboard.writeText(body);
+          toastManager.add({ title: "Copied", type: "success" });
+          onClose();
+        }}
+      />
+      <ConvoMenuItem
+        icon={<Copy size={12} />}
+        label="Copy link"
+        onClick={() => {
+          navigator.clipboard.writeText(commentUrl);
+          toastManager.add({ title: "Link copied", type: "success" });
+          onClose();
+        }}
+      />
+      <ConvoMenuItem
+        icon={<ExternalLink size={12} />}
+        label="Open in browser"
+        onClick={() => {
+          void openExternal(commentUrl);
+          onClose();
+        }}
+      />
+      <div style={{ height: "1px", background: "var(--border)", margin: "2px 0" }} />
+      <ConvoMenuItem
+        icon={<MessageSquare size={12} />}
+        label="Quote reply"
+        onClick={() => {
+          const quoted = body
+            .split("\n")
+            .map((l) => `> ${l}`)
+            .join("\n");
+          navigator.clipboard.writeText(`${quoted}\n\n`);
+          toastManager.add({ title: "Quote copied", type: "success" });
+          onClose();
+        }}
+      />
+    </div>
+  );
+}
+
+function ConvoMenuItem({
+  icon,
+  label,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex w-full cursor-pointer items-center gap-2 rounded-sm px-2.5 py-1.5 text-left text-xs transition-colors"
+      style={{ color: "var(--text-secondary)" }}
+    >
+      {icon}
+      {label}
+    </button>
   );
 }
 

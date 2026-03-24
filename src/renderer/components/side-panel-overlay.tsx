@@ -390,6 +390,23 @@ function PanelChecksContent({ prNumber }: { prNumber: number }) {
   const checks = checksQuery.data ?? [];
   const summary = useMemo(() => summarizePrChecks(checks), [checks]);
 
+  if (checksQuery.isLoading) {
+    return (
+      <div className="flex items-center gap-2 py-4">
+        <div className="bg-bg-raised h-3 w-3 animate-pulse rounded-full" />
+        <span className="text-text-tertiary text-xs">Loading checks...</span>
+      </div>
+    );
+  }
+
+  if (checks.length === 0) {
+    return (
+      <div className="py-4 text-center">
+        <span className="text-text-tertiary text-xs">No CI checks configured</span>
+      </div>
+    );
+  }
+
   return (
     <div>
       {/* Summary line */}
