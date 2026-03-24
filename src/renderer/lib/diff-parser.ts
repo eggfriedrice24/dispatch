@@ -204,7 +204,29 @@ function parseFileSection(section: string): DiffFile | null {
     }
   }
 
+  // If we couldn't find --- / +++ lines, try to extract paths from the
+  // "diff --git a/path b/path" header. This handles rename-only, mode-change,
+  // and other diffs that lack content headers.
+  if (!oldPath && !newPath) {
+    const gitLine = lines[0] ?? "";
+    const gitMatch = gitLine.match(/^diff --git a\/(.+?) b\/(.+?)$/);
+    if (gitMatch) {
+      oldPath = gitMatch[1]!;
+      newPath = gitMatch[2]!;
+    }
+  }
+
+  // Skip entries where we still can't determine a path (corrupt diff sections)
+  if (!oldPath && !newPath) {
+    return null;
+  }
+
   const status = resolveStatus(oldPath, newPath);
+
+  // Skip files with no actual content changes (pure mode changes etc.) and no hunks
+  if (hunks.length === 0 && additions === 0 && deletions === 0) {
+    return null;
+  }
 
   return {
     oldPath,
