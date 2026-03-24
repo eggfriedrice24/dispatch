@@ -286,6 +286,18 @@ export interface IpcApi {
     args: { cwd: string; prNumber: number; title: string };
     result: void;
   };
+  "pr.repoLabels": {
+    args: { cwd: string };
+    result: Array<{ name: string; color: string; description: string }>;
+  };
+  "pr.addLabel": {
+    args: { cwd: string; prNumber: number; label: string };
+    result: void;
+  };
+  "pr.removeLabel": {
+    args: { cwd: string; prNumber: number; label: string };
+    result: void;
+  };
   "pr.merge": {
     args: {
       cwd: string;

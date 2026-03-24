@@ -546,6 +546,35 @@ export async function updatePrTitle(cwd: string, prNumber: number, title: string
 }
 
 // ---------------------------------------------------------------------------
+// Labels
+// ---------------------------------------------------------------------------
+
+export async function listRepoLabels(
+  cwd: string,
+): Promise<Array<{ name: string; color: string; description: string }>> {
+  const { stdout } = await execFile(
+    "gh",
+    ["label", "list", "--json", "name,color,description", "--limit", "200"],
+    { cwd, timeout: 15_000 },
+  );
+  return parseJsonOutput<Array<{ name: string; color: string; description: string }>>(stdout);
+}
+
+export async function addPrLabel(cwd: string, prNumber: number, label: string): Promise<void> {
+  await execFile("gh", ["pr", "edit", String(prNumber), "--add-label", label], {
+    cwd,
+    timeout: 15_000,
+  });
+}
+
+export async function removePrLabel(cwd: string, prNumber: number, label: string): Promise<void> {
+  await execFile("gh", ["pr", "edit", String(prNumber), "--remove-label", label], {
+    cwd,
+    timeout: 15_000,
+  });
+}
+
+// ---------------------------------------------------------------------------
 // CI/CD checks
 // ---------------------------------------------------------------------------
 

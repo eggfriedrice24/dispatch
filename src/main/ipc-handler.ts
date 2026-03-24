@@ -158,6 +158,13 @@ const handlers: { [M in IpcMethod]: Handler<M> } = {
   "pr.updateTitle": async (args) => {
     await ghCli.updatePrTitle(args.cwd, args.prNumber, args.title);
   },
+  "pr.repoLabels": async (args) => ghCli.listRepoLabels(args.cwd),
+  "pr.addLabel": async (args) => {
+    await ghCli.addPrLabel(args.cwd, args.prNumber, args.label);
+  },
+  "pr.removeLabel": async (args) => {
+    await ghCli.removePrLabel(args.cwd, args.prNumber, args.label);
+  },
   "pr.merge": async (args) => {
     await ghCli.mergePr(args.cwd, args.prNumber, args.strategy, args.admin);
   },

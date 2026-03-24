@@ -2,12 +2,14 @@ import type { GhPrDetail } from "@/shared/ipc";
 
 import { Spinner } from "@/components/ui/spinner";
 import { relativeTime } from "@/shared/format";
-import { useQuery } from "@tanstack/react-query";
-import { Check, X, XCircle } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { Check, Loader2, X, XCircle } from "lucide-react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 import { ipc } from "../lib/ipc";
 import { summarizePrChecks } from "../lib/pr-check-status";
+import { queryClient } from "../lib/query-client";
+import { useRouter } from "../lib/router";
 import { useWorkspace } from "../lib/workspace-context";
 import { ConversationTab } from "./conversation-tab";
 import { GitHubAvatar } from "./github-avatar";
@@ -145,7 +147,17 @@ export function SidePanelOverlay({
 // Overview tab — matches mockup's overview-card, labels, reviewers, AI summary
 // ---------------------------------------------------------------------------
 
-function PanelOverviewContent({ pr, repo }: { pr: GhPrDetail; prNumber: number; repo: string }) {
+function PanelOverviewContent({
+  pr,
+  prNumber,
+  repo,
+}: {
+  pr: GhPrDetail;
+  prNumber: number;
+  repo: string;
+}) {
+  const { cwd } = useWorkspace();
+
   return (
     <>
       {/* Description card */}
@@ -183,55 +195,11 @@ function PanelOverviewContent({ pr, repo }: { pr: GhPrDetail; prNumber: number; 
       </div>
 
       {/* Labels */}
-      <div style={{ marginBottom: "12px" }}>
-        <div
-          style={{
-            fontSize: "10px",
-            fontWeight: 600,
-            color: "var(--text-tertiary)",
-            textTransform: "uppercase",
-            letterSpacing: "0.06em",
-            marginBottom: "6px",
-          }}
-        >
-          Labels
-        </div>
-        <div className="flex flex-wrap gap-1">
-          {pr.labels.map((label) => (
-            <span
-              key={label.name}
-              style={{
-                display: "inline-flex",
-                padding: "1px 8px",
-                borderRadius: "var(--radius-full)",
-                fontSize: "10px",
-                fontWeight: 500,
-                background: `#${label.color}20`,
-                color: `#${label.color}`,
-                marginRight: "4px",
-                marginBottom: "4px",
-              }}
-            >
-              {label.name}
-            </span>
-          ))}
-          <span
-            style={{
-              display: "inline-flex",
-              padding: "1px 8px",
-              borderRadius: "var(--radius-full)",
-              fontSize: "10px",
-              fontWeight: 500,
-              background: "var(--bg-elevated)",
-              color: "var(--text-ghost)",
-              border: "1px dashed var(--border-strong)",
-              cursor: "pointer",
-            }}
-          >
-            + Add
-          </span>
-        </div>
-      </div>
+      <LabelSection
+        cwd={cwd}
+        prNumber={prNumber}
+        labels={pr.labels}
+      />
 
       {/* Reviewers */}
       {pr.reviews.length > 0 && (
@@ -323,6 +291,274 @@ function PanelOverviewContent({ pr, repo }: { pr: GhPrDetail; prNumber: number; 
   );
 }
 
+// ---------------------------------------------------------------------------
+// Label section with add/remove functionality
+// ---------------------------------------------------------------------------
+
+function LabelSection({
+  cwd,
+  prNumber,
+  labels,
+}: {
+  cwd: string;
+  prNumber: number;
+  labels: Array<{ name: string; color: string }>;
+}) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const removeLabelMutation = useMutation({
+    mutationFn: (label: string) => ipc("pr.removeLabel", { cwd, prNumber, label }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pr", "detail"] });
+    },
+  });
+
+  return (
+    <div
+      ref={containerRef}
+      style={{ marginBottom: "12px", position: "relative" }}
+    >
+      <div
+        style={{
+          fontSize: "10px",
+          fontWeight: 600,
+          color: "var(--text-tertiary)",
+          textTransform: "uppercase",
+          letterSpacing: "0.06em",
+          marginBottom: "6px",
+        }}
+      >
+        Labels
+      </div>
+      <div className="flex flex-wrap gap-1">
+        {labels.map((label) => (
+          <span
+            key={label.name}
+            className="group"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "4px",
+              padding: "1px 8px",
+              borderRadius: "var(--radius-full)",
+              fontSize: "10px",
+              fontWeight: 500,
+              background: `#${label.color}20`,
+              color: `#${label.color}`,
+              marginRight: "4px",
+              marginBottom: "4px",
+            }}
+          >
+            {label.name}
+            <button
+              type="button"
+              onClick={() => removeLabelMutation.mutate(label.name)}
+              className="hidden cursor-pointer items-center justify-center rounded-full opacity-60 transition-opacity hover:opacity-100 group-hover:inline-flex"
+              style={{ width: "12px", height: "12px" }}
+            >
+              <X size={8} />
+            </button>
+          </span>
+        ))}
+        <button
+          type="button"
+          onClick={() => setPickerOpen(!pickerOpen)}
+          style={{
+            display: "inline-flex",
+            padding: "1px 8px",
+            borderRadius: "var(--radius-full)",
+            fontSize: "10px",
+            fontWeight: 500,
+            background: pickerOpen ? "var(--bg-raised)" : "var(--bg-elevated)",
+            color: "var(--text-ghost)",
+            border: `1px dashed ${pickerOpen ? "var(--accent)" : "var(--border-strong)"}`,
+            cursor: "pointer",
+          }}
+        >
+          + Add
+        </button>
+      </div>
+      {pickerOpen && (
+        <LabelPicker
+          cwd={cwd}
+          prNumber={prNumber}
+          currentLabels={labels.map((l) => l.name)}
+          onClose={() => setPickerOpen(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Label picker dropdown
+// ---------------------------------------------------------------------------
+
+function LabelPicker({
+  cwd,
+  prNumber,
+  currentLabels,
+  onClose,
+}: {
+  cwd: string;
+  prNumber: number;
+  currentLabels: string[];
+  onClose: () => void;
+}) {
+  const [search, setSearch] = useState("");
+  const pickerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const labelsQuery = useQuery({
+    queryKey: ["repo", "labels", cwd],
+    queryFn: () => ipc("pr.repoLabels", { cwd }),
+    staleTime: 60_000,
+  });
+
+  const addLabelMutation = useMutation({
+    mutationFn: (label: string) => ipc("pr.addLabel", { cwd, prNumber, label }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pr", "detail"] });
+    },
+  });
+
+  const removeLabelMutation = useMutation({
+    mutationFn: (label: string) => ipc("pr.removeLabel", { cwd, prNumber, label }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pr", "detail"] });
+    },
+  });
+
+  const allLabels = labelsQuery.data ?? [];
+  const filtered = allLabels.filter((l) => l.name.toLowerCase().includes(search.toLowerCase()));
+
+  const handleToggle = useCallback(
+    (labelName: string) => {
+      if (currentLabels.includes(labelName)) {
+        removeLabelMutation.mutate(labelName);
+      } else {
+        addLabelMutation.mutate(labelName);
+      }
+    },
+    [currentLabels, addLabelMutation, removeLabelMutation],
+  );
+
+  // Close on click outside
+  const handleBackdropClick = useCallback(
+    (e: React.MouseEvent) => {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
+        onClose();
+      }
+    },
+    [onClose],
+  );
+
+  return (
+    <>
+      <div
+        className="fixed inset-0 z-[9]"
+        onClick={handleBackdropClick}
+      />
+      <div
+        ref={pickerRef}
+        style={{
+          position: "absolute",
+          top: "100%",
+          left: 0,
+          right: 0,
+          marginTop: "4px",
+          zIndex: 10,
+          background: "var(--bg-elevated)",
+          border: "1px solid var(--border)",
+          borderRadius: "var(--radius-lg)",
+          boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+          overflow: "hidden",
+        }}
+      >
+        <div style={{ padding: "6px" }}>
+          <input
+            ref={inputRef}
+            autoFocus
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Filter labels..."
+            style={{
+              width: "100%",
+              padding: "4px 8px",
+              fontSize: "11px",
+              background: "var(--bg-raised)",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius-md)",
+              color: "var(--text-primary)",
+              outline: "none",
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") {
+                onClose();
+              }
+            }}
+          />
+        </div>
+        <div style={{ maxHeight: "200px", overflowY: "auto", padding: "0 4px 4px" }}>
+          {labelsQuery.isLoading && (
+            <div className="flex items-center justify-center py-4">
+              <Spinner className="text-primary h-3 w-3" />
+            </div>
+          )}
+          {filtered.length === 0 && !labelsQuery.isLoading && (
+            <div
+              style={{
+                padding: "8px",
+                fontSize: "11px",
+                color: "var(--text-tertiary)",
+                textAlign: "center",
+              }}
+            >
+              No labels found
+            </div>
+          )}
+          {filtered.map((label) => {
+            const isActive = currentLabels.includes(label.name);
+            return (
+              <button
+                key={label.name}
+                type="button"
+                onClick={() => handleToggle(label.name)}
+                className="hover:bg-bg-raised flex w-full cursor-pointer items-center gap-2 rounded-sm transition-colors"
+                style={{ padding: "5px 6px", fontSize: "11px" }}
+              >
+                <span
+                  style={{
+                    width: "10px",
+                    height: "10px",
+                    borderRadius: "var(--radius-full)",
+                    background: `#${label.color}`,
+                    flexShrink: 0,
+                  }}
+                />
+                <span
+                  className="min-w-0 flex-1 truncate text-left"
+                  style={{ color: "var(--text-secondary)" }}
+                >
+                  {label.name}
+                </span>
+                {isActive && (
+                  <Check
+                    size={12}
+                    style={{ color: "var(--success)", flexShrink: 0 }}
+                  />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </>
+  );
+}
+
 function dedupeReviews(
   reviews: Array<{ author: { login: string }; state: string; submittedAt: string }>,
 ) {
@@ -399,8 +635,15 @@ function PanelCommitsContent({ prNumber }: { prNumber: number }) {
 // Checks tab — summary + flat item list (compact, matching mockup)
 // ---------------------------------------------------------------------------
 
+/** Extract the GitHub Actions run ID from a check's detailsUrl. */
+function parseRunIdFromUrl(detailsUrl: string): number | null {
+  const match = detailsUrl.match(/\/actions\/runs\/(\d+)/);
+  return match?.[1] ? Number(match[1]) : null;
+}
+
 function PanelChecksContent({ prNumber }: { prNumber: number }) {
   const { cwd } = useWorkspace();
+  const { navigate } = useRouter();
 
   const checksQuery = useQuery({
     queryKey: ["checks", "list", cwd, prNumber],
@@ -448,31 +691,50 @@ function PanelChecksContent({ prNumber }: { prNumber: number }) {
       {/* Check items */}
       {checks.map((check, i) => {
         const failed = check.conclusion === "failure";
+        const pending = !check.conclusion;
         const duration =
           check.completedAt && check.startedAt
             ? formatDuration(
                 new Date(check.completedAt).getTime() - new Date(check.startedAt).getTime(),
               )
             : "—";
+        const runId = parseRunIdFromUrl(check.detailsUrl);
 
         return (
-          <div
+          <button
             key={check.name}
-            className="flex items-center gap-1.5"
+            type="button"
+            onClick={() => {
+              if (runId) {
+                navigate({ view: "workflows", runId, fromPr: prNumber });
+              }
+            }}
+            className="hover:bg-bg-raised flex w-full cursor-pointer items-center gap-1.5 rounded-sm transition-colors"
             style={{
-              padding: "5px 0",
+              padding: "5px 4px",
               borderBottom: i < checks.length - 1 ? "1px solid var(--border-subtle)" : "none",
               fontSize: "12px",
             }}
           >
             <span
               className="shrink-0"
-              style={{ color: failed ? "var(--danger)" : "var(--success)" }}
+              style={{
+                color: failed ? "var(--danger)" : pending ? "var(--warning)" : "var(--success)",
+              }}
             >
-              {failed ? <XCircle size={12} /> : <Check size={12} />}
+              {failed ? (
+                <XCircle size={12} />
+              ) : pending ? (
+                <Loader2
+                  size={12}
+                  className="animate-spin"
+                />
+              ) : (
+                <Check size={12} />
+              )}
             </span>
             <span
-              className="min-w-0 flex-1 truncate"
+              className="min-w-0 flex-1 truncate text-left"
               style={{ color: "var(--text-secondary)" }}
             >
               {check.name}
@@ -483,7 +745,7 @@ function PanelChecksContent({ prNumber }: { prNumber: number }) {
             >
               {duration}
             </span>
-          </div>
+          </button>
         );
       })}
     </div>
