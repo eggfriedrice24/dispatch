@@ -1,5 +1,6 @@
 import type { GhPrListItemCore } from "@/shared/ipc";
 
+import { useCallback } from "react";
 import { ArrowLeft } from "lucide-react";
 
 /**
@@ -19,6 +20,14 @@ interface QueueZoneProps {
 
 export function QueueZone({ queuePrs, activePrNumber, onBack, onSelectPr }: QueueZoneProps) {
   const hasQueue = queuePrs.length > 0;
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- re-fire when active PR changes
+  const activeRef = useCallback(
+    (node: HTMLButtonElement | null) => {
+      node?.scrollIntoView({ block: "nearest" });
+    },
+    [activePrNumber],
+  );
 
   return (
     <div className="border-border shrink-0 border-b">
@@ -64,6 +73,7 @@ export function QueueZone({ queuePrs, activePrNumber, onBack, onSelectPr }: Queu
             return (
               <button
                 key={pr.number}
+                ref={isActive ? activeRef : undefined}
                 type="button"
                 onClick={() => onSelectPr(pr.number)}
                 className={`flex cursor-pointer items-center gap-1.5 rounded-sm border-l-2 text-left text-[11px] select-none ${
