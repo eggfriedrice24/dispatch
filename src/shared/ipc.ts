@@ -36,7 +36,7 @@ export interface GhPrListItem {
   number: number;
   title: string;
   state: "OPEN" | "CLOSED" | "MERGED";
-  author: { login: string };
+  author: { login: string; name?: string | null };
   headRefName: string;
   baseRefName: string;
   reviewDecision: string;

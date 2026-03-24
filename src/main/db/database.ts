@@ -99,12 +99,16 @@ export function initDatabase(): Database.Database {
       minimized_at  TEXT    NOT NULL DEFAULT (datetime('now')),
       UNIQUE(repo, pr_number, comment_id)
     );
+
+    CREATE TABLE IF NOT EXISTS user_display_names (
+      login         TEXT    PRIMARY KEY,
+      name          TEXT    NOT NULL,
+      cached_at     TEXT    NOT NULL DEFAULT (datetime('now'))
+    );
   `);
 
   // Migrations for existing databases
-  const cols = db
-    .prepare("PRAGMA table_info(notifications)")
-    .all() as Array<{ name: string }>;
+  const cols = db.prepare("PRAGMA table_info(notifications)").all() as Array<{ name: string }>;
   if (!cols.some((c) => c.name === "author_login")) {
     db.exec("ALTER TABLE notifications ADD COLUMN author_login TEXT");
   }

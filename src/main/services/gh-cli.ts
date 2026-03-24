@@ -14,6 +14,7 @@ import type {
   GhWorkflowRunDetail,
 } from "../../shared/ipc";
 
+import { cacheDisplayNames } from "../db/repository";
 import { execFile } from "./shell";
 
 /**
@@ -439,7 +440,10 @@ export function listPrsCore(
     loader: async () => {
       const args = buildFilterArgs(filter, PR_LIST_CORE_FIELDS);
       const { stdout } = await execFile("gh", args, { cwd, timeout: 30_000 });
-      return parseJsonOutput<GhPrListItemCore[]>(stdout);
+      const data = parseJsonOutput<GhPrListItemCore[]>(stdout);
+      // Persist author display names to the 1-week DB cache
+      cacheDisplayNames(data.map((pr) => ({ login: pr.author.login, name: pr.author.name ?? null })));
+      return data;
     },
   });
 }

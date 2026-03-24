@@ -209,6 +209,54 @@ export function setCommentMinimized(
 }
 
 // ---------------------------------------------------------------------------
+// User Display Names (1-week cache)
+// ---------------------------------------------------------------------------
+
+const DISPLAY_NAME_TTL_DAYS = 7;
+
+/**
+ * Bulk-upsert display names from PR list responses.
+ * Only stores entries where name is a non-empty string.
+ */
+export function cacheDisplayNames(entries: Array<{ login: string; name: string | null }>): void {
+  const db = getDatabase();
+  const stmt = db.prepare(`
+    INSERT INTO user_display_names (login, name, cached_at)
+    VALUES (?, ?, datetime('now'))
+    ON CONFLICT(login) DO UPDATE SET name = excluded.name, cached_at = excluded.cached_at
+  `);
+  for (const { login, name } of entries) {
+    if (name) {
+      stmt.run(login, name);
+    }
+  }
+}
+
+/**
+ * Look up cached display names for a set of logins.
+ * Returns only entries that are still within the TTL.
+ */
+export function getDisplayNames(logins: string[]): Map<string, string> {
+  if (logins.length === 0) {
+    return new Map();
+  }
+  const db = getDatabase();
+  const placeholders = logins.map(() => "?").join(", ");
+  const rows = db
+    .prepare(
+      `SELECT login, name FROM user_display_names
+       WHERE login IN (${placeholders})
+         AND cached_at > datetime('now', '-${DISPLAY_NAME_TTL_DAYS} days')`,
+    )
+    .all(...logins) as Array<{ login: string; name: string }>;
+  const map = new Map<string, string>();
+  for (const row of rows) {
+    map.set(row.login, row.name);
+  }
+  return map;
+}
+
+// ---------------------------------------------------------------------------
 // Notifications
 // ---------------------------------------------------------------------------
 

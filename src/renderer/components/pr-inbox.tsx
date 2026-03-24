@@ -608,7 +608,7 @@ function PrItem({
             />
             <span>#{pr.number}</span>
             <span className="text-text-ghost">·</span>
-            <span className="truncate">{pr.author.login}</span>
+            <span className="truncate">{pr.author.name || pr.author.login}</span>
             <span className="text-text-ghost">·</span>
             <span className="shrink-0">{relativeTime(new Date(pr.updatedAt))}</span>
             {!pr.isDraft &&
