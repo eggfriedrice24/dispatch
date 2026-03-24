@@ -107,9 +107,7 @@ export function SidePanelOverlay({
               count={pr.statusCheckRollup.length}
               active={activeTab === "checks"}
               onClick={() => setActiveTab("checks")}
-              danger={pr.statusCheckRollup.some(
-                (c) => c.conclusion?.toUpperCase() === "FAILURE",
-              )}
+              danger={pr.statusCheckRollup.some((c) => c.conclusion?.toUpperCase() === "FAILURE")}
             />
           </div>
           <button
@@ -166,6 +164,16 @@ function PanelOverviewContent({
   repo: string;
 }) {
   const { cwd } = useWorkspace();
+
+  const reviewRequestsQuery = useQuery({
+    queryKey: ["pr", "reviewRequests", cwd, prNumber],
+    queryFn: () => ipc("pr.reviewRequests", { cwd, prNumber }),
+  });
+
+  const reviewRequests = reviewRequestsQuery.data ?? [];
+  const submittedReviews = dedupeReviews(pr.reviews);
+  const submittedLogins = new Set(submittedReviews.map((r) => r.author.login));
+  const hasReviewers = submittedReviews.length > 0 || reviewRequests.length > 0;
 
   return (
     <>
@@ -225,7 +233,7 @@ function PanelOverviewContent({
       />
 
       {/* Reviewers */}
-      {pr.reviews.length > 0 && (
+      {hasReviewers && (
         <div style={{ marginBottom: "12px" }}>
           <div
             style={{
@@ -239,43 +247,115 @@ function PanelOverviewContent({
           >
             Reviewers
           </div>
-          {dedupeReviews(pr.reviews).map((review) => (
-            <div
-              key={review.author.login}
-              className="flex items-center gap-2"
-              style={{ padding: "4px 0", fontSize: "12px" }}
-            >
-              <GitHubAvatar
-                login={review.author.login}
-                size={20}
-              />
-              <span>{review.author.login}</span>
-              <span
-                className="ml-auto rounded-sm text-[10px] font-medium"
-                style={{
-                  padding: "0 6px",
-                  background:
-                    review.state === "APPROVED"
-                      ? "var(--success-muted)"
-                      : review.state === "CHANGES_REQUESTED"
-                        ? "var(--danger-muted)"
-                        : "var(--warning-muted)",
-                  color:
-                    review.state === "APPROVED"
-                      ? "var(--success)"
-                      : review.state === "CHANGES_REQUESTED"
-                        ? "var(--danger)"
-                        : "var(--warning)",
-                }}
+          {/* Submitted reviews */}
+          {submittedReviews.map((review) => {
+            const request = reviewRequests.find((rr) => rr.login === review.author.login);
+            return (
+              <div
+                key={review.author.login}
+                className="flex items-center gap-2"
+                style={{ padding: "4px 0", fontSize: "12px" }}
               >
-                {review.state === "APPROVED"
-                  ? "Approved"
-                  : review.state === "CHANGES_REQUESTED"
-                    ? "Changes"
-                    : "Pending"}
-              </span>
-            </div>
-          ))}
+                <GitHubAvatar
+                  login={review.author.login}
+                  size={20}
+                />
+                <span className="text-text-primary">{review.author.login}</span>
+                {request?.asCodeOwner && (
+                  <span
+                    className="rounded-sm font-mono text-[9px] font-medium"
+                    style={{
+                      padding: "0 5px",
+                      background: "var(--purple-muted)",
+                      color: "var(--purple)",
+                    }}
+                  >
+                    CODEOWNER
+                  </span>
+                )}
+                <span
+                  className="ml-auto rounded-sm text-[10px] font-medium"
+                  style={{
+                    padding: "0 6px",
+                    background:
+                      review.state === "APPROVED"
+                        ? "var(--success-muted)"
+                        : review.state === "CHANGES_REQUESTED"
+                          ? "var(--danger-muted)"
+                          : "var(--warning-muted)",
+                    color:
+                      review.state === "APPROVED"
+                        ? "var(--success)"
+                        : review.state === "CHANGES_REQUESTED"
+                          ? "var(--danger)"
+                          : "var(--warning)",
+                  }}
+                >
+                  {review.state === "APPROVED"
+                    ? "Approved"
+                    : review.state === "CHANGES_REQUESTED"
+                      ? "Changes"
+                      : "Pending"}
+                </span>
+              </div>
+            );
+          })}
+          {/* Pending requested reviewers (haven't submitted a review yet) */}
+          {reviewRequests
+            .filter((rr) => !submittedLogins.has(rr.login ?? ""))
+            .map((rr) => (
+              <div
+                key={rr.login ?? rr.name}
+                className="flex items-center gap-2"
+                style={{ padding: "4px 0", fontSize: "12px" }}
+              >
+                {rr.type === "Team" ? (
+                  <div
+                    className="flex items-center justify-center rounded-full"
+                    style={{
+                      width: 20,
+                      height: 20,
+                      background: "var(--bg-elevated)",
+                      border: "1px solid var(--border-strong)",
+                      fontSize: "10px",
+                      color: "var(--text-tertiary)",
+                    }}
+                  >
+                    T
+                  </div>
+                ) : (
+                  <GitHubAvatar
+                    login={rr.login ?? rr.name}
+                    size={20}
+                  />
+                )}
+                <span className="text-text-secondary">
+                  {rr.type === "Team" ? rr.name : (rr.login ?? rr.name)}
+                </span>
+                {rr.asCodeOwner && (
+                  <span
+                    className="rounded-sm font-mono text-[9px] font-medium"
+                    style={{
+                      padding: "0 5px",
+                      background: "var(--purple-muted)",
+                      color: "var(--purple)",
+                    }}
+                  >
+                    CODEOWNER
+                  </span>
+                )}
+                <span
+                  className="ml-auto rounded-sm text-[10px] font-medium"
+                  style={{
+                    padding: "0 6px",
+                    background: "var(--warning-muted)",
+                    color: "var(--warning)",
+                  }}
+                >
+                  Awaiting
+                </span>
+              </div>
+            ))}
         </div>
       )}
 
@@ -819,9 +899,11 @@ function PanelTabButton({
       {label}
       {count !== undefined && count > 0 && (
         <span
-          className="font-mono"
+          className="inline-flex items-center justify-center font-mono leading-none"
           style={{
             fontSize: "9px",
+            height: "16px",
+            minWidth: "16px",
             padding: "0 4px",
             borderRadius: "3px",
             background: danger ? "var(--danger-muted)" : "var(--bg-raised)",

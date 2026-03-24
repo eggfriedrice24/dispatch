@@ -1,6 +1,9 @@
 import { Badge } from "@/components/ui/badge";
 import { relativeTime } from "@/shared/format";
+import { useQuery } from "@tanstack/react-query";
 
+import { ipc } from "../lib/ipc";
+import { useWorkspace } from "../lib/workspace-context";
 import { AiReviewSummary } from "./ai-review-summary";
 import { GitHubAvatar } from "./github-avatar";
 import { MarkdownBody } from "./markdown-body";
@@ -34,6 +37,19 @@ export function OverviewTab({
   onReviewClick: (login: string) => void;
   diffSnippet: string;
 }) {
+  const { cwd } = useWorkspace();
+
+  const reviewRequestsQuery = useQuery({
+    queryKey: ["pr", "reviewRequests", cwd, prNumber],
+    queryFn: () => ipc("pr.reviewRequests", { cwd, prNumber }),
+  });
+
+  const reviewRequests = reviewRequestsQuery.data ?? [];
+  const submittedReviews = dedupeReviews(pr.reviews);
+  const submittedLogins = new Set(submittedReviews.map((r) => r.author.login));
+  const pendingRequests = reviewRequests.filter((rr) => !submittedLogins.has(rr.login ?? ""));
+  const hasReviewers = submittedReviews.length > 0 || pendingRequests.length > 0;
+
   return (
     <div className="flex flex-col gap-0">
       {/* AI review summary */}
@@ -67,14 +83,16 @@ export function OverviewTab({
       </div>
 
       {/* Reviewers */}
-      {pr.reviews.length > 0 && (
+      {hasReviewers && (
         <div className="border-border border-b px-4 py-3">
           <h3 className="text-text-tertiary mb-2 text-[10px] font-semibold tracking-[0.06em] uppercase">
             Reviewers
           </h3>
           <div className="flex flex-col gap-1.5">
-            {dedupeReviews(pr.reviews).map((review) => {
+            {/* Submitted reviews */}
+            {submittedReviews.map((review) => {
               const isHighlighted = highlightedLogin === review.author.login;
+              const request = reviewRequests.find((rr) => rr.login === review.author.login);
               return (
                 <button
                   key={review.author.login}
@@ -91,6 +109,7 @@ export function OverviewTab({
                   <span className="text-text-primary text-[11px] font-medium">
                     {review.author.login}
                   </span>
+                  {request?.asCodeOwner && <CodeOwnerBadge />}
                   <ReviewStateBadge state={review.state} />
                   <span className="text-text-ghost ml-auto font-mono text-[10px]">
                     {relativeTime(new Date(review.submittedAt))}
@@ -98,6 +117,27 @@ export function OverviewTab({
                 </button>
               );
             })}
+            {/* Pending requested reviewers */}
+            {pendingRequests.map((rr) => (
+              <div
+                key={rr.login ?? rr.name}
+                className="hover:bg-bg-raised flex items-center gap-2 rounded-md px-2 py-1"
+              >
+                {rr.type === "Team" ? (
+                  <TeamAvatar />
+                ) : (
+                  <GitHubAvatar
+                    login={rr.login ?? rr.name}
+                    size={16}
+                  />
+                )}
+                <span className="text-text-secondary text-[11px] font-medium">
+                  {rr.type === "Team" ? rr.name : (rr.login ?? rr.name)}
+                </span>
+                {rr.asCodeOwner && <CodeOwnerBadge />}
+                <ReviewStateBadge state="AWAITING" />
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -121,6 +161,39 @@ function dedupeReviews(
   return [...latestByUser.values()];
 }
 
+function CodeOwnerBadge() {
+  return (
+    <span
+      className="rounded-sm font-mono text-[9px] font-medium"
+      style={{
+        padding: "0 5px",
+        background: "var(--purple-muted)",
+        color: "var(--purple)",
+      }}
+    >
+      CODEOWNER
+    </span>
+  );
+}
+
+function TeamAvatar() {
+  return (
+    <div
+      className="flex items-center justify-center rounded-full"
+      style={{
+        width: 16,
+        height: 16,
+        background: "var(--bg-elevated)",
+        border: "1px solid var(--border-strong)",
+        fontSize: "8px",
+        color: "var(--text-tertiary)",
+      }}
+    >
+      T
+    </div>
+  );
+}
+
 function ReviewStateBadge({ state }: { state: string }) {
   const config =
     state === "APPROVED"
@@ -133,7 +206,9 @@ function ReviewStateBadge({ state }: { state: string }) {
             ? { text: "Dismissed", color: "border-border text-text-ghost" }
             : state === "PENDING"
               ? { text: "Pending", color: "border-warning/30 text-warning" }
-              : { text: state, color: "border-border text-text-tertiary" };
+              : state === "AWAITING"
+                ? { text: "Awaiting", color: "border-warning/30 text-warning" }
+                : { text: state, color: "border-border text-text-tertiary" };
 
   return (
     <Badge

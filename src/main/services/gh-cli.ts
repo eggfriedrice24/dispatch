@@ -138,12 +138,7 @@ export async function getRepoHost(cwd: string): Promise<string | null> {
 export async function getRepoInfo(cwd: string): Promise<RepoInfo> {
   const { stdout } = await execFile(
     "gh",
-    [
-      "repo",
-      "view",
-      "--json",
-      "nameWithOwner,isFork,parent,viewerPermission,defaultBranchRef",
-    ],
+    ["repo", "view", "--json", "nameWithOwner,isFork,parent,viewerPermission,defaultBranchRef"],
     { cwd, timeout: 10_000 },
   );
   const data = parseJsonOutput<{
@@ -479,7 +474,9 @@ export function listPrsCore(
       const { stdout } = await execFile("gh", args, { cwd, timeout: 30_000 });
       const data = parseJsonOutput<GhPrListItemCore[]>(stdout);
       // Persist author display names to the 1-week DB cache
-      cacheDisplayNames(data.map((pr) => ({ login: pr.author.login, name: pr.author.name ?? null })));
+      cacheDisplayNames(
+        data.map((pr) => ({ login: pr.author.login, name: pr.author.name ?? null })),
+      );
       return data;
     },
   });
@@ -1089,6 +1086,73 @@ export async function unresolveReviewThread(cwd: string, threadId: string): Prom
     { cwd, timeout: 10_000 },
   );
   invalidatePrListCaches(cwd);
+}
+
+export async function getPrReviewRequests(
+  cwd: string,
+  prNumber: number,
+): Promise<
+  Array<{
+    login: string | null;
+    name: string;
+    type: "User" | "Team" | "Bot" | "Mannequin";
+    asCodeOwner: boolean;
+  }>
+> {
+  const { owner, repo } = await getOwnerRepo(cwd);
+  const query = `query($owner: String!, $repo: String!) {
+    repository(owner: $owner, name: $repo) {
+      pullRequest(number: ${prNumber}) {
+        reviewRequests(first: 100) {
+          nodes {
+            asCodeOwner
+            requestedReviewer {
+              __typename
+              ... on User { login name }
+              ... on Team { name slug }
+              ... on Bot { login }
+              ... on Mannequin { login name }
+            }
+          }
+        }
+      }
+    }
+  }`;
+  const { stdout } = await execFile(
+    "gh",
+    ["api", "graphql", "-f", `owner=${owner}`, "-f", `repo=${repo}`, "-f", `query=${query}`],
+    { cwd, timeout: 15_000 },
+  );
+  type RawNode = {
+    asCodeOwner: boolean;
+    requestedReviewer: {
+      __typename: string;
+      login?: string;
+      name?: string;
+      slug?: string;
+    } | null;
+  };
+  const data = JSON.parse(stdout) as {
+    data?: {
+      repository?: {
+        pullRequest?: {
+          reviewRequests?: { nodes: RawNode[] };
+        };
+      };
+    };
+  };
+  const nodes = data.data?.repository?.pullRequest?.reviewRequests?.nodes ?? [];
+  return nodes
+    .filter((n) => n.requestedReviewer != null)
+    .map((n) => {
+      const r = n.requestedReviewer!;
+      return {
+        login: r.login ?? null,
+        name: r.name ?? r.slug ?? r.login ?? "Unknown",
+        type: r.__typename as "User" | "Team" | "Bot" | "Mannequin",
+        asCodeOwner: n.asCodeOwner,
+      };
+    });
 }
 
 export async function getPrReviewThreads(

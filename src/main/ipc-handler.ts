@@ -189,6 +189,7 @@ const handlers: { [M in IpcMethod]: Handler<M> } = {
   "pr.contributors": async (args) => ghCli.getPrContributors(args.cwd, args.prNumber),
   "pr.searchUsers": async (args) => ghCli.searchUsers(args.cwd, args.query),
   "pr.issuesList": async (args) => ghCli.listIssuesAndPrs(args.cwd, args.limit),
+  "pr.reviewRequests": async (args) => ghCli.getPrReviewRequests(args.cwd, args.prNumber),
   "pr.reviewThreads": async (args) => ghCli.getPrReviewThreads(args.cwd, args.prNumber),
   "pr.resolveThread": async (args) => {
     await ghCli.resolveReviewThread(args.cwd, args.threadId);

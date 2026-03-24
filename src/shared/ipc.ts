@@ -147,6 +147,13 @@ export interface GhReviewComment {
   node_id?: string;
 }
 
+export interface GhReviewRequest {
+  login: string | null;
+  name: string;
+  type: "User" | "Team" | "Bot" | "Mannequin";
+  asCodeOwner: boolean;
+}
+
 export interface GhReviewThread {
   id: string;
   isResolved: boolean;
@@ -392,6 +399,10 @@ export interface IpcApi {
   "pr.replyToComment": {
     args: { cwd: string; prNumber: number; commentId: number; body: string };
     result: void;
+  };
+  "pr.reviewRequests": {
+    args: { cwd: string; prNumber: number };
+    result: GhReviewRequest[];
   };
   "pr.reviewThreads": {
     args: { cwd: string; prNumber: number };
