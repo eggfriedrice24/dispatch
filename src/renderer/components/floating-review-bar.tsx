@@ -433,13 +433,20 @@ function MergeBarButton({
         strategy,
         admin: !requirementsMet && canAdmin ? true : undefined,
       }),
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["pr"] });
-      toastManager.add({
-        title: `PR #${prNumber} merged`,
-        description: "Branch deleted.",
-        type: "success",
-      });
+      if (result.queued) {
+        toastManager.add({
+          title: `PR #${prNumber} added to merge queue`,
+          type: "success",
+        });
+      } else {
+        toastManager.add({
+          title: `PR #${prNumber} merged`,
+          description: "Branch deleted.",
+          type: "success",
+        });
+      }
     },
     onError: (err) => {
       toastManager.add({ title: "Merge failed", description: String(err.message), type: "error" });

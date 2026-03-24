@@ -305,7 +305,7 @@ export interface IpcApi {
       strategy: "merge" | "squash" | "rebase";
       admin?: boolean;
     };
-    result: void;
+    result: { queued: boolean };
   };
   "pr.close": {
     args: { cwd: string; prNumber: number };

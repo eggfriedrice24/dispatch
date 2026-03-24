@@ -166,7 +166,7 @@ const handlers: { [M in IpcMethod]: Handler<M> } = {
     await ghCli.removePrLabel(args.cwd, args.prNumber, args.label);
   },
   "pr.merge": async (args) => {
-    await ghCli.mergePr(args.cwd, args.prNumber, args.strategy, args.admin);
+    return ghCli.mergePr(args.cwd, args.prNumber, args.strategy, args.admin);
   },
   "pr.close": async (args) => {
     await ghCli.closePr(args.cwd, args.prNumber);

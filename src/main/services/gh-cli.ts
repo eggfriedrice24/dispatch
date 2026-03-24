@@ -669,13 +669,15 @@ export async function mergePr(
   prNumber: number,
   strategy: MergeStrategy,
   admin = false,
-): Promise<void> {
+): Promise<{ queued: boolean }> {
   const args = ["pr", "merge", String(prNumber), `--${strategy}`, "--delete-branch"];
   if (admin) {
     args.push("--admin");
   }
-  await execFile("gh", args, { cwd });
+  const { stdout } = await execFile("gh", args, { cwd });
   invalidatePrListCaches(cwd);
+  const queued = /merge queue|enqueue/i.test(stdout);
+  return { queued };
 }
 
 export async function closePr(cwd: string, prNumber: number): Promise<void> {

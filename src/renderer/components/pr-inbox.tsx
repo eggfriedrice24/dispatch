@@ -577,13 +577,20 @@ function PrItem({
 
   const mergeMutation = useMutation({
     mutationFn: () => ipc("pr.merge", { cwd, prNumber: pr.number, strategy: "squash" }),
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["pr"] });
-      toastManager.add({
-        title: `PR #${pr.number} merged`,
-        description: "Branch deleted.",
-        type: "success",
-      });
+      if (result.queued) {
+        toastManager.add({
+          title: `PR #${pr.number} added to merge queue`,
+          type: "success",
+        });
+      } else {
+        toastManager.add({
+          title: `PR #${pr.number} merged`,
+          description: "Branch deleted.",
+          type: "success",
+        });
+      }
     },
     onError: (err) => {
       toastManager.add({ title: "Merge failed", description: String(err.message), type: "error" });
