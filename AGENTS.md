@@ -2,6 +2,13 @@
 
 > CI/CD-integrated code review desktop app. Electron + Vite + Tailwind CSS.
 
+## Global Policy
+
+Before making code changes, read `/Users/brayden/.agents/policy.md`.
+That file defines the machine-wide baseline coding policy and applies here in
+addition to this project file. If the two documents conflict, this project file
+takes precedence for repo-specific decisions.
+
 ## Required Reading
 
 **Before writing any UI code, you MUST read `DISPATCH-DESIGN-SYSTEM.md` in the project root.** It is the authoritative specification for every color, font, spacing value, radius, shadow, animation, and component pattern used in this application. Do not improvise or use generic defaults. Every visual decision must trace back to that document.

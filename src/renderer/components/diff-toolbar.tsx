@@ -1,7 +1,7 @@
 import type { DiffMode } from "./diff-viewer";
 
 import { Kbd } from "@/components/ui/kbd";
-import { Check, ChevronLeft, ChevronRight, Columns2, Rows2 } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Columns2, FileText, Rows2 } from "lucide-react";
 
 import { getDiffFilePath, type DiffFile } from "../lib/diff-parser";
 
@@ -23,6 +23,8 @@ export function DiffToolbar({
   hasLastReview,
   viewMode,
   onViewModeChange,
+  showFullFile,
+  onToggleFullFile,
   isViewed,
   onToggleViewed,
 }: {
@@ -36,6 +38,8 @@ export function DiffToolbar({
   hasLastReview: boolean;
   viewMode: DiffMode;
   onViewModeChange: (mode: DiffMode) => void;
+  showFullFile: boolean;
+  onToggleFullFile: () => void;
   isViewed: boolean;
   onToggleViewed: () => void;
 }) {
@@ -104,6 +108,20 @@ export function DiffToolbar({
           Split
         </button>
       </div>
+
+      {/* View full file */}
+      <button
+        type="button"
+        onClick={onToggleFullFile}
+        className={`flex cursor-pointer items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] transition-colors ${
+          showFullFile
+            ? "bg-accent-muted border-border-accent text-accent-text"
+            : "border-border bg-bg-raised text-text-secondary hover:text-text-primary"
+        }`}
+      >
+        <FileText size={11} />
+        Full file
+      </button>
 
       <div className="bg-border h-4 w-px" />
 

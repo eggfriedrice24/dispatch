@@ -10,6 +10,7 @@ import {
   type DiffLine,
   type Segment,
 } from "../lib/diff-parser";
+import { useTheme } from "../lib/theme-context";
 import { BlamePopover, useBlameHover } from "./blame-popover";
 import { CiAnnotation, type Annotation } from "./ci-annotation";
 import { CommentComposer } from "./comment-composer";
@@ -162,6 +163,8 @@ export function DiffViewer({
 }: DiffViewerProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const { hoveredLine, anchorRect, onLineEnter, onLineLeave } = useBlameHover();
+  const { resolvedTheme } = useTheme();
+  const shikiTheme = resolvedTheme === "light" ? "github-light-default" : "github-dark-default";
 
   // --- Search state ---
   const [searchOpen, setSearchOpen] = useState(false);
@@ -446,6 +449,7 @@ export function DiffViewer({
           rows={rows}
           highlighter={highlighter ?? null}
           language={language ?? "text"}
+          shikiTheme={shikiTheme}
         />
       ) : (
         /* Unified diff mode — plain DOM (like Better Hub, one file at a time) */
@@ -453,6 +457,7 @@ export function DiffViewer({
           rows={rows}
           highlighter={highlighter ?? null}
           language={language ?? "text"}
+          shikiTheme={shikiTheme}
           filePath={filePath}
           prNumber={prNumber}
           selectionRange={selectionRange}
@@ -488,10 +493,12 @@ function SplitDiffView({
   rows,
   highlighter,
   language,
+  shikiTheme,
 }: {
   rows: FlatRow[];
   highlighter: Highlighter | null;
   language: string;
+  shikiTheme: string;
 }) {
   // Pair del+add lines for side-by-side display
   const splitRows = useMemo(() => {
@@ -576,7 +583,7 @@ function SplitDiffView({
                     className="text-text-primary flex-1 overflow-x-auto pr-2 pl-1 whitespace-pre"
                     style={{ tabSize: 4 }}
                   >
-                    {pair.left ? renderLineContent(pair.left, highlighter, language) : ""}
+                    {pair.left ? renderLineContent(pair.left, highlighter, language, shikiTheme) : ""}
                   </span>
                 </div>
               </td>
@@ -607,7 +614,7 @@ function SplitDiffView({
                     className="text-text-primary flex-1 overflow-x-auto pr-2 pl-1 whitespace-pre"
                     style={{ tabSize: 4 }}
                   >
-                    {pair.right ? renderLineContent(pair.right, highlighter, language) : ""}
+                    {pair.right ? renderLineContent(pair.right, highlighter, language, shikiTheme) : ""}
                   </span>
                 </div>
               </td>
@@ -623,9 +630,10 @@ function renderLineContent(
   line: FlatLine,
   highlighter: Highlighter | null,
   language: string,
+  shikiTheme: string = "github-dark-default",
 ): React.ReactNode {
   const tokens =
-    highlighter && language !== "text" ? safeTokenize(highlighter, line.content, language) : null;
+    highlighter && language !== "text" ? safeTokenize(highlighter, line.content, language, shikiTheme) : null;
   if (tokens) {
     return <SyntaxContent tokens={tokens} />;
   }
@@ -644,6 +652,7 @@ function UnifiedDiffView({
   rows,
   highlighter,
   language,
+  shikiTheme,
   filePath,
   prNumber,
   selectionRange,
@@ -662,6 +671,7 @@ function UnifiedDiffView({
   rows: FlatRow[];
   highlighter: Highlighter | null;
   language: string;
+  shikiTheme: string;
   filePath: string;
   prNumber?: number;
   selectionRange: { start: number; end: number } | null;
@@ -708,6 +718,7 @@ function UnifiedDiffView({
               allRows={rows}
               highlighter={highlighter}
               language={language}
+              shikiTheme={shikiTheme}
               onLineEnter={onLineEnter}
               onLineLeave={onLineLeave}
               onStartSelect={onStartSelect}
@@ -1081,6 +1092,7 @@ function safeTokenize(
   highlighter: Highlighter,
   content: string,
   lang: string,
+  shikiTheme: string = "github-dark-default",
 ): ShikiToken[] | null {
   try {
     const loadedLangs = highlighter.getLoadedLanguages();
@@ -1089,7 +1101,7 @@ function safeTokenize(
     }
     const result = highlighter.codeToTokens(content, {
       lang: lang as Parameters<Highlighter["codeToTokens"]>[1]["lang"],
-      theme: "github-dark-default",
+      theme: shikiTheme as Parameters<Highlighter["codeToTokens"]>[1]["theme"],
     });
     return result.tokens[0] ?? null;
   } catch {

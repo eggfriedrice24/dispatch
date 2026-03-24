@@ -29,7 +29,7 @@ const CORE_LANGS = [
 export function getHighlighter(): Promise<Highlighter> {
   if (!highlighterPromise) {
     highlighterPromise = createHighlighter({
-      themes: ["github-dark-default"],
+      themes: ["github-dark-default", "github-light-default"],
       langs: [...CORE_LANGS],
     }).catch((error) => {
       highlighterPromise = null;
