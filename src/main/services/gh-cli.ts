@@ -569,6 +569,7 @@ const PR_DETAIL_FIELDS = [
   "reviews",
   "files",
   "labels",
+  "createdAt",
   "updatedAt",
   "url",
   "isDraft",

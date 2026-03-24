@@ -108,6 +108,7 @@ export interface GhPrDetail {
     mergeMethod: string;
   } | null;
   mergeStateStatus: string;
+  createdAt: string;
   updatedAt: string;
   url: string;
   isDraft: boolean;
