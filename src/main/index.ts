@@ -49,6 +49,8 @@ const WINDOW_CONFIG: BrowserWindowConstructorOptions = {
 // App lifecycle
 // ---------------------------------------------------------------------------
 
+app.name = "Dispatch";
+
 let isQuitting = false;
 
 function openExternalFromWindow(url: string): void {
