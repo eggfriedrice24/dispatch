@@ -209,12 +209,17 @@ const btnBase: React.CSSProperties = {
 };
 
 function RequestChangesBarButton({ cwd, prNumber }: { cwd: string; prNumber: number }) {
+  const [open, setOpen] = useState(false);
+  const [body, setBody] = useState("");
+
   const reviewMutation = useMutation({
-    mutationFn: () =>
-      ipc("pr.submitReview", { cwd, prNumber, event: "REQUEST_CHANGES" as const, body: "" }),
+    mutationFn: (reviewBody: string) =>
+      ipc("pr.submitReview", { cwd, prNumber, event: "REQUEST_CHANGES" as const, body: reviewBody }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pr"] });
       toastManager.add({ title: "Changes requested", type: "success" });
+      setBody("");
+      setOpen(false);
     },
     onError: (err) => {
       toastManager.add({ title: "Review failed", description: String(err.message), type: "error" });
@@ -222,21 +227,106 @@ function RequestChangesBarButton({ cwd, prNumber }: { cwd: string; prNumber: num
   });
 
   return (
-    <button
-      type="button"
-      onClick={() => reviewMutation.mutate()}
-      disabled={reviewMutation.isPending}
-      style={{
-        ...btnBase,
-        background: "transparent",
-        color: "var(--text-secondary)",
-        borderColor: "var(--border-strong)",
-        opacity: reviewMutation.isPending ? 0.5 : 1,
-      }}
-    >
-      Request Changes
-      <span style={{ fontFamily: "var(--font-mono)", fontSize: "9px", opacity: 0.5 }}>r</span>
-    </button>
+    <div style={{ position: "relative" }}>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        style={{
+          ...btnBase,
+          background: "transparent",
+          color: "var(--text-secondary)",
+          borderColor: "var(--border-strong)",
+        }}
+      >
+        Request Changes
+        <span style={{ fontFamily: "var(--font-mono)", fontSize: "9px", opacity: 0.5 }}>r</span>
+      </button>
+      {open && (
+        <div
+          style={{
+            position: "absolute",
+            bottom: "100%",
+            left: 0,
+            marginBottom: "6px",
+            width: "280px",
+            background: "var(--bg-elevated)",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius-md)",
+            padding: "10px",
+            boxShadow: "var(--shadow-lg)",
+            zIndex: 50,
+          }}
+        >
+          <div
+            style={{
+              fontSize: "11px",
+              fontWeight: 500,
+              color: "var(--text-primary)",
+              marginBottom: "6px",
+            }}
+          >
+            What needs to change?
+          </div>
+          <textarea
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            placeholder="Describe what needs to change…"
+            rows={3}
+            autoFocus
+            style={{
+              width: "100%",
+              resize: "none",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius-sm)",
+              background: "var(--bg-root)",
+              color: "var(--text-primary)",
+              fontSize: "11px",
+              padding: "6px 8px",
+              lineHeight: 1.5,
+              outline: "none",
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") {
+                setOpen(false);
+                setBody("");
+              }
+            }}
+          />
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: "4px", marginTop: "6px" }}>
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                setBody("");
+              }}
+              style={{
+                ...btnBase,
+                background: "transparent",
+                color: "var(--text-secondary)",
+                borderColor: "var(--border)",
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={!body.trim() || reviewMutation.isPending}
+              onClick={() => reviewMutation.mutate(body.trim())}
+              style={{
+                ...btnBase,
+                background: !body.trim() ? "var(--bg-raised)" : "var(--danger)",
+                color: !body.trim() ? "var(--text-tertiary)" : "#fff",
+                borderColor: !body.trim() ? "var(--border)" : "var(--danger)",
+                cursor: !body.trim() ? "not-allowed" : "pointer",
+                opacity: reviewMutation.isPending ? 0.5 : 1,
+              }}
+            >
+              {reviewMutation.isPending ? <Spinner className="h-3 w-3" /> : "Submit"}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
