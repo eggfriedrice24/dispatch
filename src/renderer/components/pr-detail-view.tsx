@@ -330,8 +330,8 @@ function PrDetail({ prNumber }: { prNumber: number }) {
   // Derive repo "owner/repo" from the PR URL for #123 linkification
   const repoSlug = pr.url.match(/github\.com\/([^/]+\/[^/]+)/)?.[1] ?? "";
 
-  // Solo dev: no reviewers and no conversation → hide panel toggle
-  const hasConversation = pr.reviews.length > 0 || (issueCommentsQuery.data ?? []).length > 0;
+  // Always show the panel toggle — the Overview tab is useful even without conversation
+  const showPanelToggle = true;
 
   // Current user's most recent review state for the floating bar
   const currentUserReview = currentUser
@@ -357,7 +357,7 @@ function PrDetail({ prNumber }: { prNumber: number }) {
         cwd={cwd}
         totalAdditions={totalAdditions}
         totalDeletions={totalDeletions}
-        showPanelToggle={hasConversation}
+        showPanelToggle={showPanelToggle}
       />
 
       {/* Diff viewer area (relative for overlay positioning) */}
