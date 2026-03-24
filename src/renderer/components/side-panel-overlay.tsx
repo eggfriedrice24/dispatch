@@ -11,6 +11,7 @@ import { summarizePrChecks } from "../lib/pr-check-status";
 import { queryClient } from "../lib/query-client";
 import { useRouter } from "../lib/router";
 import { useWorkspace } from "../lib/workspace-context";
+import { useAiConfig } from "./ai-explanation";
 import { ConversationTab } from "./conversation-tab";
 import { GitHubAvatar } from "./github-avatar";
 import { MarkdownBody } from "./markdown-body";
@@ -171,6 +172,7 @@ function PanelOverviewContent({
   reactions?: GhPrReactions;
 }) {
   const { cwd } = useWorkspace();
+  const aiConfig = useAiConfig();
 
   const reviewRequestsQuery = useQuery({
     queryKey: ["pr", "reviewRequests", cwd, prNumber],
@@ -184,18 +186,20 @@ function PanelOverviewContent({
 
   return (
     <>
-      {/* Timestamps */}
+      {/* Author + Timestamps */}
       <div
-        className="flex items-center gap-1.5 font-mono"
+        className="flex items-center gap-2"
         style={{
           fontSize: "11px",
-          color: "var(--text-tertiary)",
+          color: "var(--text-secondary)",
           marginBottom: "10px",
         }}
       >
-        <span>Opened {relativeTime(new Date(pr.createdAt))}</span>
-        <span style={{ color: "var(--text-ghost)" }}>·</span>
-        <span>Updated {relativeTime(new Date(pr.updatedAt))}</span>
+        <GitHubAvatar login={pr.author.login} size={18} />
+        <span className="font-medium">{pr.author.login}</span>
+        <span className="text-text-ghost font-mono text-[10px]">
+          opened {relativeTime(new Date(pr.createdAt))}
+        </span>
       </div>
 
       {/* Description card */}
@@ -376,36 +380,38 @@ function PanelOverviewContent({
       )}
 
       {/* AI Summary card */}
-      <div
-        style={{
-          background: "var(--bg-raised)",
-          border: "1px solid var(--border)",
-          borderRadius: "var(--radius-lg)",
-          overflow: "hidden",
-          marginTop: "10px",
-        }}
-      >
+      {aiConfig.isConfigured && (
         <div
-          className="text-accent-text hover:bg-bg-elevated flex cursor-pointer items-center gap-1.5 select-none"
           style={{
-            padding: "8px 10px",
-            fontSize: "11px",
-            fontWeight: 500,
+            background: "var(--bg-raised)",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius-lg)",
+            overflow: "hidden",
+            marginTop: "10px",
           }}
         >
-          <svg
-            width="10"
-            height="10"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
+          <div
+            className="text-accent-text hover:bg-bg-elevated flex cursor-pointer items-center gap-1.5 select-none"
+            style={{
+              padding: "8px 10px",
+              fontSize: "11px",
+              fontWeight: 500,
+            }}
           >
-            <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
-          </svg>
-          AI Summary
+            <svg
+              width="10"
+              height="10"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
+            </svg>
+            AI Summary
+          </div>
         </div>
-      </div>
+      )}
     </>
   );
 }
