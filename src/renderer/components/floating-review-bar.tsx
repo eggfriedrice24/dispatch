@@ -55,9 +55,8 @@ export function FloatingReviewBar({
   currentUserReview,
   isReRequested,
 }: FloatingReviewBarProps) {
-  const passCount = checkSummary.filter((c) => c.conclusion?.toUpperCase() === "SUCCESS").length;
-  const failCount = checkSummary.filter((c) => c.conclusion?.toUpperCase() === "FAILURE").length;
-  const allPassing = checkSummary.length > 0 && failCount === 0;
+  const checks = summarizePrChecks(checkSummary);
+  const allPassing = checks.state === "passing";
 
   return (
     <div
@@ -133,15 +132,17 @@ export function FloatingReviewBar({
               fontSize: "10px",
               color: allPassing
                 ? "var(--success)"
-                : failCount > 0
+                : checks.failed > 0
                   ? "var(--danger)"
-                  : "var(--text-primary)",
+                  : checks.pending > 0
+                    ? "var(--warning)"
+                    : "var(--text-primary)",
             }}
           >
-            {failCount > 0
-              ? `${failCount} failed`
-              : checkSummary.length > 0
-                ? `${passCount}/${checkSummary.length}`
+            {checks.failed > 0
+              ? `${checks.failed} failed`
+              : checks.total > 0
+                ? `${checks.passed}/${checks.total}`
                 : "—"}
           </span>
         </div>
