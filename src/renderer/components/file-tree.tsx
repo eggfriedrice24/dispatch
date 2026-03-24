@@ -1,6 +1,11 @@
 import {
   Check,
+  CheckCheck,
   ChevronRight,
+  Copy,
+  ExternalLink,
+  Eye,
+  EyeOff,
   FileEdit,
   FilePlus2,
   FileText,
@@ -8,9 +13,12 @@ import {
   MessageCircle,
   Square,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
+import { toastManager } from "@/components/ui/toast";
 
 import { getDiffFilePath, type DiffFile } from "../lib/diff-parser";
+import { openExternal } from "../lib/open-external";
 
 /**
  * Hierarchical file tree — inspired by Better Hub's diff-file-tree.
@@ -152,6 +160,23 @@ function getAllDirPaths(nodes: TreeNode[]): string[] {
   return paths;
 }
 
+function getAllFilePaths(node: TreeNode): string[] {
+  if (node.type === "file") {
+    return [node.path];
+  }
+  const paths: string[] = [];
+  for (const child of node.children ?? []) {
+    paths.push(...getAllFilePaths(child));
+  }
+  return paths;
+}
+
+interface ContextMenuState {
+  x: number;
+  y: number;
+  node: TreeNode;
+}
+
 // ---------------------------------------------------------------------------
 // File status helpers
 // ---------------------------------------------------------------------------
@@ -195,6 +220,8 @@ interface FileTreeProps {
   viewedFiles: Set<string>;
   onToggleViewed: (filePath: string, viewed: boolean) => void;
   commentCounts?: Map<string, number>;
+  cwd: string;
+  prNumber: number;
 }
 
 export function FileTree({
@@ -204,9 +231,12 @@ export function FileTree({
   viewedFiles,
   onToggleViewed,
   commentCounts = new Map(),
+  cwd,
+  prNumber,
 }: FileTreeProps) {
   const tree = useMemo(() => buildTree(files), [files]);
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const initializedRef = useRef(false);
 
   // Expand all directories on first render
@@ -250,6 +280,16 @@ export function FileTree({
     onSelectFile(index);
   }
 
+  const handleContextMenu = useCallback(
+    (e: React.MouseEvent, node: TreeNode) => {
+      e.preventDefault();
+      setContextMenu({ x: e.clientX, y: e.clientY, node });
+    },
+    [],
+  );
+
+  const repoSlug = cwd.split("/").slice(-2).join("/");
+
   return (
     <div className="flex flex-col">
       {/* Progress bar */}
@@ -279,9 +319,22 @@ export function FileTree({
             viewedFiles={viewedFiles}
             onToggleViewed={onToggleViewed}
             commentCounts={commentCounts}
+            onContextMenu={handleContextMenu}
           />
         ))}
       </div>
+
+      {contextMenu && (
+        <FileTreeContextMenu
+          node={contextMenu.node}
+          position={{ x: contextMenu.x, y: contextMenu.y }}
+          onClose={() => setContextMenu(null)}
+          viewedFiles={viewedFiles}
+          onToggleViewed={onToggleViewed}
+          repoSlug={repoSlug}
+          prNumber={prNumber}
+        />
+      )}
     </div>
   );
 }
@@ -300,6 +353,7 @@ function TreeNodeRow({
   viewedFiles,
   onToggleViewed,
   commentCounts,
+  onContextMenu,
 }: {
   node: TreeNode;
   depth: number;
@@ -310,6 +364,7 @@ function TreeNodeRow({
   viewedFiles: Set<string>;
   onToggleViewed: (filePath: string, viewed: boolean) => void;
   commentCounts: Map<string, number>;
+  onContextMenu: (e: React.MouseEvent, node: TreeNode) => void;
 }) {
   const isExpanded = expandedPaths.has(node.path);
   const paddingLeft = depth * 16 + 8;
@@ -320,6 +375,7 @@ function TreeNodeRow({
         <button
           type="button"
           onClick={() => onToggle(node.path)}
+          onContextMenu={(e) => onContextMenu(e, node)}
           className="group hover:bg-bg-raised relative flex w-full cursor-pointer items-center gap-1 py-1 pr-2 text-left transition-colors"
           style={{ paddingLeft }}
         >
@@ -366,6 +422,7 @@ function TreeNodeRow({
                 viewedFiles={viewedFiles}
                 onToggleViewed={onToggleViewed}
                 commentCounts={commentCounts}
+                onContextMenu={onContextMenu}
               />
             ))}
           </div>
@@ -395,6 +452,7 @@ function TreeNodeRow({
       <button
         type="button"
         onClick={() => node.fileIndex !== undefined && onSelectFile(node.fileIndex)}
+        onContextMenu={(e) => onContextMenu(e, node)}
         className={`group relative flex w-full cursor-pointer items-center gap-1.5 py-[3px] pr-2 text-left transition-colors ${
           isActive ? "bg-accent-muted" : "hover:bg-bg-raised"
         }`}
@@ -469,5 +527,171 @@ function TreeNodeRow({
         </span>
       </button>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Context menu
+// ---------------------------------------------------------------------------
+
+function FileTreeContextMenu({
+  node,
+  position,
+  onClose,
+  viewedFiles,
+  onToggleViewed,
+  repoSlug,
+  prNumber,
+}: {
+  node: TreeNode;
+  position: { x: number; y: number };
+  onClose: () => void;
+  viewedFiles: Set<string>;
+  onToggleViewed: (filePath: string, viewed: boolean) => void;
+  repoSlug: string;
+  prNumber: number;
+}) {
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  const handleClick = useCallback(
+    (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        onClose();
+      }
+    },
+    [onClose],
+  );
+
+  const handleEscape = useCallback(
+    (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    },
+    [onClose],
+  );
+
+  useEffect(() => {
+    document.addEventListener("click", handleClick);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("click", handleClick);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [handleClick, handleEscape]);
+
+  if (node.type === "dir") {
+    const filePaths = getAllFilePaths(node);
+    const allViewed = filePaths.length > 0 && filePaths.every((p) => viewedFiles.has(p));
+
+    return (
+      <div
+        ref={menuRef}
+        className="border-border bg-bg-elevated fixed z-50 rounded-md border p-1 shadow-lg"
+        style={{ left: position.x, top: position.y }}
+      >
+        {allViewed ? (
+          <ContextMenuItem
+            icon={<EyeOff size={12} />}
+            label="Mark all as unviewed"
+            onClick={() => {
+              for (const p of filePaths) {
+                onToggleViewed(p, false);
+              }
+              onClose();
+            }}
+          />
+        ) : (
+          <ContextMenuItem
+            icon={<CheckCheck size={12} />}
+            label="Mark all as viewed"
+            onClick={() => {
+              for (const p of filePaths) {
+                onToggleViewed(p, true);
+              }
+              onClose();
+            }}
+          />
+        )}
+        <ContextMenuItem
+          icon={<Copy size={12} />}
+          label="Copy path"
+          onClick={() => {
+            navigator.clipboard.writeText(node.path);
+            toastManager.add({ title: "Path copied", type: "success" });
+            onClose();
+          }}
+        />
+      </div>
+    );
+  }
+
+  // File context menu
+  const isViewed = viewedFiles.has(node.path);
+  const githubFileUrl = `https://github.com/${repoSlug}/pull/${prNumber}/files#diff-${node.path}`;
+
+  return (
+    <div
+      ref={menuRef}
+      className="border-border bg-bg-elevated fixed z-50 rounded-md border p-1 shadow-lg"
+      style={{ left: position.x, top: position.y }}
+    >
+      <ContextMenuItem
+        icon={isViewed ? <EyeOff size={12} /> : <Eye size={12} />}
+        label={isViewed ? "Mark as unviewed" : "Mark as viewed"}
+        onClick={() => {
+          onToggleViewed(node.path, !isViewed);
+          onClose();
+        }}
+      />
+      <div style={{ height: "1px", background: "var(--border)", margin: "2px 0" }} />
+      <ContextMenuItem
+        icon={<Copy size={12} />}
+        label="Copy file path"
+        onClick={() => {
+          navigator.clipboard.writeText(node.path);
+          toastManager.add({ title: "Path copied", type: "success" });
+          onClose();
+        }}
+      />
+      <ContextMenuItem
+        icon={<Copy size={12} />}
+        label="Copy GitHub URL"
+        onClick={() => {
+          navigator.clipboard.writeText(githubFileUrl);
+          toastManager.add({ title: "URL copied", type: "success" });
+          onClose();
+        }}
+      />
+      <ContextMenuItem
+        icon={<ExternalLink size={12} />}
+        label="Open on GitHub"
+        onClick={() => {
+          void openExternal(githubFileUrl);
+          onClose();
+        }}
+      />
+    </div>
+  );
+}
+
+function ContextMenuItem({
+  icon,
+  label,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="text-text-secondary hover:bg-bg-raised hover:text-text-primary flex w-full cursor-pointer items-center gap-2 rounded-sm px-2.5 py-1.5 text-left text-xs"
+    >
+      {icon}
+      {label}
+    </button>
   );
 }
