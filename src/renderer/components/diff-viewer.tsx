@@ -783,6 +783,7 @@ function DiffLineRow({
   allRows,
   highlighter,
   language,
+  shikiTheme,
   onLineEnter,
   onLineLeave,
   onStartSelect,
@@ -800,6 +801,7 @@ function DiffLineRow({
   allRows: FlatRow[];
   highlighter: Highlighter | null;
   language: string;
+  shikiTheme: string;
   onLineEnter: (lineNumber: number, rect: { top: number; left: number }) => void;
   onLineLeave: () => void;
   onStartSelect: (lineNum: number) => void;
@@ -842,7 +844,7 @@ function DiffLineRow({
 
   const tokens =
     !hasWordDiff && highlighter && language !== "text"
-      ? safeTokenize(highlighter, line.content, language)
+      ? safeTokenize(highlighter, line.content, language, shikiTheme)
       : null;
 
   const lineNum = line.newLineNumber ?? line.oldLineNumber;
@@ -1101,8 +1103,8 @@ function safeTokenize(
     }
     const result = highlighter.codeToTokens(content, {
       lang: lang as Parameters<Highlighter["codeToTokens"]>[1]["lang"],
-      theme: shikiTheme as Parameters<Highlighter["codeToTokens"]>[1]["theme"],
-    });
+      theme: shikiTheme,
+    } as Parameters<Highlighter["codeToTokens"]>[1]);
     return result.tokens[0] ?? null;
   } catch {
     return null;

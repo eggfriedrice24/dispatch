@@ -342,6 +342,7 @@
   --purple-muted: rgba(167, 139, 250, 0.1);
   --scrollbar-thumb: #2a2824;
   --scrollbar-hover: #3a3632;
+  --bar-glass: rgba(28, 28, 34, 0.85);
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   --duration-fast: 120ms;
@@ -461,6 +462,7 @@
   /* ---- Scrollbar ---- */
   --scrollbar-thumb: #ccc7c0;
   --scrollbar-hover: #b5afa7;
+  --bar-glass: rgba(255, 255, 255, 0.85);
 
   /* ---- Transitions (unchanged) ---- */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);

@@ -57,7 +57,7 @@ export function FloatingReviewBar({
         transform: "translateX(-50%)",
         transition: "left 400ms cubic-bezier(0.16, 1, 0.3, 1)",
         zIndex: 3,
-        background: "rgba(28,28,34,0.85)",
+        background: "var(--bar-glass)",
         backdropFilter: "blur(12px)",
         WebkitBackdropFilter: "blur(12px)",
         border: "1px solid var(--border-strong)",
