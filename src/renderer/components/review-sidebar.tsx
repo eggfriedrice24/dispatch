@@ -26,7 +26,11 @@ interface ReviewSidebarProps {
   onSelectPr: (prNumber: number) => void;
 }
 
-export function ReviewSidebar({ prNumber, onBack, onSelectPr }: ReviewSidebarProps) {
+export function ReviewSidebar({
+  prNumber,
+  onBack,
+  onSelectPr,
+}: ReviewSidebarProps) {
   const { cwd } = useWorkspace();
   const { currentFileIndex, setCurrentFileIndex } = useFileNav();
   const repoName = cwd.split("/").pop() ?? "";
@@ -55,7 +59,10 @@ export function ReviewSidebar({ prNumber, onBack, onSelectPr }: ReviewSidebarPro
     queryKey: ["review", "viewedFiles", repoName, prNumber],
     queryFn: () => ipc("review.viewedFiles", { repo: repoName, prNumber }),
   });
-  const viewedFiles = useMemo(() => new Set(viewedQuery.data), [viewedQuery.data]);
+  const viewedFiles = useMemo(
+    () => new Set(viewedQuery.data),
+    [viewedQuery.data],
+  );
 
   // Comments for file badges
   const commentsQuery = useQuery({
@@ -205,12 +212,9 @@ export function ReviewSidebar({ prNumber, onBack, onSelectPr }: ReviewSidebarPro
       </div>
 
       {/* File search */}
-      <div className="px-3 pb-1.5">
+      <div className="px-3 pt-2 pb-1.5">
         <div className="border-border bg-bg-raised flex items-center gap-1.5 rounded-md border px-2 py-1">
-          <Search
-            size={11}
-            className="text-text-tertiary shrink-0"
-          />
+          <Search size={11} className="text-text-tertiary shrink-0" />
           <input
             ref={searchRef}
             type="text"
