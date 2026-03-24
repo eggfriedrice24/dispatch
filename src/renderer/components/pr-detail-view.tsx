@@ -12,6 +12,7 @@ import { getDiffFilePath, parseDiff, type DiffFile } from "../lib/diff-parser";
 import { useFileNav } from "../lib/file-nav-context";
 import { ensureLanguage, ensureTheme, inferLanguage } from "../lib/highlighter";
 import { ipc } from "../lib/ipc";
+import { useKeybindings } from "../lib/keybinding-context";
 import { queryClient } from "../lib/query-client";
 import { useTheme } from "../lib/theme-context";
 import { useWorkspace } from "../lib/workspace-context";
@@ -314,21 +315,22 @@ function PrDetail({ prNumber }: { prNumber: number }) {
   }, [currentFilePath, prNumber, repoName, viewedQuery]);
 
   // Keyboard shortcuts — centralized via useKeyboardShortcuts
+  const { getBinding } = useKeybindings();
+
   useKeyboardShortcuts([
-    { key: "[", handler: goToPrevFile },
-    { key: "]", handler: goToNextFile },
-    { key: "i", handler: togglePanel },
+    { ...getBinding("navigation.prevFile"), handler: goToPrevFile },
+    { ...getBinding("navigation.nextFile"), handler: goToNextFile },
+    { ...getBinding("actions.togglePanel"), handler: togglePanel },
     {
-      key: "|",
-      modifiers: ["meta", "shift"],
+      ...getBinding("actions.openConversation"),
       handler: () => {
         setPanelTab("conversation");
         setPanelOpen(true);
       },
     },
-    { key: "v", handler: handleToggleViewed },
+    { ...getBinding("actions.toggleViewed"), handler: handleToggleViewed },
     {
-      key: "n",
+      ...getBinding("actions.nextUnreviewed"),
       handler: () => {
         // Jump to next unviewed file
         const viewed = new Set(viewedQuery.data ?? []);

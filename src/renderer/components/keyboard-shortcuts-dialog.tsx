@@ -6,11 +6,17 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { X } from "lucide-react";
+import { useMemo } from "react";
+
+import { useKeybindings } from "../lib/keybinding-context";
+import { formatKeybinding, type ShortcutCategory } from "../lib/keybinding-registry";
 
 /**
  * Keyboard shortcuts reference dialog — Phase 4 §D2
  *
  * Triggered by pressing ? anywhere in the app.
+ * Now data-driven from the centralized keybinding registry,
+ * reflecting any user customizations.
  */
 
 interface KeyboardShortcutsDialogProps {
@@ -18,46 +24,62 @@ interface KeyboardShortcutsDialogProps {
   onClose: () => void;
 }
 
-const SECTIONS = [
+/**
+ * Display rows — pairs shortcuts that should share a row
+ * (e.g. "j / k" for "Previous / next PR").
+ */
+const DISPLAY_ROWS: Array<{
+  ids: string[];
+  label: string;
+  category: ShortcutCategory;
+}> = [
+  // Navigation
   {
-    title: "Navigation",
-    shortcuts: [
-      { keys: ["j", "k"], description: "Previous / next PR" },
-      { keys: ["Enter"], description: "Open PR" },
-      { keys: ["[", "]"], description: "Previous / next file" },
-      { keys: ["Cmd+B"], description: "Toggle sidebar" },
-    ],
+    ids: ["navigation.prevPr", "navigation.nextPr"],
+    label: "Previous / next PR",
+    category: "Navigation",
   },
+  { ids: ["navigation.openPr"], label: "Open PR", category: "Navigation" },
   {
-    title: "Actions",
-    shortcuts: [
-      { keys: ["a"], description: "Approve PR" },
-      { keys: ["v"], description: "Toggle file viewed" },
-      { keys: ["n"], description: "Next unreviewed file" },
-      { keys: ["Cmd+|"], description: "Open conversation" },
-    ],
+    ids: ["navigation.prevFile", "navigation.nextFile"],
+    label: "Previous / next file",
+    category: "Navigation",
   },
-  {
-    title: "Search",
-    shortcuts: [
-      { keys: ["/"], description: "Focus search" },
-      { keys: ["Cmd+F"], description: "Search in diff" },
-      { keys: ["Esc"], description: "Clear / close" },
-    ],
-  },
-  {
-    title: "Views",
-    shortcuts: [
-      { keys: ["1"], description: "Review" },
-      { keys: ["2"], description: "Workflows" },
-      { keys: ["3"], description: "Metrics" },
-      { keys: ["4"], description: "Releases" },
-      { keys: ["?"], description: "This dialog" },
-    ],
-  },
+  { ids: ["navigation.toggleSidebar"], label: "Toggle sidebar", category: "Navigation" },
+  // Actions
+  { ids: ["actions.toggleViewed"], label: "Toggle file viewed", category: "Actions" },
+  { ids: ["actions.nextUnreviewed"], label: "Next unreviewed file", category: "Actions" },
+  { ids: ["actions.togglePanel"], label: "Toggle side panel", category: "Actions" },
+  { ids: ["actions.openConversation"], label: "Open conversation", category: "Actions" },
+  // Search
+  { ids: ["search.focusSearch"], label: "Focus search", category: "Search" },
+  { ids: ["search.commandPalette"], label: "Command palette", category: "Search" },
+  // Views
+  { ids: ["views.review"], label: "Review", category: "Views" },
+  { ids: ["views.workflows"], label: "Workflows", category: "Views" },
+  { ids: ["views.metrics"], label: "Metrics", category: "Views" },
+  { ids: ["views.releases"], label: "Releases", category: "Views" },
+  { ids: ["views.shortcuts"], label: "This dialog", category: "Views" },
 ];
 
+const CATEGORY_ORDER: ShortcutCategory[] = ["Navigation", "Actions", "Search", "Views"];
+
 export function KeyboardShortcutsDialog({ open, onClose }: KeyboardShortcutsDialogProps) {
+  const { getBinding } = useKeybindings();
+
+  const sections = useMemo(() => {
+    return CATEGORY_ORDER.map((category) => ({
+      title: category,
+      shortcuts: DISPLAY_ROWS.filter((row) => row.category === category).map((row) => ({
+        keys: row.ids.map((id) => {
+          const binding = getBinding(id);
+          return formatKeybinding(binding.key, binding.modifiers);
+        }),
+        description: row.label,
+      })),
+    }));
+  }, [getBinding]);
+
   if (!open) {
     return null;
   }
@@ -82,7 +104,7 @@ export function KeyboardShortcutsDialog({ open, onClose }: KeyboardShortcutsDial
           </DialogClose>
         </DialogHeader>
         <div className="grid grid-cols-2 gap-6 px-6 pb-6">
-          {SECTIONS.map((section) => (
+          {sections.map((section) => (
             <div key={section.title}>
               <h3 className="text-text-tertiary mb-2 text-[10px] font-semibold tracking-[0.06em] uppercase">
                 {section.title}
