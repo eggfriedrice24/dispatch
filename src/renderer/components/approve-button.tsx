@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
 import { toastManager } from "@/components/ui/toast";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { ChevronDown, Dices } from "lucide-react";
 import { useState } from "react";
 
@@ -23,18 +23,12 @@ import { MentionTextarea } from "./mention-textarea";
  * Approve button — quick approve or approve with optional comment + LGTM gif.
  */
 
-const LGTM_GIFS = [
-  "https://media.giphy.com/media/111ebonMs90YLu/giphy.gif",
-  "https://media.giphy.com/media/3o7TKF1fSIs1R19B8k/giphy.gif",
-  "https://media.giphy.com/media/l0MYt5jPR6QX5APm0/giphy.gif",
-  "https://media.giphy.com/media/3oEjHV0z8S7WM4MwnK/giphy.gif",
-  "https://media.giphy.com/media/xT0xeJpnrWC3XWblEk/giphy.gif",
-  "https://media.giphy.com/media/26u4lOMA8JKSnL9Uk/giphy.gif",
-  "https://media.giphy.com/media/3o7abB06u9bNzA8lu8/giphy.gif",
-  "https://media.giphy.com/media/XreQmk7ETCak0/giphy.gif",
-  "https://media.giphy.com/media/l3q2XhfQ8oCkm1Ts4/giphy.gif",
-  "https://media.giphy.com/media/3ohzdIuqJoo8QdKlnW/giphy.gif",
-];
+const LGTM_API_URL = "https://lgtm-api.vercel.app/api/gifs";
+
+interface LgtmGif {
+  url: string;
+  name: string;
+}
 
 export function ApproveButton({
   cwd,
@@ -48,6 +42,16 @@ export function ApproveButton({
 }) {
   const [body, setBody] = useState("");
   const alreadyApproved = currentUserReview === "APPROVED";
+
+  const lgtmQuery = useQuery({
+    queryKey: ["lgtm-gifs"],
+    queryFn: async () => {
+      const res = await fetch(LGTM_API_URL);
+      if (!res.ok) throw new Error("Failed to fetch LGTM gifs");
+      return res.json() as Promise<LgtmGif[]>;
+    },
+    staleTime: Infinity,
+  });
 
   const reviewMutation = useMutation({
     mutationFn: (args: {
@@ -75,10 +79,12 @@ export function ApproveButton({
   }
 
   function insertLgtmGif() {
-    const gif = LGTM_GIFS[Math.floor(Math.random() * LGTM_GIFS.length)];
+    const gifs = lgtmQuery.data;
+    if (!gifs || gifs.length === 0) return;
+    const gif = gifs[Math.floor(Math.random() * gifs.length)]!;
     setBody((prev) => {
       const prefix = prev.trim() ? `${prev.trim()}\n\n` : "";
-      return `${prefix}![LGTM](${gif})`;
+      return `${prefix}![LGTM](${gif.url})`;
     });
   }
 
