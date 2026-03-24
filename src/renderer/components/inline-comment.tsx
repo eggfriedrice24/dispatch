@@ -17,6 +17,7 @@ import {
 import { useCallback, useMemo, useRef, useState } from "react";
 
 import { ipc } from "../lib/ipc";
+import { openExternal } from "../lib/open-external";
 import { queryClient } from "../lib/query-client";
 import { useWorkspace } from "../lib/workspace-context";
 import { GitHubAvatar } from "./github-avatar";
@@ -140,6 +141,7 @@ function CommentThread({
             comment={root}
             isRoot
             onReply={() => setShowReply(true)}
+            prNumber={prNumber}
           />
           {replies.map((reply) => (
             <div
@@ -149,6 +151,7 @@ function CommentThread({
               <CommentBody
                 comment={reply}
                 onReply={() => setShowReply(true)}
+                prNumber={prNumber}
               />
             </div>
           ))}
@@ -377,11 +380,16 @@ function CommentContextMenu({
   comment,
   position,
   onClose,
+  onReply,
+  prNumber,
 }: {
   comment: ReviewComment;
   position: { x: number; y: number };
   onClose: () => void;
+  onReply?: () => void;
+  prNumber?: number;
 }) {
+  const { cwd } = useWorkspace();
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Close on click outside
@@ -419,6 +427,16 @@ function CommentContextMenu({
       className="border-border bg-bg-elevated fixed z-50 rounded-md border p-1 shadow-lg"
       style={{ left: position.x, top: position.y }}
     >
+      {onReply && (
+        <ContextMenuItem
+          icon={<Reply size={12} />}
+          label="Reply"
+          onClick={() => {
+            onReply();
+            onClose();
+          }}
+        />
+      )}
       <ContextMenuItem
         icon={<Copy size={12} />}
         label="Copy text"
@@ -429,16 +447,31 @@ function CommentContextMenu({
         }}
       />
       <ContextMenuItem
-        icon={<ExternalLink size={12} />}
+        icon={<Copy size={12} />}
         label="Copy link"
         onClick={() => {
-          // GitHub review comment URL pattern
-          const url = `https://github.com/${comment.path}#discussion_r${comment.id}`;
+          const repoSlug = cwd.split("/").slice(-2).join("/");
+          const url = prNumber
+            ? `https://github.com/${repoSlug}/pull/${prNumber}#discussion_r${comment.id}`
+            : `https://github.com/${repoSlug}#discussion_r${comment.id}`;
           navigator.clipboard.writeText(url);
           toastManager.add({ title: "Link copied", type: "success" });
           onClose();
         }}
       />
+      <ContextMenuItem
+        icon={<ExternalLink size={12} />}
+        label="Open in browser"
+        onClick={() => {
+          const repoSlug = cwd.split("/").slice(-2).join("/");
+          const url = prNumber
+            ? `https://github.com/${repoSlug}/pull/${prNumber}#discussion_r${comment.id}`
+            : `https://github.com/${repoSlug}#discussion_r${comment.id}`;
+          void openExternal(url);
+          onClose();
+        }}
+      />
+      <div style={{ height: "1px", background: "var(--border)", margin: "2px 0" }} />
       <ContextMenuItem
         icon={<MessageSquare size={12} />}
         label="Quote reply"
@@ -485,13 +518,16 @@ function CommentBody({
   comment,
   isRoot,
   onReply,
+  prNumber,
 }: {
   comment: ReviewComment;
   isRoot?: boolean;
   onReply?: () => void;
+  prNumber?: number;
 }) {
   const isBotUser = isBot(comment.user.login);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const [minimized, setMinimized] = useState(false);
 
   const { bodyParts, suggestions } = useMemo(() => parseSuggestions(comment.body), [comment.body]);
 
@@ -607,40 +643,46 @@ function CommentBody({
             </button>
           )}
           {isRoot && <ThreadResolveButton comment={comment} />}
-          {isBotUser && (
-            <span style={{ color: "var(--text-ghost)", cursor: "pointer" }}>
-              <ChevronDown size={12} />
-            </span>
-          )}
+          {/* Minimize toggle */}
+          <button
+            type="button"
+            onClick={() => setMinimized(!minimized)}
+            className="text-text-ghost hover:text-text-primary cursor-pointer rounded-sm p-0.5 transition-colors"
+            title={minimized ? "Expand comment" : "Minimize comment"}
+          >
+            {minimized ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
+          </button>
         </div>
       </div>
 
-      {/* Body */}
-      <div>
-        {bodyParts.map((part, i) => {
-          if (part.type === "text") {
+      {/* Body — hidden when minimized */}
+      {!minimized && (
+        <div>
+          {bodyParts.map((part, i) => {
+            if (part.type === "text") {
+              return (
+                <MarkdownBody
+                  key={`text-${i}`}
+                  content={part.content}
+                  className="text-xs leading-relaxed"
+                />
+              );
+            }
             return (
-              <MarkdownBody
-                key={`text-${i}`}
-                content={part.content}
-                className="text-xs leading-relaxed"
+              <SuggestionBlock
+                key={`suggestion-${i}`}
+                suggestion={part.content}
               />
             );
-          }
-          return (
-            <SuggestionBlock
-              key={`suggestion-${i}`}
-              suggestion={part.content}
+          })}
+          {bodyParts.length === 0 && suggestions.length === 0 && (
+            <MarkdownBody
+              content={comment.body}
+              className="text-xs leading-relaxed"
             />
-          );
-        })}
-        {bodyParts.length === 0 && suggestions.length === 0 && (
-          <MarkdownBody
-            content={comment.body}
-            className="text-xs leading-relaxed"
-          />
-        )}
-      </div>
+          )}
+        </div>
+      )}
 
       {/* Context menu */}
       {contextMenu && (
@@ -648,6 +690,8 @@ function CommentBody({
           comment={comment}
           position={contextMenu}
           onClose={() => setContextMenu(null)}
+          onReply={onReply}
+          prNumber={prNumber}
         />
       )}
     </div>
