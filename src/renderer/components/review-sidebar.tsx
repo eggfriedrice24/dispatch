@@ -68,7 +68,7 @@ export function ReviewSidebar({ prNumber, onBack, onSelectPr }: ReviewSidebarPro
   const fileCommentCounts = useMemo(() => {
     const counts = new Map<string, number>();
     for (const c of commentsQuery.data ?? []) {
-      if (c.path) {
+      if (c.path && c.line) {
         counts.set(c.path, (counts.get(c.path) ?? 0) + 1);
       }
     }
@@ -238,6 +238,8 @@ export function ReviewSidebar({ prNumber, onBack, onSelectPr }: ReviewSidebarPro
                 onSelectFile={setCurrentFileIndex}
                 viewedFiles={viewedFiles}
                 commentCounts={fileCommentCounts}
+                cwd={cwd}
+                prNumber={prNumber}
                 onToggleViewed={(filePath, viewed) => {
                   ipc("review.setFileViewed", {
                     repo: repoName,
