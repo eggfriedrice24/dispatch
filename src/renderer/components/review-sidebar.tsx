@@ -5,6 +5,7 @@ import { useMemo, useRef, useState } from "react";
 import { parseDiff, type DiffFile } from "../lib/diff-parser";
 import { useFileNav } from "../lib/file-nav-context";
 import { ipc } from "../lib/ipc";
+import { summarizePrChecks } from "../lib/pr-check-status";
 import { classifyFiles } from "../lib/triage-classifier";
 import { useWorkspace } from "../lib/workspace-context";
 import { FileTree } from "./file-tree";
@@ -264,17 +265,31 @@ export function ReviewSidebar({
       )}
 
       {/* Merge readiness card */}
-      {pr && (
-        <MergeReadinessCard
-          hasApproval={pr.reviewDecision === "APPROVED"}
-          allChecksPassing={
-            pr.statusCheckRollup.length > 0 &&
-            pr.statusCheckRollup.every((c) => c.conclusion === "success")
+      {pr && (() => {
+        const checkSummary = summarizePrChecks(pr.statusCheckRollup);
+
+        // reviewDecision is empty when branch protection doesn't require reviews.
+        // Fall back to checking the reviews array for an actual approval.
+        let hasApproval = pr.reviewDecision === "APPROVED";
+        if (!hasApproval) {
+          const latestByAuthor = new Map<string, string>();
+          for (const r of pr.reviews) {
+            if (r.state === "APPROVED" || r.state === "CHANGES_REQUESTED") {
+              latestByAuthor.set(r.author.login, r.state);
+            }
           }
-          noConflicts={pr.mergeable === "MERGEABLE"}
-          hasChecks={pr.statusCheckRollup.length > 0}
-        />
-      )}
+          hasApproval = [...latestByAuthor.values()].some((s) => s === "APPROVED");
+        }
+
+        return (
+          <MergeReadinessCard
+            hasApproval={hasApproval}
+            allChecksPassing={checkSummary.failed === 0 && checkSummary.pending === 0 && checkSummary.total > 0}
+            noConflicts={pr.mergeable === "MERGEABLE"}
+            hasChecks={checkSummary.total > 0}
+          />
+        );
+      })()}
     </div>
   );
 }
