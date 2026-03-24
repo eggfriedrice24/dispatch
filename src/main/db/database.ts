@@ -23,6 +23,7 @@ export function initDatabase(): Database.Database {
   db.pragma("foreign_keys = ON");
   db.pragma("busy_timeout = 5000");
 
+  // Run schema creation
   db.exec(`
     CREATE TABLE IF NOT EXISTS pr_cache (
       id            INTEGER PRIMARY KEY,
@@ -63,6 +64,7 @@ export function initDatabase(): Database.Database {
       body          TEXT    NOT NULL DEFAULT '',
       pr_number     INTEGER,
       workspace     TEXT,
+      author_login  TEXT,
       read          INTEGER NOT NULL DEFAULT 0,
       created_at    TEXT    NOT NULL DEFAULT (datetime('now'))
     );
@@ -98,6 +100,14 @@ export function initDatabase(): Database.Database {
       UNIQUE(repo, pr_number, comment_id)
     );
   `);
+
+  // Migrations for existing databases
+  const cols = db
+    .prepare("PRAGMA table_info(notifications)")
+    .all() as Array<{ name: string }>;
+  if (!cols.some((c) => c.name === "author_login")) {
+    db.exec("ALTER TABLE notifications ADD COLUMN author_login TEXT");
+  }
 
   return db;
 }

@@ -35,6 +35,7 @@ export interface AiResolvedConfig {
 export interface GhPrListItem {
   number: number;
   title: string;
+  state: "OPEN" | "CLOSED" | "MERGED";
   author: { login: string };
   headRefName: string;
   baseRefName: string;
@@ -552,6 +553,7 @@ export interface IpcApi {
       body: string;
       prNumber: number;
       workspace: string;
+      authorLogin: string;
       read: boolean;
       createdAt: string;
     }>;
@@ -565,6 +567,7 @@ export interface IpcApi {
       body: string;
       prNumber: number;
       workspace: string;
+      authorLogin?: string;
     };
     result: void;
   };
@@ -575,6 +578,7 @@ export interface IpcApi {
       body: string;
       prNumber: number;
       workspace: string;
+      authorLogin?: string;
     };
     result: void;
   };

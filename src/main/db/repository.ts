@@ -215,6 +215,7 @@ export function getNotifications(limit = 50): Array<{
   body: string;
   prNumber: number;
   workspace: string;
+  authorLogin: string;
   read: boolean;
   createdAt: string;
 }> {
@@ -228,6 +229,7 @@ export function getNotifications(limit = 50): Array<{
     body: string;
     pr_number: number | null;
     workspace: string | null;
+    author_login: string | null;
     read: number;
     created_at: string;
   }>;
@@ -238,6 +240,7 @@ export function getNotifications(limit = 50): Array<{
     body: r.body,
     prNumber: r.pr_number ?? 0,
     workspace: r.workspace ?? "",
+    authorLogin: r.author_login ?? "",
     read: r.read === 1,
     createdAt: r.created_at,
   }));
@@ -249,11 +252,12 @@ export function insertNotification(args: {
   body: string;
   prNumber: number;
   workspace: string;
+  authorLogin?: string;
 }): void {
   const db = getDatabase();
   db.prepare(
-    "INSERT INTO notifications (type, title, body, pr_number, workspace) VALUES (?, ?, ?, ?, ?)",
-  ).run(args.type, args.title, args.body, args.prNumber, args.workspace);
+    "INSERT INTO notifications (type, title, body, pr_number, workspace, author_login) VALUES (?, ?, ?, ?, ?, ?)",
+  ).run(args.type, args.title, args.body, args.prNumber, args.workspace, args.authorLogin ?? null);
 }
 
 export function markNotificationRead(id: number): void {

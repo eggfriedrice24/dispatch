@@ -10,6 +10,7 @@ import { relativeTime } from "@/shared/format";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { AlertCircle, Bell, CheckCircle2, GitMerge, GitPullRequest } from "lucide-react";
 
+import { GitHubAvatar } from "./github-avatar";
 import { ipc } from "../lib/ipc";
 import { queryClient } from "../lib/query-client";
 import { useRouter } from "../lib/router";
@@ -136,10 +137,27 @@ export function NotificationCenter() {
                   <div
                     className={`flex w-full items-start gap-2 ${notification.read ? "opacity-50" : ""}`}
                   >
-                    <Icon
-                      size={14}
-                      className={`mt-0.5 shrink-0 ${color}`}
-                    />
+                    <div className="relative mt-0.5 shrink-0">
+                      {notification.authorLogin ? (
+                        <>
+                          <GitHubAvatar
+                            login={notification.authorLogin}
+                            size={20}
+                          />
+                          <div className={`bg-bg-elevated absolute -right-1 -bottom-1 flex h-3.5 w-3.5 items-center justify-center rounded-full`}>
+                            <Icon
+                              size={9}
+                              className={color}
+                            />
+                          </div>
+                        </>
+                      ) : (
+                        <Icon
+                          size={14}
+                          className={color}
+                        />
+                      )}
+                    </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-text-primary truncate text-[11px] font-medium">
                         {notification.title}

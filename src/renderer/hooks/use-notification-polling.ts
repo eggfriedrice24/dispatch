@@ -75,6 +75,7 @@ export function useNotificationPolling(): void {
           body: `#${pr.number} ${pr.title} by ${pr.author.login}`,
           prNumber: pr.number,
           workspace: cwd,
+          authorLogin: pr.author.login,
         }).then(() => {
           queryClient.invalidateQueries({ queryKey: ["notifications"] });
         });
@@ -95,6 +96,7 @@ export function useNotificationPolling(): void {
           body: `#${pr.number} ${pr.title}`,
           prNumber: pr.number,
           workspace: cwd,
+          authorLogin: pr.author.login,
         }).then(() => {
           queryClient.invalidateQueries({ queryKey: ["notifications"] });
         });
@@ -143,6 +145,7 @@ export function useNotificationPolling(): void {
           body: `#${e.number} ${pr?.title ?? ""}`,
           prNumber: e.number,
           workspace: cwd,
+          authorLogin: pr?.author.login,
         }).then(() => {
           queryClient.invalidateQueries({ queryKey: ["notifications"] });
         });
