@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { toastManager } from "@/components/ui/toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { CheckCircle2, Clock, RotateCcw, Sparkles, XCircle } from "lucide-react";
+import { CheckCircle2, Clock, Loader2, RotateCcw, Sparkles, XCircle } from "lucide-react";
 import { useState } from "react";
 
 import { ipc } from "../lib/ipc";
@@ -48,7 +48,7 @@ const STATUS_ICON: Record<
 > = {
   success: { icon: CheckCircle2, color: "text-success" },
   failure: { icon: XCircle, color: "text-destructive" },
-  pending: { icon: Clock, color: "text-warning", spin: true },
+  pending: { icon: Loader2, color: "text-warning", spin: true },
   skipped: { icon: Clock, color: "text-text-tertiary" },
   cancelled: { icon: XCircle, color: "text-text-tertiary" },
 };

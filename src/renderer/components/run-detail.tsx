@@ -9,7 +9,7 @@ import {
   ChevronDown,
   ChevronRight,
   ChevronUp,
-  Clock,
+  Loader2,
   RotateCcw,
   Search,
   XCircle,
@@ -391,7 +391,7 @@ function resolveStatusIcon(conclusion: string | null) {
   if (conclusion === "cancelled" || conclusion === "skipped") {
     return { icon: XCircle, color: "text-text-tertiary", spin: false };
   }
-  return { icon: Clock, color: "text-warning", spin: true };
+  return { icon: Loader2, color: "text-warning", spin: true };
 }
 
 function computeJobDuration(job: GhWorkflowRunJob): string {

@@ -8,8 +8,8 @@ import { ContextMenu } from "@base-ui/react/context-menu";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   Check,
-  Clock,
   Copy,
+  Loader2,
   ExternalLink,
   GitMerge,
   Inbox,
@@ -740,7 +740,7 @@ function CheckStatusBadge({ summary }: { summary: PrCheckSummary }) {
         title={checkSummaryTitle(summary)}
         className="bg-warning-muted text-warning inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 font-mono text-[9px] font-medium"
       >
-        <Clock
+        <Loader2
           size={11}
           className="animate-spin"
         />

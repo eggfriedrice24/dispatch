@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   ChevronDown,
   Clock,
+  Loader2,
   Play,
   RotateCcw,
   Search,
@@ -412,7 +413,7 @@ function getStatusIcon(status: string, conclusion: string | null): typeof CheckC
       }
     }
   }
-  return Clock;
+  return Loader2;
 }
 
 function getStatusColor(status: string, conclusion: string | null): string {
