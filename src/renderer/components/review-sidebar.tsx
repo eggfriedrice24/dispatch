@@ -112,13 +112,19 @@ export function ReviewSidebar({ prNumber, onBack, onSelectPr }: ReviewSidebarPro
   });
   const pr = detailQuery.data;
 
+  // Checks list — same query key as ChecksPanel so React Query dedupes.
+  // Used for merge readiness so it stays in sync with the checks panel.
+  const checksQuery = useQuery({
+    queryKey: ["checks", "list", cwd, prNumber],
+    queryFn: () => ipc("checks.list", { cwd, prNumber }),
+    refetchInterval: 10_000,
+  });
+  const checksList = checksQuery.data ?? [];
+
   // File search
   const [fileSearch, setFileSearch] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
 
-  // Progress info
-  const attentionCount = triageGroups.attention.length;
-  const viewedCount = viewedFiles.size;
 
   return (
     <div className="bg-bg-surface flex h-full flex-col">
@@ -162,41 +168,6 @@ export function ReviewSidebar({ prNumber, onBack, onSelectPr }: ReviewSidebarPro
             Tree
           </button>
         </div>
-      </div>
-
-      {/* Progress bar */}
-      <div
-        className="border-border-subtle flex items-center gap-2 border-b"
-        style={{ padding: "5px 12px" }}
-      >
-        <div
-          className="bg-bg-raised flex-1 overflow-hidden rounded-full"
-          style={{ height: "3px" }}
-        >
-          <div
-            className="h-full rounded-full"
-            style={{
-              width: files.length > 0 ? `${(viewedCount / files.length) * 100}%` : "0%",
-              background:
-                viewMode === "triage" && attentionCount > 0
-                  ? "var(--accent-text)"
-                  : "var(--accent)",
-            }}
-          />
-        </div>
-        <span
-          className="font-mono text-[10px] whitespace-nowrap"
-          style={{
-            color:
-              viewMode === "triage" && attentionCount > 0
-                ? "var(--accent-text)"
-                : "var(--text-tertiary)",
-          }}
-        >
-          {viewMode === "triage" && attentionCount > 0
-            ? `${attentionCount} need attention · ${viewedCount}/${files.length} viewed`
-            : `${viewedCount}/${files.length} viewed`}
-        </span>
       </div>
 
       {/* File search */}
@@ -259,7 +230,7 @@ export function ReviewSidebar({ prNumber, onBack, onSelectPr }: ReviewSidebarPro
       {/* Merge readiness card */}
       {pr &&
         (() => {
-          const checkSummary = summarizePrChecks(pr.statusCheckRollup);
+          const checkSummary = summarizePrChecks(checksList);
 
           // reviewDecision is empty when branch protection doesn't require reviews.
           // Fall back to checking the reviews array for an actual approval.
