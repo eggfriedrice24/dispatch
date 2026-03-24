@@ -2,7 +2,7 @@ import type { Highlighter } from "shiki";
 
 import { Spinner } from "@/components/ui/spinner";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Check, Monitor, Moon, Sun } from "lucide-react";
+import { Bot, Check, GitMerge, Info, Monitor, Moon, Palette, Shield, Sun } from "lucide-react";
 import { memo, useEffect, useMemo, useState } from "react";
 
 import { ensureTheme, getHighlighter } from "../lib/highlighter";
@@ -233,8 +233,19 @@ function CodeThemeCard({
   );
 }
 
+const NAV_SECTIONS = [
+  { id: "appearance", label: "Appearance", icon: Palette },
+  { id: "general", label: "General", icon: GitMerge },
+  { id: "ai", label: "AI Provider", icon: Bot },
+  { id: "privacy", label: "Privacy", icon: Shield },
+  { id: "about", label: "About", icon: Info },
+] as const;
+
+type SectionId = (typeof NAV_SECTIONS)[number]["id"];
+
 export function SettingsView() {
   const { theme, setTheme, resolvedTheme, codeTheme, setCodeTheme } = useTheme();
+  const [activeSection, setActiveSection] = useState<SectionId>("appearance");
 
   const codeThemeOptions = useMemo(
     () => (resolvedTheme === "light" ? CODE_THEMES_LIGHT : CODE_THEMES_DARK),
@@ -289,242 +300,292 @@ export function SettingsView() {
   }
 
   return (
-    <div className="flex flex-1 items-start justify-center overflow-y-auto py-12">
-      <div className="w-full max-w-lg">
-        <h1 className="font-heading text-text-primary text-3xl italic">Settings</h1>
-        <p className="text-text-secondary mt-1 text-sm">
-          Configure Dispatch behavior. Changes save automatically.
-        </p>
+    <div className="flex flex-1 overflow-hidden">
+      {/* Side navigation */}
+      <nav className="border-border flex w-[200px] shrink-0 flex-col border-r py-6">
+        <h1 className="font-heading text-text-primary px-5 text-2xl italic">Settings</h1>
+        <div className="mt-4 flex flex-col gap-0.5 px-2">
+          {NAV_SECTIONS.map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setActiveSection(id)}
+              className={`flex cursor-pointer items-center gap-2.5 rounded-md px-3 py-2 text-left text-xs transition-all duration-[--duration-fast] ${
+                activeSection === id
+                  ? "bg-[--accent-muted] text-text-primary border-l-2 border-[--accent]"
+                  : "text-text-secondary hover:bg-[--bg-raised] hover:text-text-primary border-l-2 border-transparent"
+              }`}
+            >
+              <Icon size={14} className={activeSection === id ? "text-[--accent-text]" : ""} />
+              {label}
+            </button>
+          ))}
+        </div>
+      </nav>
 
-        {/* Appearance */}
-        <section className="mt-8">
-          <h2 className="text-text-primary text-sm font-semibold">Appearance</h2>
-          <p className="text-text-tertiary mt-0.5 text-xs">Choose your preferred color theme.</p>
-          <div className="border-border bg-bg-raised mt-3 flex rounded-md border p-[2px]">
-            {THEME_OPTIONS.map(({ value, label, icon: Icon }) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setTheme(value)}
-                className={`flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-sm px-3 py-1.5 text-xs ${
-                  theme === value
-                    ? "bg-bg-elevated text-text-primary shadow-sm"
-                    : "text-text-tertiary hover:text-text-secondary"
-                }`}
-              >
-                <Icon size={13} />
-                {label}
-              </button>
-            ))}
-          </div>
-        </section>
+      {/* Content area */}
+      <div className="flex-1 overflow-y-auto px-10 py-6">
+        <div className="max-w-lg">
+          {activeSection === "appearance" && (
+            <>
+              <h2 className="text-text-primary text-base font-semibold">Appearance</h2>
+              <p className="text-text-tertiary mt-0.5 text-xs">
+                Customize the look and feel of Dispatch.
+              </p>
 
-        {/* Code Theme */}
-        <section className="mt-8">
-          <h2 className="text-text-primary text-sm font-semibold">Code Theme</h2>
-          <p className="text-text-tertiary mt-0.5 text-xs">
-            Syntax highlighting theme for diffs. {resolvedTheme === "light" ? "Light" : "Dark"}{" "}
-            themes shown for your current mode.
-          </p>
-          <div className="mt-3 grid grid-cols-2 gap-1.5">
-            {codeThemeOptions.map((t) => (
-              <CodeThemeCard
-                key={t.id}
-                theme={t}
-                isActive={codeTheme === t.id}
-                onSelect={() => setCodeTheme(t.id)}
-              />
-            ))}
-          </div>
-          <div className="mt-3">
-            <label className="text-text-tertiary mb-1.5 block font-mono text-[10px] font-medium tracking-wider uppercase">
-              Preview
-            </label>
-            <CodeThemePreview themeId={codeTheme} />
-          </div>
-        </section>
-
-        {/* Merge strategy */}
-        <section className="mt-8">
-          <h2 className="text-text-primary text-sm font-semibold">Default Merge Strategy</h2>
-          <p className="text-text-tertiary mt-0.5 text-xs">
-            Which merge method to use by default when merging PRs.
-          </p>
-          <div className="border-border bg-bg-raised mt-3 flex rounded-md border p-[2px]">
-            {(["squash", "merge", "rebase"] as const).map((s) => (
-              <button
-                key={s}
-                type="button"
-                onClick={() => savePref("mergeStrategy", s)}
-                className={`flex-1 cursor-pointer rounded-sm px-3 py-1.5 text-xs capitalize ${
-                  mergeStrategy === s
-                    ? "bg-bg-elevated text-text-primary shadow-sm"
-                    : "text-text-tertiary hover:text-text-secondary"
-                }`}
-              >
-                {s}
-              </button>
-            ))}
-          </div>
-        </section>
-
-        {/* Polling intervals */}
-        <section className="mt-8">
-          <h2 className="text-text-primary text-sm font-semibold">Polling Intervals</h2>
-          <p className="text-text-tertiary mt-0.5 text-xs">
-            How often to check for updates (in seconds). Changes apply immediately.
-          </p>
-          <div className="mt-3 flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <span className="text-text-secondary text-xs">PR list</span>
-              <input
-                type="number"
-                min="5"
-                max="300"
-                value={prPollInterval}
-                onChange={(e) => savePref("prPollInterval", e.target.value)}
-                className="border-border bg-bg-root text-text-primary focus:border-primary w-20 rounded-md border px-2 py-1 text-right font-mono text-xs focus:outline-none"
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-text-secondary text-xs">CI checks</span>
-              <input
-                type="number"
-                min="5"
-                max="300"
-                value={checksPollInterval}
-                onChange={(e) => savePref("checksPollInterval", e.target.value)}
-                className="border-border bg-bg-root text-text-primary focus:border-primary w-20 rounded-md border px-2 py-1 text-right font-mono text-xs focus:outline-none"
-              />
-            </div>
-          </div>
-        </section>
-
-        {/* AI provider */}
-        <section className="mt-8">
-          <h2 className="text-text-primary text-sm font-semibold">AI Provider</h2>
-          <p className="text-text-tertiary mt-0.5 text-xs">
-            Configure an AI provider for code explanations and PR summaries.
-          </p>
-          {envAiVars.length > 0 && (
-            <p className="text-text-tertiary mt-1 font-mono text-[10px]">
-              Using {envAiVars.join(", ")} from the environment. Saved settings override these
-              values. Select None to disable AI in Dispatch.
-            </p>
-          )}
-          <div className="mt-3 flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <span className="text-text-secondary text-xs">Provider</span>
-              <select
-                value={effectiveAiProvider}
-                onChange={(e) => savePref("aiProvider", e.target.value)}
-                className="border-border bg-bg-root text-text-primary focus:border-primary w-36 rounded-md border px-2 py-1 text-xs focus:outline-none"
-              >
-                <option value="none">None</option>
-                <option value="openai">OpenAI</option>
-                <option value="anthropic">Anthropic</option>
-                <option value="ollama">Ollama (local)</option>
-              </select>
-            </div>
-            {effectiveAiProvider !== "none" && (
-              <>
-                <div className="flex items-center justify-between">
-                  <span className="text-text-secondary text-xs">Model</span>
-                  <input
-                    type="text"
-                    value={prefs.aiModel ?? ""}
-                    onChange={(e) => savePref("aiModel", e.target.value)}
-                    placeholder={aiConfig?.model ?? "Model name"}
-                    className="border-border bg-bg-root text-text-primary placeholder:text-text-tertiary focus:border-primary w-36 rounded-md border px-2 py-1 font-mono text-xs focus:outline-none"
-                  />
+              {/* App Theme */}
+              <section className="mt-6">
+                <h3 className="text-text-primary text-sm font-medium">App Theme</h3>
+                <p className="text-text-tertiary mt-0.5 text-xs">
+                  Choose your preferred color theme.
+                </p>
+                <div className="border-border bg-bg-raised mt-3 flex rounded-md border p-[2px]">
+                  {THEME_OPTIONS.map(({ value, label, icon: Icon }) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setTheme(value)}
+                      className={`flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-sm px-3 py-1.5 text-xs ${
+                        theme === value
+                          ? "bg-bg-elevated text-text-primary shadow-sm"
+                          : "text-text-tertiary hover:text-text-secondary"
+                      }`}
+                    >
+                      <Icon size={13} />
+                      {label}
+                    </button>
+                  ))}
                 </div>
-                {effectiveAiProvider !== "ollama" && (
+              </section>
+
+              {/* Code Theme */}
+              <section className="mt-8">
+                <h3 className="text-text-primary text-sm font-medium">Code Theme</h3>
+                <p className="text-text-tertiary mt-0.5 text-xs">
+                  Syntax highlighting theme for diffs.{" "}
+                  {resolvedTheme === "light" ? "Light" : "Dark"} themes shown for your current mode.
+                </p>
+                <div className="mt-3 grid grid-cols-2 gap-1.5">
+                  {codeThemeOptions.map((t) => (
+                    <CodeThemeCard
+                      key={t.id}
+                      theme={t}
+                      isActive={codeTheme === t.id}
+                      onSelect={() => setCodeTheme(t.id)}
+                    />
+                  ))}
+                </div>
+                <div className="mt-3">
+                  <label className="text-text-tertiary mb-1.5 block font-mono text-[10px] font-medium tracking-wider uppercase">
+                    Preview
+                  </label>
+                  <CodeThemePreview themeId={codeTheme} />
+                </div>
+              </section>
+            </>
+          )}
+
+          {activeSection === "general" && (
+            <>
+              <h2 className="text-text-primary text-base font-semibold">General</h2>
+              <p className="text-text-tertiary mt-0.5 text-xs">
+                Configure merge behavior and polling intervals.
+              </p>
+
+              {/* Merge strategy */}
+              <section className="mt-6">
+                <h3 className="text-text-primary text-sm font-medium">Default Merge Strategy</h3>
+                <p className="text-text-tertiary mt-0.5 text-xs">
+                  Which merge method to use by default when merging PRs.
+                </p>
+                <div className="border-border bg-bg-raised mt-3 flex rounded-md border p-[2px]">
+                  {(["squash", "merge", "rebase"] as const).map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => savePref("mergeStrategy", s)}
+                      className={`flex-1 cursor-pointer rounded-sm px-3 py-1.5 text-xs capitalize ${
+                        mergeStrategy === s
+                          ? "bg-bg-elevated text-text-primary shadow-sm"
+                          : "text-text-tertiary hover:text-text-secondary"
+                      }`}
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </section>
+
+              {/* Polling intervals */}
+              <section className="mt-8">
+                <h3 className="text-text-primary text-sm font-medium">Polling Intervals</h3>
+                <p className="text-text-tertiary mt-0.5 text-xs">
+                  How often to check for updates (in seconds). Changes apply immediately.
+                </p>
+                <div className="mt-3 flex flex-col gap-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-text-secondary text-xs">API Key</span>
+                    <span className="text-text-secondary text-xs">PR list</span>
                     <input
-                      type="password"
-                      value={prefs.aiApiKey ?? ""}
-                      onChange={(e) => savePref("aiApiKey", e.target.value)}
-                      placeholder={
-                        aiConfig?.apiKeySource === "environment" && aiConfig.apiKeyEnvVar
-                          ? `Using ${aiConfig.apiKeyEnvVar}`
-                          : "sk-..."
-                      }
-                      className="border-border bg-bg-root text-text-primary placeholder:text-text-tertiary focus:border-primary w-36 rounded-md border px-2 py-1 font-mono text-xs focus:outline-none"
+                      type="number"
+                      min="5"
+                      max="300"
+                      value={prPollInterval}
+                      onChange={(e) => savePref("prPollInterval", e.target.value)}
+                      className="border-border bg-bg-root text-text-primary focus:border-primary w-20 rounded-md border px-2 py-1 text-right font-mono text-xs focus:outline-none"
                     />
                   </div>
-                )}
-                <div className="flex items-center justify-between">
-                  <span className="text-text-secondary text-xs">Base URL</span>
-                  <input
-                    type="text"
-                    value={prefs.aiBaseUrl ?? ""}
-                    onChange={(e) => savePref("aiBaseUrl", e.target.value)}
-                    placeholder={aiConfig?.baseUrl ?? getDefaultAiBaseUrl(effectiveAiProvider)}
-                    className="border-border bg-bg-root text-text-primary placeholder:text-text-tertiary focus:border-primary w-36 rounded-md border px-2 py-1 font-mono text-xs focus:outline-none"
-                  />
+                  <div className="flex items-center justify-between">
+                    <span className="text-text-secondary text-xs">CI checks</span>
+                    <input
+                      type="number"
+                      min="5"
+                      max="300"
+                      value={checksPollInterval}
+                      onChange={(e) => savePref("checksPollInterval", e.target.value)}
+                      className="border-border bg-bg-root text-text-primary focus:border-primary w-20 rounded-md border px-2 py-1 text-right font-mono text-xs focus:outline-none"
+                    />
+                  </div>
                 </div>
-                <p className="text-text-ghost -mt-1 text-[10px]">
-                  OpenAI-compatible deployments can use a custom base URL such as{" "}
-                  <span className="font-mono">https://gateway.example.com/v1</span> or a
-                  fully-qualified endpoint.
-                </p>
-              </>
-            )}
-          </div>
-        </section>
+              </section>
+            </>
+          )}
 
-        {/* Analytics & Privacy */}
-        <section className="mt-8">
-          <h2 className="text-text-primary text-sm font-semibold">Privacy</h2>
-          <p className="text-text-tertiary mt-0.5 text-xs">
-            All data stays on your machine. These optional settings help improve Dispatch.
-          </p>
-          <div className="mt-3 flex flex-col gap-3">
-            <label className="flex cursor-pointer items-start gap-3">
-              <input
-                type="checkbox"
-                checked={prefs["analytics-opted-in"] === "true"}
-                onChange={(e) =>
-                  savePref("analytics-opted-in", e.target.checked ? "true" : "false")
-                }
-                className="accent-primary mt-0.5"
-              />
-              <div>
-                <span className="text-text-secondary text-xs">Send anonymous usage data</span>
-                <p className="text-text-ghost mt-0.5 text-[10px]">
-                  We track which features are used, not what you review. No code, file paths, or PR
-                  content.
+          {activeSection === "ai" && (
+            <>
+              <h2 className="text-text-primary text-base font-semibold">AI Provider</h2>
+              <p className="text-text-tertiary mt-0.5 text-xs">
+                Configure an AI provider for code explanations and PR summaries.
+              </p>
+              {envAiVars.length > 0 && (
+                <p className="text-text-tertiary mt-1 font-mono text-[10px]">
+                  Using {envAiVars.join(", ")} from the environment. Saved settings override these
+                  values. Select None to disable AI in Dispatch.
                 </p>
+              )}
+              <div className="mt-4 flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-text-secondary text-xs">Provider</span>
+                  <select
+                    value={effectiveAiProvider}
+                    onChange={(e) => savePref("aiProvider", e.target.value)}
+                    className="border-border bg-bg-root text-text-primary focus:border-primary w-36 rounded-md border px-2 py-1 text-xs focus:outline-none"
+                  >
+                    <option value="none">None</option>
+                    <option value="openai">OpenAI</option>
+                    <option value="anthropic">Anthropic</option>
+                    <option value="ollama">Ollama (local)</option>
+                  </select>
+                </div>
+                {effectiveAiProvider !== "none" && (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <span className="text-text-secondary text-xs">Model</span>
+                      <input
+                        type="text"
+                        value={prefs.aiModel ?? ""}
+                        onChange={(e) => savePref("aiModel", e.target.value)}
+                        placeholder={aiConfig?.model ?? "Model name"}
+                        className="border-border bg-bg-root text-text-primary placeholder:text-text-tertiary focus:border-primary w-36 rounded-md border px-2 py-1 font-mono text-xs focus:outline-none"
+                      />
+                    </div>
+                    {effectiveAiProvider !== "ollama" && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-text-secondary text-xs">API Key</span>
+                        <input
+                          type="password"
+                          value={prefs.aiApiKey ?? ""}
+                          onChange={(e) => savePref("aiApiKey", e.target.value)}
+                          placeholder={
+                            aiConfig?.apiKeySource === "environment" && aiConfig.apiKeyEnvVar
+                              ? `Using ${aiConfig.apiKeyEnvVar}`
+                              : "sk-..."
+                          }
+                          className="border-border bg-bg-root text-text-primary placeholder:text-text-tertiary focus:border-primary w-36 rounded-md border px-2 py-1 font-mono text-xs focus:outline-none"
+                        />
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between">
+                      <span className="text-text-secondary text-xs">Base URL</span>
+                      <input
+                        type="text"
+                        value={prefs.aiBaseUrl ?? ""}
+                        onChange={(e) => savePref("aiBaseUrl", e.target.value)}
+                        placeholder={aiConfig?.baseUrl ?? getDefaultAiBaseUrl(effectiveAiProvider)}
+                        className="border-border bg-bg-root text-text-primary placeholder:text-text-tertiary focus:border-primary w-36 rounded-md border px-2 py-1 font-mono text-xs focus:outline-none"
+                      />
+                    </div>
+                    <p className="text-text-ghost -mt-1 text-[10px]">
+                      OpenAI-compatible deployments can use a custom base URL such as{" "}
+                      <span className="font-mono">https://gateway.example.com/v1</span> or a
+                      fully-qualified endpoint.
+                    </p>
+                  </>
+                )}
               </div>
-            </label>
-            <label className="flex cursor-pointer items-start gap-3">
-              <input
-                type="checkbox"
-                checked={prefs["crash-reports-opted-in"] === "true"}
-                onChange={(e) =>
-                  savePref("crash-reports-opted-in", e.target.checked ? "true" : "false")
-                }
-                className="accent-primary mt-0.5"
-              />
-              <div>
-                <span className="text-text-secondary text-xs">Send anonymous crash reports</span>
-                <p className="text-text-ghost mt-0.5 text-[10px]">
-                  Only error stack traces. No code or personal data.
-                </p>
-              </div>
-            </label>
-          </div>
-        </section>
+            </>
+          )}
 
-        {/* About */}
-        <section className="border-border bg-bg-raised mt-8 rounded-lg border p-4">
-          <h2 className="text-text-primary text-sm font-semibold">About</h2>
-          <p className="text-text-tertiary mt-1 font-mono text-xs">Dispatch v0.0.1</p>
-          <p className="text-text-tertiary mt-0.5 text-xs">
-            CI/CD-integrated desktop PR review app.
-          </p>
-        </section>
+          {activeSection === "privacy" && (
+            <>
+              <h2 className="text-text-primary text-base font-semibold">Privacy</h2>
+              <p className="text-text-tertiary mt-0.5 text-xs">
+                All data stays on your machine. These optional settings help improve Dispatch.
+              </p>
+              <div className="mt-4 flex flex-col gap-3">
+                <label className="flex cursor-pointer items-start gap-3">
+                  <input
+                    type="checkbox"
+                    checked={prefs["analytics-opted-in"] === "true"}
+                    onChange={(e) =>
+                      savePref("analytics-opted-in", e.target.checked ? "true" : "false")
+                    }
+                    className="accent-primary mt-0.5"
+                  />
+                  <div>
+                    <span className="text-text-secondary text-xs">Send anonymous usage data</span>
+                    <p className="text-text-ghost mt-0.5 text-[10px]">
+                      We track which features are used, not what you review. No code, file paths, or
+                      PR content.
+                    </p>
+                  </div>
+                </label>
+                <label className="flex cursor-pointer items-start gap-3">
+                  <input
+                    type="checkbox"
+                    checked={prefs["crash-reports-opted-in"] === "true"}
+                    onChange={(e) =>
+                      savePref("crash-reports-opted-in", e.target.checked ? "true" : "false")
+                    }
+                    className="accent-primary mt-0.5"
+                  />
+                  <div>
+                    <span className="text-text-secondary text-xs">
+                      Send anonymous crash reports
+                    </span>
+                    <p className="text-text-ghost mt-0.5 text-[10px]">
+                      Only error stack traces. No code or personal data.
+                    </p>
+                  </div>
+                </label>
+              </div>
+            </>
+          )}
+
+          {activeSection === "about" && (
+            <>
+              <h2 className="text-text-primary text-base font-semibold">About</h2>
+              <p className="text-text-tertiary mt-0.5 text-xs">
+                Information about your Dispatch installation.
+              </p>
+              <section className="border-border bg-bg-raised mt-4 rounded-lg border p-4">
+                <p className="text-text-tertiary font-mono text-xs">Dispatch v0.0.1</p>
+                <p className="text-text-tertiary mt-0.5 text-xs">
+                  CI/CD-integrated desktop PR review app.
+                </p>
+              </section>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
