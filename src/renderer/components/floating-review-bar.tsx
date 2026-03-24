@@ -3,16 +3,15 @@ import type { GhPrDetail } from "@/shared/ipc";
 import { Spinner } from "@/components/ui/spinner";
 import { toastManager } from "@/components/ui/toast";
 import { useMutation } from "@tanstack/react-query";
-import { Check, CheckCircle, Eye, GitMerge, MessageSquare, XCircle } from "lucide-react";
+import { Check, Eye, GitMerge, MessageSquare } from "lucide-react";
 
 import { ipc } from "../lib/ipc";
 import { queryClient } from "../lib/query-client";
 
 /**
- * Floating review bar — PR-REVIEW-REDESIGN.md § Floating Review Bar
+ * Floating review bar — mockup-pr-review-v14.html § .review-bar
  *
- * Frosted glass bar at bottom-center of the diff area.
- * Shows viewed stats, comment count, check status, and action buttons.
+ * Frosted glass bar at bottom-center. Stats → pending pill → sep → action buttons.
  */
 
 interface FloatingReviewBarProps {
@@ -48,53 +47,82 @@ export function FloatingReviewBar({
 
   return (
     <div
-      className="absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 items-center gap-2"
       style={{
+        position: "absolute",
+        bottom: "12px",
+        left: "50%",
+        transform: "translateX(-50%)",
+        zIndex: 20,
         background: "rgba(28,28,34,0.85)",
         backdropFilter: "blur(12px)",
         WebkitBackdropFilter: "blur(12px)",
         border: "1px solid var(--border-strong)",
         borderRadius: "var(--radius-xl)",
         padding: "5px 5px 5px 12px",
+        display: "flex",
+        alignItems: "center",
+        gap: "8px",
         boxShadow: "var(--shadow-lg), var(--shadow-glow)",
       }}
     >
       {/* Stats */}
-      <div className="flex items-center gap-2">
-        <div className="flex items-center gap-[3px]">
-          <Eye
-            size={12}
-            className="text-text-tertiary"
-          />
-          <span className="text-text-primary font-mono text-[10px]">
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "8px",
+          fontSize: "11px",
+          color: "var(--text-secondary)",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {/* Viewed */}
+        <div style={{ display: "flex", alignItems: "center", gap: "3px" }}>
+          <span style={{ color: "var(--text-tertiary)" }}>
+            <Eye size={11} />
+          </span>
+          <span
+            style={{
+              fontFamily: "var(--font-mono)",
+              fontSize: "10px",
+              color: "var(--text-primary)",
+            }}
+          >
             {viewedCount}/{totalFiles}
           </span>
         </div>
 
-        <div className="flex items-center gap-[3px]">
-          <MessageSquare
-            size={12}
-            className="text-text-tertiary"
-          />
-          <span className="text-text-primary font-mono text-[10px]">{commentCount}</span>
+        {/* Comments */}
+        <div style={{ display: "flex", alignItems: "center", gap: "3px" }}>
+          <span style={{ color: "var(--text-tertiary)" }}>
+            <MessageSquare size={11} />
+          </span>
+          <span
+            style={{
+              fontFamily: "var(--font-mono)",
+              fontSize: "10px",
+              color: "var(--text-primary)",
+            }}
+          >
+            {commentCount}
+          </span>
         </div>
 
-        <div className="flex items-center gap-[3px]">
-          {failCount > 0 ? (
-            <XCircle
-              size={12}
-              className="text-destructive"
-            />
-          ) : (
-            <CheckCircle
-              size={12}
-              className={allPassing ? "text-success" : "text-text-tertiary"}
-            />
-          )}
+        {/* Checks */}
+        <div style={{ display: "flex", alignItems: "center", gap: "3px" }}>
+          <span style={{ color: "var(--text-tertiary)" }}>
+            <Check size={11} />
+          </span>
           <span
-            className={`font-mono text-[10px] ${
-              failCount > 0 ? "text-destructive" : allPassing ? "text-success" : "text-text-primary"
-            }`}
+            style={{
+              fontFamily: "var(--font-mono)",
+              fontSize: "10px",
+              color: allPassing
+                ? "var(--success)"
+                : failCount > 0
+                  ? "var(--danger)"
+                  : "var(--text-primary)",
+            }}
           >
             {failCount > 0
               ? `${failCount} failed`
@@ -105,14 +133,33 @@ export function FloatingReviewBar({
         </div>
       </div>
 
+      {/* Pending pill */}
+      <span
+        style={{
+          fontSize: "10px",
+          fontWeight: 500,
+          padding: "1px 7px",
+          borderRadius: "var(--radius-full)",
+          background: "var(--accent-muted)",
+          color: "var(--accent-text)",
+          fontFamily: "var(--font-mono)",
+        }}
+      >
+        3 pending
+      </span>
+
       {/* Separator */}
       <div
-        className="h-[18px] w-px shrink-0"
-        style={{ background: "var(--border)" }}
+        style={{
+          width: "1px",
+          height: "18px",
+          background: "var(--border)",
+          flexShrink: 0,
+        }}
       />
 
       {/* Action buttons */}
-      <div className="flex items-center gap-[3px]">
+      <div style={{ display: "flex", alignItems: "center", gap: "3px" }}>
         {!isAuthor && (
           <>
             <RequestChangesBarButton
@@ -126,7 +173,6 @@ export function FloatingReviewBar({
             />
           </>
         )}
-
         <MergeBarButton
           cwd={cwd}
           prNumber={prNumber}
@@ -140,8 +186,23 @@ export function FloatingReviewBar({
 }
 
 // ---------------------------------------------------------------------------
-// Bar-specific button variants
+// Buttons — matching mockup .btn .btn-outline / .btn-success / .btn-primary
 // ---------------------------------------------------------------------------
+
+const btnBase: React.CSSProperties = {
+  padding: "5px 10px",
+  borderRadius: "var(--radius-md)",
+  fontSize: "11px",
+  fontWeight: 500,
+  fontFamily: "var(--font-sans)",
+  cursor: "pointer",
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "4px",
+  border: "1px solid transparent",
+  whiteSpace: "nowrap",
+  userSelect: "none",
+};
 
 function RequestChangesBarButton({ cwd, prNumber }: { cwd: string; prNumber: number }) {
   const reviewMutation = useMutation({
@@ -161,11 +222,16 @@ function RequestChangesBarButton({ cwd, prNumber }: { cwd: string; prNumber: num
       type="button"
       onClick={() => reviewMutation.mutate()}
       disabled={reviewMutation.isPending}
-      className="border-border-strong hover:bg-bg-raised hover:text-text-primary flex cursor-pointer items-center gap-1 rounded-md border bg-transparent text-[11px] font-medium whitespace-nowrap transition-colors select-none disabled:opacity-50"
-      style={{ padding: "5px 10px", color: "var(--text-secondary)" }}
+      style={{
+        ...btnBase,
+        background: "transparent",
+        color: "var(--text-secondary)",
+        borderColor: "var(--border-strong)",
+        opacity: reviewMutation.isPending ? 0.5 : 1,
+      }}
     >
       Request Changes
-      <span className="font-mono text-[9px] opacity-50">r</span>
+      <span style={{ fontFamily: "var(--font-mono)", fontSize: "9px", opacity: 0.5 }}>r</span>
     </button>
   );
 }
@@ -197,10 +263,15 @@ function ApproveBarButton({
       <button
         type="button"
         disabled
-        className="flex items-center gap-1 rounded-md border border-transparent text-[11px] font-medium whitespace-nowrap opacity-60 select-none"
-        style={{ padding: "5px 10px", background: "var(--success)", color: "var(--bg-root)" }}
+        style={{
+          ...btnBase,
+          background: "var(--success)",
+          color: "var(--bg-root)",
+          borderColor: "var(--success)",
+          opacity: 0.6,
+        }}
       >
-        <Check size={12} />
+        <Check size={11} />
         Approved
       </button>
     );
@@ -211,11 +282,16 @@ function ApproveBarButton({
       type="button"
       onClick={() => reviewMutation.mutate()}
       disabled={reviewMutation.isPending}
-      className="flex cursor-pointer items-center gap-1 rounded-md border border-transparent text-[11px] font-medium whitespace-nowrap transition-[filter,box-shadow] select-none hover:brightness-110 disabled:opacity-50"
-      style={{ padding: "5px 10px", background: "var(--success)", color: "var(--bg-root)" }}
+      style={{
+        ...btnBase,
+        background: "var(--success)",
+        color: "var(--bg-root)",
+        borderColor: "var(--success)",
+        opacity: reviewMutation.isPending ? 0.5 : 1,
+      }}
     >
       {reviewMutation.isPending ? <Spinner className="h-3 w-3" /> : "Approve"}
-      <span className="font-mono text-[9px] opacity-50">a</span>
+      <span style={{ fontFamily: "var(--font-mono)", fontSize: "9px", opacity: 0.5 }}>a</span>
     </button>
   );
 }
@@ -265,38 +341,21 @@ function MergeBarButton({
     },
   });
 
-  if (isDraft) {
-    return (
-      <button
-        type="button"
-        disabled
-        className="flex items-center gap-1 rounded-md border border-transparent text-[11px] font-medium whitespace-nowrap opacity-40 select-none"
-        style={{ padding: "5px 10px", background: "var(--accent)", color: "var(--bg-root)" }}
-      >
-        <GitMerge size={12} />
-        Squash & Merge
-      </button>
-    );
-  }
-
   return (
     <button
       type="button"
       onClick={() => mergeMutation.mutate()}
-      disabled={!canMerge || mergeMutation.isPending}
-      className="flex cursor-pointer items-center gap-1 rounded-md border border-transparent text-[11px] font-medium whitespace-nowrap transition-[filter,box-shadow] select-none hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
+      disabled={isDraft || !canMerge || mergeMutation.isPending}
       style={{
-        padding: "5px 10px",
-        background: requirementsMet
-          ? "var(--accent)"
-          : canAdmin
-            ? "var(--warning)"
-            : "var(--accent)",
+        ...btnBase,
+        background: "var(--accent)",
         color: "var(--bg-root)",
-        boxShadow: canMerge ? "var(--shadow-glow)" : "none",
+        borderColor: "var(--accent)",
+        opacity: isDraft || !canMerge ? 0.4 : 1,
+        cursor: isDraft || !canMerge ? "not-allowed" : "pointer",
       }}
     >
-      {mergeMutation.isPending ? <Spinner className="h-3 w-3" /> : <GitMerge size={12} />}
+      {mergeMutation.isPending ? <Spinner className="h-3 w-3" /> : <GitMerge size={11} />}
       Squash & Merge
     </button>
   );

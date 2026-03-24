@@ -130,7 +130,7 @@ export function ReviewSidebar({ prNumber, onBack, onSelectPr }: ReviewSidebarPro
         hideWhenEmpty
       />
 
-      {/* View toggle + progress */}
+      {/* View toggle */}
       <div
         className="flex items-center gap-1.5"
         style={{ padding: "6px 10px 2px" }}
@@ -164,19 +164,46 @@ export function ReviewSidebar({ prNumber, onBack, onSelectPr }: ReviewSidebarPro
             Tree
           </button>
         </div>
-        <span className="flex-1" />
-        <span className="text-[10px]">
-          {viewMode === "triage" ? (
-            attentionCount > 0 ? (
-              <span className="text-accent-text">{attentionCount} files need attention</span>
-            ) : (
-              <span className="text-text-tertiary">All files reviewed</span>
-            )
-          ) : (
-            <span className="text-text-tertiary font-mono">
-              {viewedCount}/{files.length} viewed
-            </span>
-          )}
+      </div>
+
+      {/* Progress bar */}
+      <div
+        className="border-border-subtle flex items-center gap-2 border-b"
+        style={{ padding: "5px 12px" }}
+      >
+        <div
+          className="bg-bg-raised flex-1 overflow-hidden rounded-full"
+          style={{ height: "3px" }}
+        >
+          <div
+            className="h-full rounded-full"
+            style={{
+              width:
+                files.length > 0
+                  ? `${
+                      viewMode === "triage"
+                        ? ((files.length - attentionCount) / files.length) * 100
+                        : (viewedCount / files.length) * 100
+                    }%`
+                  : "0%",
+              background: viewMode === "triage" ? "var(--accent-text)" : "var(--accent)",
+            }}
+          />
+        </div>
+        <span
+          className="font-mono text-[10px] whitespace-nowrap"
+          style={{
+            color:
+              viewMode === "triage" && attentionCount > 0
+                ? "var(--accent-text)"
+                : "var(--text-tertiary)",
+          }}
+        >
+          {viewMode === "triage"
+            ? attentionCount > 0
+              ? `${attentionCount} files need attention`
+              : "All files reviewed"
+            : `${viewedCount}/${files.length} viewed`}
         </span>
       </div>
 

@@ -181,6 +181,40 @@ function PanelOverviewContent({ pr, repo }: { pr: GhPrDetail; prNumber: number; 
         </div>
       </div>
 
+      {/* Labels */}
+      <div style={{ marginBottom: "12px" }}>
+        <div
+          style={{
+            fontSize: "10px",
+            fontWeight: 600,
+            color: "var(--text-tertiary)",
+            textTransform: "uppercase",
+            letterSpacing: "0.06em",
+            marginBottom: "6px",
+          }}
+        >
+          Labels
+        </div>
+        <div className="flex flex-wrap gap-1">
+          {/* TODO: wire to actual PR labels when available */}
+          <span
+            style={{
+              display: "inline-flex",
+              padding: "1px 8px",
+              borderRadius: "var(--radius-full)",
+              fontSize: "10px",
+              fontWeight: 500,
+              background: "var(--bg-elevated)",
+              color: "var(--text-ghost)",
+              border: "1px dashed var(--border-strong)",
+              cursor: "pointer",
+            }}
+          >
+            + Add
+          </span>
+        </div>
+      </div>
+
       {/* Reviewers */}
       {pr.reviews.length > 0 && (
         <div style={{ marginBottom: "12px" }}>
