@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { useBotSettings } from "../hooks/use-bot-settings";
 import { useMinimizedComments } from "../hooks/use-minimized-comments";
 import { ipc } from "../lib/ipc";
 import { openExternal } from "../lib/open-external";
@@ -57,24 +58,9 @@ interface InlineCommentProps {
   resolvedThreadIds?: Set<string>;
 }
 
-// Known bot patterns
-const BOT_PATTERNS = [
-  /\[bot\]$/i,
-  /-bot$/i,
-  /^dependabot$/i,
-  /^renovate$/i,
-  /^codecov$/i,
-  /^vercel$/i,
-  /^github-actions$/i,
-  /^copilot$/i,
-];
-
-function isBot(login: string): boolean {
-  return BOT_PATTERNS.some((p) => p.test(login));
-}
-
 export function InlineComment({ comments, prNumber, repo, resolvedThreadIds }: InlineCommentProps) {
   const { cwd } = useWorkspace();
+  const { isBot } = useBotSettings();
   const repoKey = repo || cwd;
   const { minimizedSet, toggleMinimized } = useMinimizedComments(repoKey, prNumber ?? 0);
 
@@ -98,6 +84,7 @@ export function InlineComment({ comments, prNumber, repo, resolvedThreadIds }: I
             minimizedSet={minimizedSet}
             toggleMinimized={toggleMinimized}
             resolvedThreadIds={resolvedThreadIds}
+            isBot={isBot}
           />
         );
       })}
@@ -109,6 +96,7 @@ export function InlineComment({ comments, prNumber, repo, resolvedThreadIds }: I
             comments={botRoots}
             minimizedSet={minimizedSet}
             toggleMinimized={toggleMinimized}
+            isBot={isBot}
           />
         </>
       )}
@@ -128,6 +116,7 @@ function CommentThread({
   minimizedSet,
   toggleMinimized,
   resolvedThreadIds,
+  isBot,
 }: {
   root: ReviewComment;
   replies: ReviewComment[];
@@ -136,6 +125,7 @@ function CommentThread({
   minimizedSet: Set<string>;
   toggleMinimized: (commentId: string) => void;
   resolvedThreadIds?: Set<string>;
+  isBot: (login: string) => boolean;
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const [showReply, setShowReply] = useState(false);
@@ -167,6 +157,7 @@ function CommentThread({
             minimized={minimizedSet.has(String(root.id))}
             onToggleMinimized={() => toggleMinimized(String(root.id))}
             resolvedThreadIds={resolvedThreadIds}
+            isBot={isBot}
           />
           {replies.map((reply) => (
             <div
@@ -179,6 +170,7 @@ function CommentThread({
                 prNumber={prNumber}
                 minimized={minimizedSet.has(String(reply.id))}
                 onToggleMinimized={() => toggleMinimized(String(reply.id))}
+                isBot={isBot}
               />
             </div>
           ))}
@@ -291,10 +283,12 @@ function BotCommentGroup({
   comments,
   minimizedSet,
   toggleMinimized,
+  isBot,
 }: {
   comments: ReviewComment[];
   minimizedSet: Set<string>;
   toggleMinimized: (commentId: string) => void;
+  isBot: (login: string) => boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const botNames = [...new Set(comments.map((c) => c.user.login))];
@@ -351,6 +345,7 @@ function BotCommentGroup({
               comment={comment}
               minimized={minimizedSet.has(String(comment.id))}
               onToggleMinimized={() => toggleMinimized(String(comment.id))}
+              isBot={isBot}
             />
           </div>
         ))}
@@ -567,6 +562,7 @@ function CommentBody({
   minimized,
   onToggleMinimized,
   resolvedThreadIds,
+  isBot,
 }: {
   comment: ReviewComment;
   isRoot?: boolean;
@@ -575,6 +571,7 @@ function CommentBody({
   minimized: boolean;
   onToggleMinimized: () => void;
   resolvedThreadIds?: Set<string>;
+  isBot: (login: string) => boolean;
 }) {
   const isBotUser = isBot(comment.user.login);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);

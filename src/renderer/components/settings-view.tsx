@@ -2,11 +2,25 @@ import type { Highlighter } from "shiki";
 
 import { Spinner } from "@/components/ui/spinner";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Bot, Check, GitMerge, Info, Keyboard, Monitor, Moon, Palette, RotateCcw, Shield, Sparkles, Sun, TriangleAlert, X } from "lucide-react";
+import {
+  Bot,
+  Check,
+  GitMerge,
+  Info,
+  Keyboard,
+  Monitor,
+  Moon,
+  Palette,
+  RotateCcw,
+  Shield,
+  Sparkles,
+  Sun,
+  TriangleAlert,
+  X,
+} from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 
 import { DEFAULT_BOT_USERNAMES, parseJsonArray } from "../hooks/use-bot-settings";
-
 import { ensureTheme, getHighlighter } from "../lib/highlighter";
 import { ipc } from "../lib/ipc";
 import { useKeybindings } from "../lib/keybinding-context";
@@ -352,15 +366,22 @@ export function SettingsView() {
           {showResetConfirm ? (
             <div className="border-border bg-bg-raised flex flex-col gap-2 rounded-md border p-3">
               <div className="flex items-center gap-1.5">
-                <TriangleAlert size={12} className="text-[--warning]" />
-                <span className="text-text-primary text-[11px] font-medium">Reset all settings?</span>
+                <TriangleAlert
+                  size={12}
+                  className="text-[--warning]"
+                />
+                <span className="text-text-primary text-[11px] font-medium">
+                  Reset all settings?
+                </span>
               </div>
-              <p className="text-text-tertiary text-[10px]">This will restore all preferences, keybindings, and themes to their defaults.</p>
+              <p className="text-text-tertiary text-[10px]">
+                This will restore all preferences, keybindings, and themes to their defaults.
+              </p>
               <div className="flex gap-1.5">
                 <button
                   type="button"
                   onClick={resetDefaults}
-                  className="bg-[--danger] text-text-primary flex-1 cursor-pointer rounded-md px-2 py-1 text-[11px] font-medium transition-colors hover:opacity-90"
+                  className="text-text-primary flex-1 cursor-pointer rounded-md bg-[--danger] px-2 py-1 text-[11px] font-medium transition-colors hover:opacity-90"
                 >
                   Reset
                 </button>

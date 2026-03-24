@@ -6,6 +6,7 @@ import { useMutation } from "@tanstack/react-query";
 import { ChevronDown, ChevronRight, Copy, ExternalLink, MessageSquare } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { useBotSettings } from "../hooks/use-bot-settings";
 import { useMinimizedComments } from "../hooks/use-minimized-comments";
 import { ipc } from "../lib/ipc";
 import { openExternal } from "../lib/open-external";
@@ -22,20 +23,6 @@ import { MentionTextarea } from "./mention-textarea";
  * of status events (compact) and content events (full comments).
  * Comment composer at bottom.
  */
-
-// Known bot patterns
-const BOT_PATTERNS = [
-  /\[bot\]$/i,
-  /-bot$/i,
-  /^dependabot$/i,
-  /^github-actions$/i,
-  /^codecov$/i,
-  /^coderabbit$/i,
-  /^copilot$/i,
-];
-function isBot(login: string): boolean {
-  return BOT_PATTERNS.some((p) => p.test(login));
-}
 
 interface ConversationTabProps {
   prNumber: number;
@@ -54,10 +41,11 @@ export function ConversationTab({
   repo,
   onReviewClick,
 }: ConversationTabProps) {
+  const { isBot } = useBotSettings();
   const { minimizedSet, toggleMinimized } = useMinimizedComments(repo, prNumber);
 
   // Build a unified timeline from reviews (status events) and issue comments (content events)
-  const timeline = buildTimeline(reviews, issueComments);
+  const timeline = buildTimeline(reviews, issueComments, isBot);
 
   // Thread resolution counts from GitHub's reviewThreads data
   const unresolvedThreads = (reviewThreads ?? []).filter((t) => !t.isResolved);
@@ -203,6 +191,7 @@ type TimelineEvent = StatusTimelineEvent | ContentTimelineEvent;
 function buildTimeline(
   reviews: Array<{ author: { login: string }; state: string; submittedAt: string }>,
   issueComments: Array<{ id: string; body: string; author: { login: string }; createdAt: string }>,
+  isBot: (login: string) => boolean,
 ): TimelineEvent[] {
   const events: TimelineEvent[] = [];
 

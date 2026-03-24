@@ -24,8 +24,8 @@ import { useCallback, useMemo, useRef, useState } from "react";
 
 import { useBotSettings } from "../hooks/use-bot-settings";
 import { useKeyboardShortcuts } from "../hooks/use-keyboard-shortcuts";
-import { useKeybindings } from "../lib/keybinding-context";
 import { ipc } from "../lib/ipc";
+import { useKeybindings } from "../lib/keybinding-context";
 import { openExternal } from "../lib/open-external";
 import { getPrActivityKey, hasNewPrActivity, indexPrActivityStates } from "../lib/pr-activity";
 import { summarizePrChecks, type PrCheckSummary } from "../lib/pr-check-status";
@@ -93,6 +93,7 @@ function resolveStatusDot(
 
 export function PrInbox({ selectedPr, onSelectPr }: PrInboxProps) {
   const { cwd } = useWorkspace();
+  const { isBot: isBotUser, isBotPr: isBotPrTitle } = useBotSettings();
   const [searchQuery, setSearchQuery] = useState("");
   const [focusIndex, setFocusIndex] = useState(0);
   const [activeFilter, setActiveFilter] = useState<FilterTab>("review");
@@ -405,6 +406,7 @@ export function PrInbox({ selectedPr, onSelectPr }: PrInboxProps) {
                 isActive={selectedPr === pr.number}
                 isFocused={safeFocusIndex === index}
                 hasNewActivity={item.hasNewActivity ?? false}
+                isBotPr={isBotUser(pr.author.login) || isBotPrTitle(pr.title)}
                 onClick={() => {
                   setFocusIndex(index);
                   handleSelectPr(pr);
@@ -487,6 +489,7 @@ function PrItem({
   isActive,
   isFocused,
   hasNewActivity,
+  isBotPr,
   onClick,
   cwd,
 }: {
@@ -497,6 +500,7 @@ function PrItem({
   isActive: boolean;
   isFocused: boolean;
   hasNewActivity: boolean;
+  isBotPr: boolean;
   onClick: () => void;
   cwd: string;
 }) {
@@ -590,9 +594,17 @@ function PrItem({
                 New
               </span>
             )}
+            {isBotPr && (
+              <span className="bg-bg-raised text-text-tertiary border-border inline-flex shrink-0 items-center gap-0.5 rounded-full border px-1.5 py-0.5 font-mono text-[9px] font-medium tracking-[0.06em] uppercase">
+                <Bot size={9} />
+                Bot
+              </span>
+            )}
           </div>
           <div className="text-text-tertiary mt-0.5 flex items-center gap-1 font-mono text-[10px]">
-            <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${statusDot.color} ${statusDot.pulse ? "animate-pulse" : ""}`} />
+            <span
+              className={`inline-block h-2 w-2 shrink-0 rounded-full ${statusDot.color} ${statusDot.pulse ? "animate-pulse" : ""}`}
+            />
             <span>#{pr.number}</span>
             <span className="text-text-ghost">·</span>
             <span className="truncate">{pr.author.login}</span>
