@@ -158,22 +158,16 @@ export function OverviewTab({
       )}
 
       {/* Close PR */}
-      <div className="border-border border-b px-4 py-3">
-        <div className="flex justify-end">
-          <button
-            type="button"
-            onClick={() => closeMutation.mutate()}
-            disabled={closeMutation.isPending}
-            className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-transparent px-2.5 py-1 text-[11px] font-medium transition-colors hover:border-[var(--danger)]/30 hover:bg-[var(--danger)]/10"
-            style={{
-              color: "var(--danger)",
-              opacity: closeMutation.isPending ? 0.5 : 1,
-            }}
-          >
-            {closeMutation.isPending ? <Spinner className="h-3 w-3" /> : <XCircle size={11} />}
-            Close pull request
-          </button>
-        </div>
+      <div className="sticky bottom-0 flex justify-end px-4 py-3">
+        <button
+          type="button"
+          onClick={() => closeMutation.mutate()}
+          disabled={closeMutation.isPending}
+          className="inline-flex cursor-pointer items-center gap-1.5 rounded-md bg-[var(--danger)] px-2.5 py-1 text-[11px] font-medium text-white transition-colors hover:bg-[var(--danger)]/80 disabled:opacity-50"
+        >
+          {closeMutation.isPending ? <Spinner className="h-3 w-3" /> : <XCircle size={11} />}
+          Close pull request
+        </button>
       </div>
     </div>
   );

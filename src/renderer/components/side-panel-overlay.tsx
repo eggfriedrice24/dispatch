@@ -429,16 +429,12 @@ function PanelOverviewContent({
       )}
 
       {/* Close PR */}
-      <div className="flex justify-end" style={{ marginTop: "12px" }}>
+      <div className="sticky bottom-0 flex justify-end" style={{ marginTop: "12px" }}>
         <button
           type="button"
           onClick={() => closeMutation.mutate()}
           disabled={closeMutation.isPending}
-          className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-transparent px-2.5 py-1 text-[11px] font-medium transition-colors hover:border-[var(--danger)]/30 hover:bg-[var(--danger)]/10"
-          style={{
-            color: "var(--danger)",
-            opacity: closeMutation.isPending ? 0.5 : 1,
-          }}
+          className="inline-flex cursor-pointer items-center gap-1.5 rounded-md bg-[var(--danger)] px-2.5 py-1 text-[11px] font-medium text-white transition-colors hover:bg-[var(--danger)]/80 disabled:opacity-50"
         >
           {closeMutation.isPending ? <Spinner className="h-3 w-3" /> : <XCircle size={11} />}
           Close pull request
