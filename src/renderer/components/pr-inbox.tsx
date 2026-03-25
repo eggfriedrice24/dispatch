@@ -1,5 +1,4 @@
 import type { GhPrEnrichment, GhPrListItemCore } from "@/shared/ipc";
-import type { LucideIcon } from "lucide-react";
 
 import { Kbd } from "@/components/ui/kbd";
 import { MenuItem, MenuPopup, MenuSeparator } from "@/components/ui/menu";
@@ -8,17 +7,10 @@ import { clamp, relativeTime } from "@/shared/format";
 import { ContextMenu } from "@base-ui/react/context-menu";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
-  AlertCircle,
-  AlertTriangle,
-  Bot,
   Check,
-  CheckCircle2,
-  CircleDot,
   Copy,
   ExternalLink,
   GitMerge,
-  GitPullRequestClosed,
-  GitPullRequestDraft,
   Inbox,
   Loader2,
   Search,
@@ -26,8 +18,6 @@ import {
   XCircle,
 } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
-
-import { useBotSettings } from "../hooks/use-bot-settings";
 import { useKeyboardShortcuts } from "../hooks/use-keyboard-shortcuts";
 import { ipc } from "../lib/ipc";
 import { useKeybindings } from "../lib/keybinding-context";
@@ -37,7 +27,6 @@ import { summarizePrChecks, type PrCheckSummary } from "../lib/pr-check-status";
 import { searchPrs, type SearchablePrItem } from "../lib/pr-search";
 import { queryClient } from "../lib/query-client";
 import { useWorkspace } from "../lib/workspace-context";
-import { GitHubAvatar } from "./github-avatar";
 import { PrInboxSkeleton } from "./loading-skeletons";
 
 /**
@@ -59,8 +48,7 @@ type FilterTab = "review" | "mine" | "all";
 // ---------------------------------------------------------------------------
 
 interface StatusIndicator {
-  icon: LucideIcon;
-  color: string;
+  dotColor: string;
   pulse: boolean;
   label: string;
 }
@@ -72,38 +60,46 @@ function resolveStatusIndicator(
 ): StatusIndicator {
   // Closed → red
   if (pr.state === "CLOSED") {
-    return { icon: GitPullRequestClosed, color: "text-destructive", pulse: false, label: "Closed" };
+    return { dotColor: "bg-destructive", pulse: false, label: "Closed" };
   }
   // Merged → purple
   if (pr.state === "MERGED") {
-    return { icon: GitMerge, color: "text-purple", pulse: false, label: "Merged" };
+    return { dotColor: "bg-purple", pulse: false, label: "Merged" };
   }
-  // In merge queue → pulsing
+  // In merge queue → pulsing blue
   if (enrichment?.autoMergeRequest) {
-    return { icon: GitMerge, color: "text-info", pulse: true, label: "Auto-merge" };
+    return { dotColor: "bg-info", pulse: true, label: "Auto-merge" };
   }
-  // Conflicts → red warning
+  // Conflicts → red
   if (enrichment?.mergeable === "CONFLICTING") {
-    return { icon: AlertTriangle, color: "text-destructive", pulse: false, label: "Conflicts" };
+    return { dotColor: "bg-destructive", pulse: false, label: "Conflicts" };
   }
   // Changes requested → orange
   if (pr.reviewDecision === "CHANGES_REQUESTED") {
-    return { icon: AlertCircle, color: "text-warning", pulse: false, label: "Changes requested" };
+    return { dotColor: "bg-warning", pulse: false, label: "Changes requested" };
   }
   // Ready to merge → green (approved + checks passing)
   if (!pr.isDraft && pr.reviewDecision === "APPROVED" && checkSummary.state === "passing") {
-    return { icon: CheckCircle2, color: "text-success", pulse: false, label: "Ready to merge" };
+    return { dotColor: "bg-success", pulse: false, label: "Ready to merge" };
   }
   // Approved (checks still running or not all passing)
   if (!pr.isDraft && pr.reviewDecision === "APPROVED") {
-    return { icon: Check, color: "text-success", pulse: false, label: "Approved" };
+    return { dotColor: "bg-success", pulse: false, label: "Approved" };
   }
   // Draft → ghost
   if (pr.isDraft) {
-    return { icon: GitPullRequestDraft, color: "text-text-ghost", pulse: false, label: "Draft" };
+    return { dotColor: "bg-text-ghost", pulse: false, label: "Draft" };
   }
-  // Default → open, needs review
-  return { icon: CircleDot, color: "text-text-tertiary", pulse: false, label: "Open" };
+  // Checks failing → red dot
+  if (checkSummary.state === "failing") {
+    return { dotColor: "bg-destructive", pulse: false, label: "Checks failing" };
+  }
+  // Checks pending → amber dot
+  if (checkSummary.state === "pending") {
+    return { dotColor: "bg-warning", pulse: false, label: "Checks pending" };
+  }
+  // Default → open, needs review (purple for review requested)
+  return { dotColor: "bg-purple", pulse: false, label: "Review requested" };
 }
 
 // ---------------------------------------------------------------------------
@@ -112,7 +108,6 @@ function resolveStatusIndicator(
 
 export function PrInbox({ selectedPr, onSelectPr }: PrInboxProps) {
   const { cwd } = useWorkspace();
-  const { isBot: isBotUser, isBotPr: isBotPrTitle } = useBotSettings();
   const [searchQuery, setSearchQuery] = useState("");
   const [focusIndex, setFocusIndex] = useState(0);
   const [activeFilter, setActiveFilter] = useState<FilterTab>("review");
@@ -281,41 +276,41 @@ export function PrInbox({ selectedPr, onSelectPr }: PrInboxProps) {
 
   return (
     <aside className="border-border bg-bg-surface flex h-full flex-col">
-      <div className="px-3 pt-3 pb-2">
-        <h2 className="text-text-secondary text-[11px] font-semibold tracking-[0.06em] uppercase">
-          Pull Requests
-        </h2>
+      <div className="px-3 pt-2.5 pb-2">
+        <h2 className="text-[14px] font-semibold tracking-[-0.01em]">Pull Requests</h2>
       </div>
 
-      {/* Filter tabs */}
-      <div className="border-border flex border-b px-3">
-        <FilterButton
-          label="Review"
-          count={reviewPrs.length}
-          active={activeFilter === "review"}
-          onClick={() => {
-            setActiveFilter("review");
-            setFocusIndex(0);
-          }}
-        />
-        <FilterButton
-          label="Mine"
-          count={authorPrs.length}
-          active={activeFilter === "mine"}
-          onClick={() => {
-            setActiveFilter("mine");
-            setFocusIndex(0);
-          }}
-        />
-        <FilterButton
-          label="All"
-          count={allPrs.length}
-          active={activeFilter === "all"}
-          onClick={() => {
-            setActiveFilter("all");
-            setFocusIndex(0);
-          }}
-        />
+      {/* Filter toggle group */}
+      <div className="px-3 pb-2">
+        <div className="bg-bg-raised flex gap-0.5 rounded-md p-0.5">
+          <FilterButton
+            label="Review"
+            count={reviewPrs.length}
+            active={activeFilter === "review"}
+            onClick={() => {
+              setActiveFilter("review");
+              setFocusIndex(0);
+            }}
+          />
+          <FilterButton
+            label="Mine"
+            count={authorPrs.length}
+            active={activeFilter === "mine"}
+            onClick={() => {
+              setActiveFilter("mine");
+              setFocusIndex(0);
+            }}
+          />
+          <FilterButton
+            label="All"
+            count={allPrs.length}
+            active={activeFilter === "all"}
+            onClick={() => {
+              setActiveFilter("all");
+              setFocusIndex(0);
+            }}
+          />
+        </div>
       </div>
 
       {/* Search box */}
@@ -426,7 +421,6 @@ export function PrInbox({ selectedPr, onSelectPr }: PrInboxProps) {
                 isActive={selectedPr === pr.number}
                 isFocused={safeFocusIndex === index}
                 hasNewActivity={item.hasNewActivity ?? false}
-                isBotPr={isBotUser(pr.author.login) || isBotPrTitle(pr.title)}
                 onClick={() => {
                   setFocusIndex(index);
                   handleSelectPr(pr);
@@ -466,39 +460,35 @@ function FilterButton({
     <button
       type="button"
       onClick={onClick}
-      className={`relative cursor-pointer px-2.5 pt-1 pb-2 text-[11px] transition-colors ${
-        active ? "text-text-primary font-medium" : "text-text-tertiary hover:text-text-secondary"
+      className={`flex cursor-pointer items-center gap-1 rounded-sm px-2.5 py-[3px] text-[11px] font-medium select-none transition-colors ${
+        active
+          ? "bg-bg-elevated text-text-primary shadow-sm"
+          : "text-text-tertiary hover:text-text-primary"
       }`}
     >
       {label}
       {count > 0 && (
-        <span
-          className={`ml-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 font-mono text-[9px] font-medium ${
-            active ? "bg-primary/15 text-accent-text" : "bg-bg-raised text-text-tertiary"
-          }`}
-        >
-          {count}
-        </span>
-      )}
-      {active && (
-        <div className="bg-primary absolute bottom-0 left-1/2 h-[1.5px] w-4 -translate-x-1/2 rounded-[1px]" />
+        <span className="text-accent-text font-mono text-[9px]">{count}</span>
       )}
     </button>
   );
 }
 
-function prSizeLabel(additions: number, deletions: number): { label: string; color: string } {
+function prSizeLabel(
+  additions: number,
+  deletions: number,
+): { label: string; bgColor: string } {
   const total = additions + deletions;
   if (total < 50) {
-    return { label: "S", color: "text-success" };
+    return { label: "S", bgColor: "bg-success-muted text-success" };
   }
   if (total < 200) {
-    return { label: "M", color: "text-warning" };
+    return { label: "M", bgColor: "bg-warning-muted text-warning" };
   }
   if (total < 500) {
-    return { label: "L", color: "text-info" };
+    return { label: "L", bgColor: "bg-[rgba(232,166,85,0.12)] text-accent-text" };
   }
-  return { label: "XL", color: "text-destructive" };
+  return { label: "XL", bgColor: "bg-danger-muted text-destructive" };
 }
 
 function PrItem({
@@ -509,7 +499,6 @@ function PrItem({
   isActive,
   isFocused,
   hasNewActivity,
-  isBotPr,
   onClick,
   cwd,
 }: {
@@ -520,12 +509,10 @@ function PrItem({
   isActive: boolean;
   isFocused: boolean;
   hasNewActivity: boolean;
-  isBotPr: boolean;
   onClick: () => void;
   cwd: string;
 }) {
   const size = enrichment ? prSizeLabel(enrichment.additions, enrichment.deletions) : null;
-  const StatusIcon = statusIndicator.icon;
 
   const approveMutation = useMutation({
     mutationFn: () => ipc("pr.submitReview", { cwd, prNumber: pr.number, event: "APPROVE" }),
@@ -582,7 +569,7 @@ function PrItem({
           <button
             type="button"
             onClick={onClick}
-            className={`flex w-full cursor-pointer items-start gap-2.5 border-l-2 px-3 py-2 text-left transition-colors ${
+            className={`flex w-full cursor-pointer items-start gap-2 border-l-2 px-3 py-2 text-left transition-colors ${
               isActive
                 ? "border-l-primary bg-accent-muted"
                 : isFocused
@@ -592,85 +579,39 @@ function PrItem({
           />
         }
       >
-        {/* Author avatar */}
-        <GitHubAvatar
-          login={pr.author.login}
-          size={20}
-          className="border-border mt-0.5 border"
-          cwd={cwd}
+        {/* Status dot */}
+        <div
+          className={`mt-[5px] h-2 w-2 shrink-0 rounded-full ${statusIndicator.dotColor} ${statusIndicator.pulse ? "animate-pulse" : ""}`}
+          title={statusIndicator.label}
         />
+        {/* Content */}
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5">
-            <p className="text-text-primary truncate text-xs font-medium">{pr.title}</p>
-            {size && (
-              <span
-                className={`bg-bg-raised shrink-0 rounded-sm px-1 font-mono text-[9px] font-medium ${size.color}`}
-              >
-                {size.label}
-              </span>
-            )}
-            <CheckStatusBadge summary={checkSummary} />
-            {hasNewActivity && (
-              <span className="border-border-accent bg-accent-muted text-accent-text inline-flex shrink-0 items-center rounded-full border px-1.5 py-0.5 font-mono text-[9px] font-medium tracking-[0.06em] uppercase">
-                New
-              </span>
-            )}
-            {isBotPr && (
-              <span className="bg-bg-raised text-text-tertiary border-border inline-flex shrink-0 items-center gap-0.5 rounded-full border px-1.5 py-0.5 font-mono text-[9px] font-medium tracking-[0.06em] uppercase">
-                <Bot size={9} />
-                Bot
-              </span>
-            )}
-          </div>
+          <div className="text-text-primary truncate text-xs font-medium">{pr.title}</div>
           <div className="text-text-tertiary mt-0.5 flex items-center gap-1 font-mono text-[10px]">
-            <span title={statusIndicator.label}>
-              <StatusIcon
-                size={10}
-                className={`shrink-0 ${statusIndicator.color} ${statusIndicator.pulse ? "animate-pulse" : ""}`}
-              />
-            </span>
             <span>#{pr.number}</span>
-            <span className="text-text-ghost">·</span>
+            <span className="text-text-ghost">&middot;</span>
             <span className="truncate">{pr.author.name || pr.author.login}</span>
-            <span className="text-text-ghost">·</span>
-            <span className="shrink-0">{relativeTime(new Date(pr.updatedAt))}</span>
-            {!pr.isDraft &&
-              pr.reviewDecision === "APPROVED" &&
-              checkSummary.state === "passing" &&
-              enrichment?.mergeable !== "CONFLICTING" && (
-                <>
-                  <span className="text-text-ghost">·</span>
-                  <span className="text-success flex items-center gap-0.5">
-                    <CheckCircle2 size={10} />
-                    Ready
-                  </span>
-                </>
-              )}
-            {pr.isDraft && (
+            {checkSummary.state !== "passing" && checkSummary.state !== "none" && (
               <>
-                <span className="text-text-ghost">·</span>
-                <span className="text-warning">Draft</span>
-              </>
-            )}
-            {enrichment?.mergeable === "CONFLICTING" && (
-              <>
-                <span className="text-text-ghost">·</span>
-                <span className="text-destructive flex items-center gap-0.5">
-                  <GitPullRequestClosed size={10} />
-                  Conflicts
-                </span>
-              </>
-            )}
-            {enrichment?.autoMergeRequest && (
-              <>
-                <span className="text-text-ghost">·</span>
-                <span className="text-info flex items-center gap-0.5">
-                  <GitMerge size={10} />
-                  Auto
-                </span>
+                <span className="text-text-ghost">&middot;</span>
+                <CheckStatusBadge summary={checkSummary} />
               </>
             )}
           </div>
+        </div>
+        {/* Right column — time + size badge */}
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          <span className="text-text-ghost font-mono text-[10px]">
+            {relativeTime(new Date(pr.updatedAt))}
+          </span>
+          {size && (
+            <span className={`rounded-xs px-1 font-mono text-[9px] font-semibold ${size.bgColor}`}>
+              {size.label}
+            </span>
+          )}
+          {hasNewActivity && !isActive && (
+            <span className="bg-primary h-1.5 w-1.5 rounded-full" />
+          )}
         </div>
       </ContextMenu.Trigger>
       <MenuPopup
@@ -735,10 +676,10 @@ function CheckStatusBadge({ summary }: { summary: PrCheckSummary }) {
     return (
       <span
         title={checkSummaryTitle(summary)}
-        className="bg-danger-muted text-destructive inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 font-mono text-[9px] font-medium"
+        className="text-destructive inline-flex shrink-0 items-center gap-0.5 text-[10px]"
       >
-        <XCircle size={11} />
-        {summary.failed === 1 ? "1 failed" : `${summary.failed} failed`}
+        <XCircle size={10} />
+        {summary.failed}
       </span>
     );
   }
@@ -747,13 +688,13 @@ function CheckStatusBadge({ summary }: { summary: PrCheckSummary }) {
     return (
       <span
         title={checkSummaryTitle(summary)}
-        className="bg-warning-muted text-warning inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 font-mono text-[9px] font-medium"
+        className="text-warning inline-flex shrink-0 items-center gap-0.5 text-[10px]"
       >
         <Loader2
-          size={11}
+          size={10}
           className="animate-spin"
         />
-        {summary.pending === 1 ? "1 pending" : `${summary.pending} pending`}
+        {summary.pending}
       </span>
     );
   }
