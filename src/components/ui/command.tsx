@@ -1,6 +1,7 @@
 "use client";
 
 import type * as React from "react";
+import { createContext, useContext, useId, useMemo, useState } from "react";
 
 import {
   Autocomplete,
@@ -92,19 +93,136 @@ export function CommandDialogPopup({
   );
 }
 
+// ---------------------------------------------------------------------------
+// Search / filter context
+// ---------------------------------------------------------------------------
+
+const CommandQueryContext = createContext("");
+
+/** Read the current raw command palette search query. */
+export function useCommandQuery(): string {
+  return useContext(CommandQueryContext);
+}
+
+/** Case-insensitive substring match. */
+export function commandMatch(text: string, query: string): boolean {
+  if (!query) return true;
+  return text.toLowerCase().includes(query.toLowerCase());
+}
+
+// ---------------------------------------------------------------------------
+// Smart filter parsing
+// ---------------------------------------------------------------------------
+
+export interface ParsedCommandQuery {
+  /** Free-text portion after removing structured filters. */
+  text: string;
+  /** `#1234` or `pr:1234` — exact PR number. */
+  pr?: number;
+  /** `@name` or `author:name` — substring match on author login. */
+  author?: string;
+  /** `branch:name` — substring match on head/base ref. */
+  branch?: string;
+  /** `is:draft`, `is:approved`, `is:open`, etc. */
+  is: string[];
+  /** `size:s`, `size:m`, `size:l`, `size:xl` */
+  size?: string;
+  /** `label:bug` — substring match on label name. */
+  label?: string;
+  /** `file:tsx` or `ext:tsx` — match file extension/path. */
+  file?: string;
+  /** True when any structured filter is present (not just free text). */
+  hasFilters: boolean;
+}
+
+const FILTER_RE =
+  /(?:#(\d+))|(?:@(\S+))|(?:\b(pr|author|branch|is|size|label|file|ext|review|state):(\S+))/gi;
+
+export function parseCommandQuery(raw: string): ParsedCommandQuery {
+  const result: ParsedCommandQuery = { text: "", is: [], hasFilters: false };
+  let text = raw;
+
+  // Walk all structured tokens and strip them from the text
+  for (const m of raw.matchAll(FILTER_RE)) {
+    const full = m[0];
+
+    if (m[1]) {
+      // #1234
+      result.pr = Number.parseInt(m[1], 10);
+    } else if (m[2]) {
+      // @author
+      result.author = m[2];
+    } else if (m[3] && m[4]) {
+      const key = m[3].toLowerCase();
+      const val = m[4];
+      switch (key) {
+        case "pr":
+          result.pr = Number.parseInt(val, 10);
+          break;
+        case "author":
+          result.author = val;
+          break;
+        case "branch":
+          result.branch = val;
+          break;
+        case "is":
+        case "state":
+        case "review":
+          result.is.push(val.toLowerCase());
+          break;
+        case "size":
+          result.size = val.toLowerCase();
+          break;
+        case "label":
+          result.label = val;
+          break;
+        case "file":
+        case "ext":
+          result.file = val;
+          break;
+      }
+    }
+    text = text.replace(full, "");
+    result.hasFilters = true;
+  }
+
+  result.text = text.replace(/\s+/g, " ").trim();
+  return result;
+}
+
+/**
+ * Parsed command query — reactive hook version.
+ * Returns both the structured filters and the free-text query.
+ */
+export function useCommandFilters(): ParsedCommandQuery {
+  const raw = useContext(CommandQueryContext);
+  return useMemo(() => parseCommandQuery(raw), [raw]);
+}
+
+// ---------------------------------------------------------------------------
+// Core components
+// ---------------------------------------------------------------------------
+
 export function Command({
   autoHighlight = "always",
   keepHighlight = true,
+  onValueChange,
   ...props
 }: React.ComponentProps<typeof Autocomplete>): React.ReactElement {
+  const [query, setQuery] = useState("");
   return (
-    <Autocomplete
-      autoHighlight={autoHighlight}
-      inline
-      keepHighlight={keepHighlight}
-      open
-      {...props}
-    />
+    <CommandQueryContext.Provider value={query}>
+      <Autocomplete
+        autoHighlight={autoHighlight}
+        keepHighlight={keepHighlight}
+        onValueChange={(value: string, details) => {
+          setQuery(value);
+          onValueChange?.(value, details);
+        }}
+        open
+        {...props}
+      />
+    </CommandQueryContext.Provider>
   );
 }
 
@@ -174,7 +292,7 @@ export function CommandGroup({
 }: React.ComponentProps<typeof AutocompleteGroup>): React.ReactElement {
   return (
     <AutocompleteGroup
-      className={className}
+      className={cn("[[role=group]+&]:border-t [[role=group]+&]:pt-2", className)}
       data-slot="command-group"
       {...props}
     />
@@ -205,16 +323,37 @@ export function CommandCollection({
   );
 }
 
+function extractText(node: React.ReactNode): string {
+  if (node == null || typeof node === "boolean") return "";
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(extractText).join("");
+  if (typeof node === "object" && "props" in node) {
+    return extractText((node as React.ReactElement<{ children?: React.ReactNode }>).props.children);
+  }
+  return "";
+}
+
 export function CommandItem({
   className,
+  onSelect,
+  value,
+  children,
   ...props
-}: React.ComponentProps<typeof AutocompleteItem>): React.ReactElement {
+}: React.ComponentProps<typeof AutocompleteItem> & {
+  onSelect?: () => void;
+}): React.ReactElement {
+  const id = useId();
+  const textValue = value ?? (extractText(children) || id);
   return (
     <AutocompleteItem
       className={cn("py-1.5", className)}
       data-slot="command-item"
+      onClick={() => onSelect?.()}
+      value={textValue}
       {...props}
-    />
+    >
+      {children}
+    </AutocompleteItem>
   );
 }
 

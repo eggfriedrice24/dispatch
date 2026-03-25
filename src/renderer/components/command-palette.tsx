@@ -1,4 +1,4 @@
-import type { GhPrListItemCore } from "@/shared/ipc";
+import type { GhPrEnrichment, GhPrListItemCore } from "@/shared/ipc";
 
 import {
   Command,
@@ -11,8 +11,9 @@ import {
   CommandItem,
   CommandList,
   CommandPanel,
-  CommandSeparator,
   CommandShortcut,
+  commandMatch,
+  useCommandFilters,
 } from "@/components/ui/command";
 import { Kbd } from "@/components/ui/kbd";
 import { toastManager } from "@/components/ui/toast";
@@ -45,6 +46,7 @@ import { useMemo, useState } from "react";
 import { useKeyboardShortcuts } from "../hooks/use-keyboard-shortcuts";
 import { useFileNav } from "../lib/file-nav-context";
 import { ipc } from "../lib/ipc";
+import { useKeybindings } from "../lib/keybinding-context";
 import { openExternal } from "../lib/open-external";
 import { queryClient } from "../lib/query-client";
 import { useRouter } from "../lib/router";
@@ -53,17 +55,41 @@ import { useWorkspace } from "../lib/workspace-context";
 /**
  * Command palette — ⌘K global search and action launcher.
  *
- * A power-user command center that surfaces every action in Dispatch.
- * Fuzzy-searchable across navigation, PRs, files, workspaces, git actions,
- * workflows, and system commands.
+ * ## Smart filters
+ *
+ * Power-user structured filters parsed from the query:
+ *
+ * | Filter              | Example                     | Matches                        |
+ * |---------------------|-----------------------------|--------------------------------|
+ * | `#N` / `pr:N`       | `#3350`, `pr:100`           | Exact PR number                |
+ * | `@name` / `author:` | `@john`, `author:jane`      | Author login (substring)       |
+ * | `branch:`           | `branch:feat/new`           | Head or base branch            |
+ * | `is:` / `state:`    | `is:draft`, `is:approved`   | PR state or review status      |
+ * | `size:`             | `size:s`, `size:xl`         | Change size (xs/s/m/l/xl)      |
+ * | `label:`            | `label:bug`                 | PR label name                  |
+ * | `file:` / `ext:`    | `file:tsx`, `ext:css`       | File path / extension          |
+ *
+ * Remaining text after filters is used for free-text substring search.
  */
+
+/** Resolve the real GitHub `owner/repo` slug from the git remote. */
+function useRepoSlug(): string {
+  const { cwd } = useWorkspace();
+  const repoInfo = useQuery({
+    queryKey: ["repo", "info", cwd],
+    queryFn: () => ipc("repo.info", { cwd }),
+    staleTime: 300_000,
+  });
+  return repoInfo.data?.nameWithOwner ?? "";
+}
 
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
+  const { getBinding } = useKeybindings();
 
   useKeyboardShortcuts([
-    { key: "k", modifiers: ["meta"], handler: () => setOpen(true) },
-    { key: "p", modifiers: ["meta", "shift"], handler: () => setOpen(true) },
+    { ...getBinding("search.commandPalette"), handler: () => setOpen(true) },
+    { ...getBinding("search.commandPaletteAlt"), handler: () => setOpen(true) },
   ]);
 
   const close = () => setOpen(false);
@@ -75,23 +101,16 @@ export function CommandPalette() {
     >
       <CommandDialogPopup>
         <Command key={open ? "open" : "closed"}>
-          <CommandInput placeholder="Type a command or search..." />
+          <CommandInput placeholder="Search commands… #pr @author is:draft size:s" />
           <CommandPanel>
             <CommandList>
               <PullRequestGroup onSelect={close} />
-              <CommandSeparator />
               <FileGroup onSelect={close} />
-              <CommandSeparator />
               <ReviewActionsGroup onSelect={close} />
-              <CommandSeparator />
               <NavigationGroup onSelect={close} />
-              <CommandSeparator />
               <WorkspaceGroup onSelect={close} />
-              <CommandSeparator />
               <WorkflowGroup onSelect={close} />
-              <CommandSeparator />
               <GitGroup onSelect={close} />
-              <CommandSeparator />
               <SystemGroup onSelect={close} />
             </CommandList>
           </CommandPanel>
@@ -121,10 +140,26 @@ export function CommandPalette() {
 }
 
 // ---------------------------------------------------------------------------
+// Size classification for `size:` filter
+// ---------------------------------------------------------------------------
+
+type PrSize = "xs" | "s" | "m" | "l" | "xl";
+
+function classifyPrSize(additions: number, deletions: number): PrSize {
+  const total = additions + deletions;
+  if (total < 10) return "xs";
+  if (total < 50) return "s";
+  if (total < 200) return "m";
+  if (total < 500) return "l";
+  return "xl";
+}
+
+// ---------------------------------------------------------------------------
 // Pull Requests — quick jump to any open PR
 // ---------------------------------------------------------------------------
 
 function PullRequestGroup({ onSelect }: { onSelect: () => void }) {
+  const filters = useCommandFilters();
   const { cwd } = useWorkspace();
   const { navigate } = useRouter();
 
@@ -153,14 +188,104 @@ function PullRequestGroup({ onSelect }: { onSelect: () => void }) {
     return [...new Map(all.map((pr) => [pr.number, pr])).values()];
   }, [reviewQuery.data, authorQuery.data, allQuery.data]);
 
-  if (prs.length === 0) {
-    return null;
-  }
+  // Build a lookup from cached enrichment data for size/label filters
+  const enrichmentMap = useMemo(() => {
+    const map = new Map<number, GhPrEnrichment>();
+    for (const filter of ["reviewRequested", "authored", "all"]) {
+      const cached = queryClient.getQueryData<GhPrEnrichment[]>([
+        "pr",
+        "enrichment",
+        cwd,
+        filter,
+      ]);
+      if (cached) {
+        for (const e of cached) map.set(e.number, e);
+      }
+    }
+    return map;
+  }, [cwd, prs]); // re-derive when prs change (proxy for cache freshness)
+
+  const visible = useMemo(() => {
+    let filtered = prs.slice(0, 15);
+
+    // ── Structured filters ──────────────────────────────────────────────
+
+    // #N / pr:N — exact PR number
+    if (filters.pr != null) {
+      filtered = filtered.filter((p) => p.number === filters.pr);
+    }
+
+    // @name / author:name
+    if (filters.author) {
+      const a = filters.author.toLowerCase();
+      filtered = filtered.filter((p) => p.author.login.toLowerCase().includes(a));
+    }
+
+    // branch:name
+    if (filters.branch) {
+      const b = filters.branch.toLowerCase();
+      filtered = filtered.filter(
+        (p) =>
+          p.headRefName.toLowerCase().includes(b) ||
+          p.baseRefName.toLowerCase().includes(b),
+      );
+    }
+
+    // is: / state: / review: filters
+    for (const flag of filters.is) {
+      switch (flag) {
+        case "draft":
+          filtered = filtered.filter((p) => p.isDraft);
+          break;
+        case "open":
+          filtered = filtered.filter((p) => p.state === "OPEN");
+          break;
+        case "merged":
+          filtered = filtered.filter((p) => p.state === "MERGED");
+          break;
+        case "closed":
+          filtered = filtered.filter((p) => p.state === "CLOSED");
+          break;
+        case "approved":
+          filtered = filtered.filter((p) => p.reviewDecision === "APPROVED");
+          break;
+        case "changes-requested":
+        case "changes":
+          filtered = filtered.filter((p) => p.reviewDecision === "CHANGES_REQUESTED");
+          break;
+        case "review-required":
+        case "pending":
+          filtered = filtered.filter((p) => p.reviewDecision === "REVIEW_REQUIRED");
+          break;
+      }
+    }
+
+    // size:xs/s/m/l/xl (requires enrichment data)
+    if (filters.size) {
+      const target = filters.size as PrSize;
+      filtered = filtered.filter((p) => {
+        const e = enrichmentMap.get(p.number);
+        if (!e) return false; // no enrichment yet — hide rather than guess
+        return classifyPrSize(e.additions, e.deletions) === target;
+      });
+    }
+
+    // ── Free-text search ────────────────────────────────────────────────
+    if (filters.text) {
+      filtered = filtered.filter((p) =>
+        commandMatch(`${p.title} #${p.number} ${p.author.login}`, filters.text),
+      );
+    }
+
+    return filtered;
+  }, [prs, filters, enrichmentMap]);
+
+  if (visible.length === 0) return null;
 
   return (
     <CommandGroup>
       <CommandGroupLabel>Pull Requests</CommandGroupLabel>
-      {prs.slice(0, 15).map((pr) => (
+      {visible.map((pr) => (
         <CommandItem
           key={pr.number}
           onSelect={() => {
@@ -216,6 +341,7 @@ function PrStatusIcon({ pr }: { pr: GhPrListItemCore }) {
 // ---------------------------------------------------------------------------
 
 function FileGroup({ onSelect }: { onSelect: () => void }) {
+  const filters = useCommandFilters();
   const { cwd } = useWorkspace();
   const { route } = useRouter();
   const fileNav = useFileNavSafe();
@@ -231,7 +357,6 @@ function FileGroup({ onSelect }: { onSelect: () => void }) {
 
   const files = useMemo(() => {
     if (!diffQuery.data) return [];
-    // Simple extraction of file paths from diff headers
     const paths: string[] = [];
     for (const line of diffQuery.data.split("\n")) {
       if (line.startsWith("+++ b/")) {
@@ -241,14 +366,34 @@ function FileGroup({ onSelect }: { onSelect: () => void }) {
     return paths;
   }, [diffQuery.data]);
 
-  if (!prNumber || files.length === 0) {
-    return null;
-  }
+  const visible = useMemo(() => {
+    let filtered = files;
+
+    // file:/ext: filter — match extension or path segment
+    if (filters.file) {
+      const f = filters.file.toLowerCase();
+      filtered = filtered.filter(
+        (path) =>
+          path.toLowerCase().includes(f) ||
+          path.toLowerCase().endsWith(`.${f}`),
+      );
+    }
+
+    // Free-text search
+    if (filters.text) {
+      filtered = filtered.filter((path) => commandMatch(path, filters.text));
+    }
+
+    return filtered;
+  }, [files, filters]);
+
+  if (!prNumber || visible.length === 0) return null;
 
   return (
     <CommandGroup>
       <CommandGroupLabel>Files in PR #{prNumber}</CommandGroupLabel>
-      {files.map((filePath, i) => {
+      {visible.map((filePath) => {
+        const originalIndex = files.indexOf(filePath);
         const fileName = filePath.split("/").pop() ?? filePath;
         const dirPath = filePath.includes("/")
           ? filePath.slice(0, filePath.lastIndexOf("/") + 1)
@@ -258,7 +403,7 @@ function FileGroup({ onSelect }: { onSelect: () => void }) {
             key={filePath}
             onSelect={() => {
               if (fileNav) {
-                fileNav.setCurrentFileIndex(i);
+                fileNav.setCurrentFileIndex(originalIndex);
               }
               onSelect();
             }}
@@ -287,83 +432,107 @@ function useFileNavSafe() {
 // ---------------------------------------------------------------------------
 
 function ReviewActionsGroup({ onSelect }: { onSelect: () => void }) {
+  const filters = useCommandFilters();
   const { cwd } = useWorkspace();
   const { route } = useRouter();
+  const repoSlug = useRepoSlug();
 
   const prNumber = route.view === "review" ? route.prNumber : null;
   if (!prNumber) return null;
 
-  const repoSlug = cwd.split("/").slice(-2).join("/");
+  // PR-specific filters should NOT hide action commands
+  // (e.g. `#3350` should still show actions for the current PR)
+  // Only use free-text for filtering actions.
+  const query = filters.text;
 
-  return (
-    <CommandGroup>
-      <CommandGroupLabel>Review Actions</CommandGroupLabel>
-      <CommandItem
-        onSelect={() => {
-          ipc("pr.submitReview", { cwd, prNumber, event: "APPROVE" }).then(() => {
-            queryClient.invalidateQueries({ queryKey: ["pr"] });
-            toastManager.add({ title: "PR approved", type: "success" });
-          });
-          onSelect();
-        }}
-      >
+  const items = [
+    {
+      key: "approve",
+      label: `Approve PR #${prNumber}`,
+      shortcut: "a",
+      icon: (
         <Check
           size={14}
           className="text-success"
         />
-        Approve PR #{prNumber}
-        <CommandShortcut>a</CommandShortcut>
-      </CommandItem>
-      <CommandItem
-        onSelect={() => {
-          void openExternal(`https://github.com/${repoSlug}/pull/${prNumber}`);
-          onSelect();
-        }}
-      >
-        <ExternalLink size={14} />
-        Open PR #{prNumber} on GitHub
-      </CommandItem>
-      <CommandItem
-        onSelect={() => {
-          navigator.clipboard.writeText(`https://github.com/${repoSlug}/pull/${prNumber}`);
-          toastManager.add({ title: "PR URL copied", type: "success" });
-          onSelect();
-        }}
-      >
-        <ClipboardCopy size={14} />
-        Copy PR URL
-      </CommandItem>
-      <CommandItem
-        onSelect={() => {
-          navigator.clipboard.writeText(`#${prNumber}`);
-          toastManager.add({ title: "Copied #" + prNumber, type: "success" });
-          onSelect();
-        }}
-      >
-        <ClipboardCopy size={14} />
-        Copy PR number
-      </CommandItem>
-      <CommandItem
-        onSelect={() => {
-          // Toggle the side panel via keyboard shortcut
-          globalThis.dispatchEvent(new KeyboardEvent("keydown", { key: "i", bubbles: true }));
-          onSelect();
-        }}
-      >
-        <PanelRight size={14} />
-        Toggle side panel
-        <CommandShortcut>i</CommandShortcut>
-      </CommandItem>
-      <CommandItem
-        onSelect={() => {
-          globalThis.dispatchEvent(new KeyboardEvent("keydown", { key: "n", bubbles: true }));
-          onSelect();
-        }}
-      >
-        <Eye size={14} />
-        Jump to next unreviewed file
-        <CommandShortcut>n</CommandShortcut>
-      </CommandItem>
+      ),
+      action: () => {
+        ipc("pr.submitReview", { cwd, prNumber, event: "APPROVE" }).then(() => {
+          queryClient.invalidateQueries({ queryKey: ["pr"] });
+          toastManager.add({ title: "PR approved", type: "success" });
+        });
+        onSelect();
+      },
+    },
+    {
+      key: "open-github",
+      label: `Open PR #${prNumber} on GitHub`,
+      icon: <ExternalLink size={14} />,
+      action: () => {
+        void openExternal(`https://github.com/${repoSlug}/pull/${prNumber}`);
+        onSelect();
+      },
+    },
+    {
+      key: "copy-url",
+      label: "Copy PR URL",
+      icon: <ClipboardCopy size={14} />,
+      action: () => {
+        navigator.clipboard.writeText(`https://github.com/${repoSlug}/pull/${prNumber}`);
+        toastManager.add({ title: "PR URL copied", type: "success" });
+        onSelect();
+      },
+    },
+    {
+      key: "copy-number",
+      label: "Copy PR number",
+      icon: <ClipboardCopy size={14} />,
+      action: () => {
+        navigator.clipboard.writeText(`#${prNumber}`);
+        toastManager.add({ title: "Copied #" + prNumber, type: "success" });
+        onSelect();
+      },
+    },
+    {
+      key: "toggle-panel",
+      label: "Toggle side panel",
+      shortcut: "i",
+      icon: <PanelRight size={14} />,
+      action: () => {
+        globalThis.dispatchEvent(new KeyboardEvent("keydown", { key: "i", bubbles: true }));
+        onSelect();
+      },
+    },
+    {
+      key: "next-unreviewed",
+      label: "Jump to next unreviewed file",
+      shortcut: "n",
+      icon: <Eye size={14} />,
+      action: () => {
+        globalThis.dispatchEvent(new KeyboardEvent("keydown", { key: "n", bubbles: true }));
+        onSelect();
+      },
+    },
+  ];
+
+  const visible = query ? items.filter((i) => commandMatch(i.label, query)) : items;
+  if (visible.length === 0) return null;
+
+  return (
+    <CommandGroup>
+      <CommandGroupLabel>Review Actions</CommandGroupLabel>
+      {visible.map((item) => (
+        <CommandItem
+          key={item.key}
+          onSelect={item.action}
+        >
+          {item.icon}
+          {item.label}
+          {"shortcut" in item && item.shortcut && (
+            <CommandShortcut>{item.shortcut}</CommandShortcut>
+          )}
+        </CommandItem>
+      ))}
     </CommandGroup>
   );
 }
@@ -373,60 +542,79 @@ function ReviewActionsGroup({ onSelect }: { onSelect: () => void }) {
 // ---------------------------------------------------------------------------
 
 function NavigationGroup({ onSelect }: { onSelect: () => void }) {
+  const { text: query } = useCommandFilters();
   const { navigate } = useRouter();
+
+  const items = [
+    {
+      key: "review",
+      label: "Go to Review",
+      shortcut: "1",
+      icon: <GitPullRequest size={14} />,
+      action: () => {
+        navigate({ view: "review", prNumber: null });
+        onSelect();
+      },
+    },
+    {
+      key: "workflows",
+      label: "Go to Workflows",
+      shortcut: "2",
+      icon: <Zap size={14} />,
+      action: () => {
+        navigate({ view: "workflows" });
+        onSelect();
+      },
+    },
+    {
+      key: "metrics",
+      label: "Go to Metrics",
+      shortcut: "3",
+      icon: <BarChart3 size={14} />,
+      action: () => {
+        navigate({ view: "metrics" });
+        onSelect();
+      },
+    },
+    {
+      key: "releases",
+      label: "Go to Releases",
+      shortcut: "4",
+      icon: <Tag size={14} />,
+      action: () => {
+        navigate({ view: "releases" });
+        onSelect();
+      },
+    },
+    {
+      key: "settings",
+      label: "Open Settings",
+      icon: <Settings size={14} />,
+      action: () => {
+        navigate({ view: "settings" });
+        onSelect();
+      },
+    },
+  ];
+
+  const visible = query ? items.filter((i) => commandMatch(i.label, query)) : items;
+  if (visible.length === 0) return null;
 
   return (
     <CommandGroup>
       <CommandGroupLabel>Navigation</CommandGroupLabel>
-      <CommandItem
-        onSelect={() => {
-          navigate({ view: "review", prNumber: null });
-          onSelect();
-        }}
-      >
-        <GitPullRequest size={14} />
-        Go to Review
-        <CommandShortcut>1</CommandShortcut>
-      </CommandItem>
-      <CommandItem
-        onSelect={() => {
-          navigate({ view: "workflows" });
-          onSelect();
-        }}
-      >
-        <Zap size={14} />
-        Go to Workflows
-        <CommandShortcut>2</CommandShortcut>
-      </CommandItem>
-      <CommandItem
-        onSelect={() => {
-          navigate({ view: "metrics" });
-          onSelect();
-        }}
-      >
-        <BarChart3 size={14} />
-        Go to Metrics
-        <CommandShortcut>3</CommandShortcut>
-      </CommandItem>
-      <CommandItem
-        onSelect={() => {
-          navigate({ view: "releases" });
-          onSelect();
-        }}
-      >
-        <Tag size={14} />
-        Go to Releases
-        <CommandShortcut>4</CommandShortcut>
-      </CommandItem>
-      <CommandItem
-        onSelect={() => {
-          navigate({ view: "settings" });
-          onSelect();
-        }}
-      >
-        <Settings size={14} />
-        Open Settings
-      </CommandItem>
+      {visible.map((item) => (
+        <CommandItem
+          key={item.key}
+          onSelect={item.action}
+        >
+          {item.icon}
+          {item.label}
+          {"shortcut" in item && item.shortcut && (
+            <CommandShortcut>{item.shortcut}</CommandShortcut>
+          )}
+        </CommandItem>
+      ))}
     </CommandGroup>
   );
 }
@@ -436,6 +624,7 @@ function NavigationGroup({ onSelect }: { onSelect: () => void }) {
 // ---------------------------------------------------------------------------
 
 function WorkspaceGroup({ onSelect }: { onSelect: () => void }) {
+  const { text: query } = useCommandFilters();
   const { cwd, switchWorkspace } = useWorkspace();
   const { navigate } = useRouter();
 
@@ -446,10 +635,18 @@ function WorkspaceGroup({ onSelect }: { onSelect: () => void }) {
   });
   const workspaces = workspacesQuery.data ?? [];
 
+  const addRepoLabel = "Add repository";
+  const visibleWorkspaces = query
+    ? workspaces.filter((ws) => commandMatch(`${ws.name} ${ws.path}`, query))
+    : workspaces;
+  const showAddRepo = commandMatch(addRepoLabel, query);
+
+  if (visibleWorkspaces.length === 0 && !showAddRepo) return null;
+
   return (
     <CommandGroup>
       <CommandGroupLabel>Workspaces</CommandGroupLabel>
-      {workspaces.map((ws) => (
+      {visibleWorkspaces.map((ws) => (
         <CommandItem
           key={ws.id}
           onSelect={() => {
@@ -470,25 +667,27 @@ function WorkspaceGroup({ onSelect }: { onSelect: () => void }) {
           <span className="text-text-ghost ml-auto truncate font-mono text-[10px]">{ws.path}</span>
         </CommandItem>
       ))}
-      <CommandItem
-        onSelect={() => {
-          ipc("workspace.pickFolder").then((result) => {
-            if (result) {
-              ipc("workspace.add", { path: result }).then(() => {
-                ipc("workspace.setActive", { path: result }).then(() => {
-                  switchWorkspace(result);
-                  queryClient.invalidateQueries();
-                  navigate({ view: "review", prNumber: null });
+      {showAddRepo && (
+        <CommandItem
+          onSelect={() => {
+            ipc("workspace.pickFolder").then((result) => {
+              if (result) {
+                ipc("workspace.add", { path: result }).then(() => {
+                  ipc("workspace.setActive", { path: result }).then(() => {
+                    switchWorkspace(result);
+                    queryClient.invalidateQueries();
+                    navigate({ view: "review", prNumber: null });
+                  });
                 });
-              });
-            }
-          });
-          onSelect();
-        }}
-      >
-        <FolderOpen size={14} />
-        Add repository...
-      </CommandItem>
+              }
+            });
+            onSelect();
+          }}
+        >
+          <FolderOpen size={14} />
+          {addRepoLabel}...
+        </CommandItem>
+      )}
     </CommandGroup>
   );
 }
@@ -498,6 +697,7 @@ function WorkspaceGroup({ onSelect }: { onSelect: () => void }) {
 // ---------------------------------------------------------------------------
 
 function WorkflowGroup({ onSelect }: { onSelect: () => void }) {
+  const { text: query } = useCommandFilters();
   const { cwd } = useWorkspace();
   const { navigate } = useRouter();
 
@@ -508,12 +708,17 @@ function WorkflowGroup({ onSelect }: { onSelect: () => void }) {
   });
   const workflows = (workflowsQuery.data ?? []).filter((w) => w.state === "active");
 
-  if (workflows.length === 0) return null;
+  const visible = useMemo(() => {
+    if (!query) return workflows;
+    return workflows.filter((wf) => commandMatch(wf.name, query));
+  }, [workflows, query]);
+
+  if (visible.length === 0) return null;
 
   return (
     <CommandGroup>
       <CommandGroupLabel>Workflows</CommandGroupLabel>
-      {workflows.map((wf) => (
+      {visible.map((wf) => (
         <CommandItem
           key={wf.id}
           onSelect={() => {
@@ -534,51 +739,64 @@ function WorkflowGroup({ onSelect }: { onSelect: () => void }) {
 // ---------------------------------------------------------------------------
 
 function GitGroup({ onSelect }: { onSelect: () => void }) {
-  const { cwd } = useWorkspace();
+  const { text: query } = useCommandFilters();
+  const repoSlug = useRepoSlug();
+
+  const items = [
+    {
+      key: "open-repo",
+      label: "Open repo on GitHub",
+      icon: <ExternalLink size={14} />,
+      action: () => {
+        void openExternal(`https://github.com/${repoSlug}`);
+        onSelect();
+      },
+    },
+    {
+      key: "view-prs",
+      label: "View all PRs on GitHub",
+      icon: <GitPullRequest size={14} />,
+      action: () => {
+        void openExternal(`https://github.com/${repoSlug}/pulls`);
+        onSelect();
+      },
+    },
+    {
+      key: "view-actions",
+      label: "View Actions on GitHub",
+      icon: <Zap size={14} />,
+      action: () => {
+        void openExternal(`https://github.com/${repoSlug}/actions`);
+        onSelect();
+      },
+    },
+    {
+      key: "copy-slug",
+      label: "Copy repo slug",
+      icon: <ClipboardCopy size={14} />,
+      action: () => {
+        navigator.clipboard.writeText(repoSlug);
+        toastManager.add({ title: "Repo slug copied", type: "success" });
+        onSelect();
+      },
+    },
+  ];
+
+  const visible = query ? items.filter((i) => commandMatch(i.label, query)) : items;
+  if (visible.length === 0) return null;
 
   return (
     <CommandGroup>
       <CommandGroupLabel>Git</CommandGroupLabel>
-      <CommandItem
-        onSelect={() => {
-          void openExternal(`https://github.com/${cwd.split("/").slice(-2).join("/")}`);
-          onSelect();
-        }}
-      >
-        <ExternalLink size={14} />
-        Open repo on GitHub
-      </CommandItem>
-      <CommandItem
-        onSelect={() => {
-          const repoSlug = cwd.split("/").slice(-2).join("/");
-          void openExternal(`https://github.com/${repoSlug}/pulls`);
-          onSelect();
-        }}
-      >
-        <GitPullRequest size={14} />
-        View all PRs on GitHub
-      </CommandItem>
-      <CommandItem
-        onSelect={() => {
-          const repoSlug = cwd.split("/").slice(-2).join("/");
-          void openExternal(`https://github.com/${repoSlug}/actions`);
-          onSelect();
-        }}
-      >
-        <Zap size={14} />
-        View Actions on GitHub
-      </CommandItem>
-      <CommandItem
-        onSelect={() => {
-          const repoSlug = cwd.split("/").slice(-2).join("/");
-          navigator.clipboard.writeText(repoSlug);
-          toastManager.add({ title: "Repo slug copied", type: "success" });
-          onSelect();
-        }}
-      >
-        <ClipboardCopy size={14} />
-        Copy repo slug
-      </CommandItem>
+      {visible.map((item) => (
+        <CommandItem
+          key={item.key}
+          onSelect={item.action}
+        >
+          {item.icon}
+          {item.label}
+        </CommandItem>
+      ))}
     </CommandGroup>
   );
 }
@@ -588,71 +806,91 @@ function GitGroup({ onSelect }: { onSelect: () => void }) {
 // ---------------------------------------------------------------------------
 
 function SystemGroup({ onSelect }: { onSelect: () => void }) {
+  const { text: query } = useCommandFilters();
+
+  const items = [
+    {
+      key: "refresh",
+      label: "Refresh all data",
+      icon: <RefreshCw size={14} />,
+      action: () => {
+        queryClient.invalidateQueries();
+        toastManager.add({ title: "Refreshing all data...", type: "success" });
+        onSelect();
+      },
+    },
+    {
+      key: "clear-cache",
+      label: "Clear cache and refresh",
+      icon: <RotateCcw size={14} />,
+      action: () => {
+        queryClient.clear();
+        queryClient.invalidateQueries();
+        toastManager.add({ title: "Cache cleared", type: "success" });
+        onSelect();
+      },
+    },
+    {
+      key: "toggle-sidebar",
+      label: "Toggle sidebar",
+      shortcut: "⌘B",
+      icon: <Layers size={14} />,
+      action: () => {
+        globalThis.dispatchEvent(
+          new KeyboardEvent("keydown", { key: "b", metaKey: true, bubbles: true }),
+        );
+        onSelect();
+      },
+    },
+    {
+      key: "keyboard-shortcuts",
+      label: "Show keyboard shortcuts",
+      shortcut: "?",
+      icon: <Keyboard size={14} />,
+      action: () => {
+        globalThis.dispatchEvent(new KeyboardEvent("keydown", { key: "?", bubbles: true }));
+        onSelect();
+      },
+    },
+    {
+      key: "focus-search",
+      label: "Focus PR search",
+      shortcut: "/",
+      icon: <Search size={14} />,
+      action: () => {
+        globalThis.dispatchEvent(new KeyboardEvent("keydown", { key: "/", bubbles: true }));
+        onSelect();
+      },
+    },
+    {
+      key: "manage-tokens",
+      label: "Manage GitHub tokens",
+      icon: <BookOpen size={14} />,
+      action: () => {
+        void openExternal("https://github.com/settings/tokens");
+        onSelect();
+      },
+    },
+  ];
+
+  const visible = query ? items.filter((i) => commandMatch(i.label, query)) : items;
+  if (visible.length === 0) return null;
+
   return (
     <CommandGroup>
       <CommandGroupLabel>System</CommandGroupLabel>
-      <CommandItem
-        onSelect={() => {
-          queryClient.invalidateQueries();
-          toastManager.add({ title: "Refreshing all data...", type: "success" });
-          onSelect();
-        }}
-      >
-        <RefreshCw size={14} />
-        Refresh all data
-      </CommandItem>
-      <CommandItem
-        onSelect={() => {
-          queryClient.clear();
-          queryClient.invalidateQueries();
-          toastManager.add({ title: "Cache cleared", type: "success" });
-          onSelect();
-        }}
-      >
-        <RotateCcw size={14} />
-        Clear cache and refresh
-      </CommandItem>
-      <CommandItem
-        onSelect={() => {
-          globalThis.dispatchEvent(
-            new KeyboardEvent("keydown", { key: "b", metaKey: true, bubbles: true }),
-          );
-          onSelect();
-        }}
-      >
-        <Layers size={14} />
-        Toggle sidebar
-        <CommandShortcut>⌘B</CommandShortcut>
-      </CommandItem>
-      <CommandItem
-        onSelect={() => {
-          globalThis.dispatchEvent(new KeyboardEvent("keydown", { key: "?", bubbles: true }));
-          onSelect();
-        }}
-      >
-        <Keyboard size={14} />
-        Show keyboard shortcuts
-        <CommandShortcut>?</CommandShortcut>
-      </CommandItem>
-      <CommandItem
-        onSelect={() => {
-          globalThis.dispatchEvent(new KeyboardEvent("keydown", { key: "/", bubbles: true }));
-          onSelect();
-        }}
-      >
-        <Search size={14} />
-        Focus PR search
-        <CommandShortcut>/</CommandShortcut>
-      </CommandItem>
-      <CommandItem
-        onSelect={() => {
-          void openExternal("https://github.com/settings/tokens");
-          onSelect();
-        }}
-      >
-        <BookOpen size={14} />
-        Manage GitHub tokens
-      </CommandItem>
+      {visible.map((item) => (
+        <CommandItem
+          key={item.key}
+          onSelect={item.action}
+        >
+          {item.icon}
+          {item.label}
+          {"shortcut" in item && item.shortcut && (
+            <CommandShortcut>{item.shortcut}</CommandShortcut>
+          )}
+        </CommandItem>
+      ))}
     </CommandGroup>
   );
 }
