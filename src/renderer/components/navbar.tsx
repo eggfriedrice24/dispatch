@@ -9,6 +9,7 @@ import {
   MenuSeparator,
   MenuTrigger,
 } from "@/components/ui/menu";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "@/components/ui/tooltip";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   BarChart3,
@@ -460,11 +461,10 @@ function IconButton({
   active?: boolean;
   title?: string;
 }) {
-  return (
+  const button = (
     <button
       type="button"
       onClick={onClick}
-      title={title}
       className={`relative flex h-[30px] w-[30px] cursor-pointer items-center justify-center rounded-sm transition-colors ${
         active
           ? "bg-bg-raised text-text-primary"
@@ -476,5 +476,16 @@ function IconButton({
         <div className="bg-primary absolute bottom-[-7px] left-1/2 h-[1.5px] w-4 -translate-x-1/2 rounded-[1px]" />
       )}
     </button>
+  );
+
+  if (!title) {
+    return button;
+  }
+
+  return (
+    <Tooltip>
+      <TooltipTrigger render={button} />
+      <TooltipPopup side="bottom">{title}</TooltipPopup>
+    </Tooltip>
   );
 }

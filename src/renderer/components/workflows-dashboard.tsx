@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Spinner } from "@/components/ui/spinner";
 import { toastManager } from "@/components/ui/toast";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "@/components/ui/tooltip";
 import { relativeTime } from "@/shared/format";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
@@ -24,6 +25,7 @@ import { ipc } from "../lib/ipc";
 import { queryClient } from "../lib/query-client";
 import { useRouter } from "../lib/router";
 import { useWorkspace } from "../lib/workspace-context";
+import { ConfirmDialog } from "./confirm-dialog";
 import { WorkflowRunsSkeleton } from "./loading-skeletons";
 import { RunComparison } from "./run-comparison";
 import { RunDetail } from "./run-detail";
@@ -386,30 +388,41 @@ function RunRow({
       {/* Actions */}
       <div className="flex shrink-0 items-center gap-1">
         {run.conclusion === "failure" && (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              rerunMutation.mutate({ cwd, runId: run.databaseId });
-            }}
-            className="text-text-tertiary hover:bg-bg-raised hover:text-text-primary cursor-pointer rounded-sm p-1"
-            title="Re-run"
-          >
-            <RotateCcw size={13} />
-          </button>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    rerunMutation.mutate({ cwd, runId: run.databaseId });
+                  }}
+                  className="text-text-tertiary hover:bg-bg-raised hover:text-text-primary cursor-pointer rounded-sm p-1"
+                >
+                  <RotateCcw size={13} />
+                </button>
+              }
+            />
+            <TooltipPopup>Re-run</TooltipPopup>
+          </Tooltip>
         )}
         {isInProgress && (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              cancelMutation.mutate({ cwd, runId: run.databaseId });
-            }}
-            className="text-text-tertiary hover:bg-bg-raised hover:text-destructive cursor-pointer rounded-sm p-1"
-            title="Cancel"
-          >
-            <Square size={13} />
-          </button>
+          <ConfirmDialog
+            trigger={
+              <button
+                type="button"
+                onClick={(e) => e.stopPropagation()}
+                className="text-text-tertiary hover:bg-bg-raised hover:text-destructive cursor-pointer rounded-sm p-1"
+                title="Cancel"
+              >
+                <Square size={13} />
+              </button>
+            }
+            title="Cancel workflow run?"
+            description={`This will cancel "${run.displayTitle}". The run cannot be resumed once cancelled.`}
+            confirmLabel="Cancel run"
+            onConfirm={() => cancelMutation.mutate({ cwd, runId: run.databaseId })}
+          />
         )}
       </div>
     </button>

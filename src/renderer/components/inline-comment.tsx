@@ -3,6 +3,7 @@ import type { GhReactionGroup } from "@/shared/ipc";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { toastManager } from "@/components/ui/toast";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "@/components/ui/tooltip";
 import { relativeTime } from "@/shared/format";
 import { useMutation } from "@tanstack/react-query";
 import {
@@ -702,14 +703,20 @@ function CommentBody({
         </span>
         <div className="ml-auto flex items-center gap-1">
           {onReply && (
-            <button
-              type="button"
-              onClick={onReply}
-              className="text-text-ghost hover:text-text-primary cursor-pointer rounded-sm p-0.5 opacity-0 transition-opacity group-hover:opacity-100 hover:opacity-100"
-              title="Reply"
-            >
-              <Reply size={12} />
-            </button>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <button
+                    type="button"
+                    onClick={onReply}
+                    className="text-text-ghost hover:text-text-primary cursor-pointer rounded-sm p-0.5 opacity-0 transition-opacity group-hover:opacity-100 hover:opacity-100"
+                  >
+                    <Reply size={12} />
+                  </button>
+                }
+              />
+              <TooltipPopup>Reply</TooltipPopup>
+            </Tooltip>
           )}
           {isRoot && (
             <ThreadResolveButton
@@ -720,14 +727,20 @@ function CommentBody({
             />
           )}
           {/* Minimize toggle */}
-          <button
-            type="button"
-            onClick={onToggleMinimized}
-            className="text-text-ghost hover:text-text-primary cursor-pointer rounded-sm p-0.5 transition-colors"
-            title={minimized ? "Expand comment" : "Minimize comment"}
-          >
-            {minimized ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
-          </button>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <button
+                  type="button"
+                  onClick={onToggleMinimized}
+                  className="text-text-ghost hover:text-text-primary cursor-pointer rounded-sm p-0.5 transition-colors"
+                >
+                  {minimized ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
+                </button>
+              }
+            />
+            <TooltipPopup>{minimized ? "Expand comment" : "Minimize comment"}</TooltipPopup>
+          </Tooltip>
         </div>
       </div>
 

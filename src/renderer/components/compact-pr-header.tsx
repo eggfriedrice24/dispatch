@@ -1,6 +1,7 @@
 import type { GhPrDetail } from "@/shared/ipc";
 
 import { toastManager } from "@/components/ui/toast";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "@/components/ui/tooltip";
 import { useMutation } from "@tanstack/react-query";
 import { Copy, ExternalLink, Link, PanelRight, RefreshCw } from "lucide-react";
 import { useRef, useState } from "react";
@@ -138,69 +139,99 @@ export function CompactPrHeader({
         )}
 
         {/* Refresh PR data */}
-        <button
-          type="button"
-          onClick={onRefresh}
-          disabled={isRefreshing}
-          className="text-text-tertiary hover:bg-bg-raised hover:text-text-primary hover:border-border flex h-[22px] w-[22px] shrink-0 cursor-pointer items-center justify-center rounded-sm border border-transparent transition-colors disabled:cursor-default disabled:opacity-50"
-          title="Refresh PR"
-        >
-          <RefreshCw
-            size={13}
-            className={isRefreshing ? "animate-spin" : ""}
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <button
+                type="button"
+                onClick={onRefresh}
+                disabled={isRefreshing}
+                className="text-text-tertiary hover:bg-bg-raised hover:text-text-primary hover:border-border flex h-[22px] w-[22px] shrink-0 cursor-pointer items-center justify-center rounded-sm border border-transparent transition-colors disabled:cursor-default disabled:opacity-50"
+              >
+                <RefreshCw
+                  size={13}
+                  className={isRefreshing ? "animate-spin" : ""}
+                />
+              </button>
+            }
           />
-        </button>
+          <TooltipPopup>Refresh PR</TooltipPopup>
+        </Tooltip>
 
         {/* Copy PR number */}
-        <button
-          type="button"
-          onClick={() => {
-            void navigator.clipboard.writeText(`#${pr.number}`);
-            toastManager.add({ title: `Copied #${pr.number}`, type: "success" });
-          }}
-          className="text-text-tertiary hover:bg-bg-raised hover:text-text-primary hover:border-border flex h-[22px] w-[22px] shrink-0 cursor-pointer items-center justify-center rounded-sm border border-transparent transition-colors"
-          title="Copy PR number"
-        >
-          <Copy size={13} />
-        </button>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <button
+                type="button"
+                onClick={() => {
+                  void navigator.clipboard.writeText(`#${pr.number}`);
+                  toastManager.add({ title: `Copied #${pr.number}`, type: "success" });
+                }}
+                className="text-text-tertiary hover:bg-bg-raised hover:text-text-primary hover:border-border flex h-[22px] w-[22px] shrink-0 cursor-pointer items-center justify-center rounded-sm border border-transparent transition-colors"
+              >
+                <Copy size={13} />
+              </button>
+            }
+          />
+          <TooltipPopup>Copy PR number</TooltipPopup>
+        </Tooltip>
 
         {/* Copy PR link */}
-        <button
-          type="button"
-          onClick={() => {
-            void navigator.clipboard.writeText(pr.url);
-            toastManager.add({ title: "PR URL copied", type: "success" });
-          }}
-          className="text-text-tertiary hover:bg-bg-raised hover:text-text-primary hover:border-border flex h-[22px] w-[22px] shrink-0 cursor-pointer items-center justify-center rounded-sm border border-transparent transition-colors"
-          title="Copy PR link"
-        >
-          <Link size={13} />
-        </button>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <button
+                type="button"
+                onClick={() => {
+                  void navigator.clipboard.writeText(pr.url);
+                  toastManager.add({ title: "PR URL copied", type: "success" });
+                }}
+                className="text-text-tertiary hover:bg-bg-raised hover:text-text-primary hover:border-border flex h-[22px] w-[22px] shrink-0 cursor-pointer items-center justify-center rounded-sm border border-transparent transition-colors"
+              >
+                <Link size={13} />
+              </button>
+            }
+          />
+          <TooltipPopup>Copy PR link</TooltipPopup>
+        </Tooltip>
 
         {/* External link */}
-        <button
-          type="button"
-          onClick={() => void openExternal(pr.url)}
-          className="text-text-tertiary hover:bg-bg-raised hover:text-text-primary hover:border-border flex h-[22px] w-[22px] shrink-0 cursor-pointer items-center justify-center rounded-sm border border-transparent transition-colors"
-          title="Open on GitHub"
-        >
-          <ExternalLink size={13} />
-        </button>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <button
+                type="button"
+                onClick={() => void openExternal(pr.url)}
+                className="text-text-tertiary hover:bg-bg-raised hover:text-text-primary hover:border-border flex h-[22px] w-[22px] shrink-0 cursor-pointer items-center justify-center rounded-sm border border-transparent transition-colors"
+              >
+                <ExternalLink size={13} />
+              </button>
+            }
+          />
+          <TooltipPopup>Open on GitHub</TooltipPopup>
+        </Tooltip>
 
         {/* Panel toggle */}
         {showPanelToggle && (
-          <button
-            type="button"
-            onClick={onTogglePanel}
-            className={`flex h-[22px] w-[22px] shrink-0 cursor-pointer items-center justify-center rounded-sm border transition-colors ${
-              panelOpen
-                ? "bg-accent-muted text-accent-text border-border-accent"
-                : "text-text-tertiary hover:bg-bg-raised hover:text-text-primary hover:border-border border-transparent"
-            }`}
-            title={panelOpen ? "Hide panel" : "Show panel (i)"}
-          >
-            <PanelRight size={14} />
-          </button>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <button
+                  type="button"
+                  onClick={onTogglePanel}
+                  className={`flex h-[22px] w-[22px] shrink-0 cursor-pointer items-center justify-center rounded-sm border transition-colors ${
+                    panelOpen
+                      ? "bg-accent-muted text-accent-text border-border-accent"
+                      : "text-text-tertiary hover:bg-bg-raised hover:text-text-primary hover:border-border border-transparent"
+                  }`}
+                >
+                  <PanelRight size={14} />
+                </button>
+              }
+            />
+            <TooltipPopup>{panelOpen ? "Hide panel" : "Show panel (i)"}</TooltipPopup>
+          </Tooltip>
         )}
       </div>
 

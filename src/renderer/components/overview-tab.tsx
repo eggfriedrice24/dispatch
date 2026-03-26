@@ -10,6 +10,7 @@ import { ipc } from "../lib/ipc";
 import { queryClient } from "../lib/query-client";
 import { useWorkspace } from "../lib/workspace-context";
 import { AiReviewSummary } from "./ai-review-summary";
+import { ConfirmDialog } from "./confirm-dialog";
 import { GitHubAvatar } from "./github-avatar";
 import { MarkdownBody } from "./markdown-body";
 
@@ -163,15 +164,22 @@ export function OverviewTab({
 
       {/* Close PR */}
       <div className="flex justify-end px-4 py-3">
-        <button
-          type="button"
-          onClick={() => closeMutation.mutate()}
-          disabled={closeMutation.isPending}
-          className="inline-flex cursor-pointer items-center gap-1.5 rounded-md bg-[var(--danger)] px-2.5 py-1 text-[11px] font-medium text-white transition-colors hover:bg-[var(--danger)]/80 disabled:opacity-50"
-        >
-          {closeMutation.isPending ? <Spinner className="h-3 w-3" /> : <XCircle size={11} />}
-          Close pull request
-        </button>
+        <ConfirmDialog
+          trigger={
+            <button
+              type="button"
+              disabled={closeMutation.isPending}
+              className="inline-flex cursor-pointer items-center gap-1.5 rounded-md bg-[var(--danger)] px-2.5 py-1 text-[11px] font-medium text-white transition-colors hover:bg-[var(--danger)]/80 disabled:opacity-50"
+            >
+              {closeMutation.isPending ? <Spinner className="h-3 w-3" /> : <XCircle size={11} />}
+              Close pull request
+            </button>
+          }
+          title="Close pull request?"
+          description={`PR #${prNumber} will be closed. You can reopen it later from GitHub.`}
+          confirmLabel="Close PR"
+          onConfirm={() => closeMutation.mutate()}
+        />
       </div>
     </div>
   );

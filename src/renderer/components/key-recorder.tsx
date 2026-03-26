@@ -1,3 +1,4 @@
+import { Tooltip, TooltipPopup, TooltipTrigger } from "@/components/ui/tooltip";
 import { RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -71,14 +72,20 @@ export function KeyRecorder({
   return (
     <div className="flex items-center gap-1.5">
       {isCustomized && (
-        <button
-          type="button"
-          onClick={onReset}
-          className="text-text-ghost hover:text-text-tertiary cursor-pointer transition-colors"
-          title="Reset to default"
-        >
-          <RotateCcw size={11} />
-        </button>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <button
+                type="button"
+                onClick={onReset}
+                className="text-text-ghost hover:text-text-tertiary cursor-pointer transition-colors"
+              >
+                <RotateCcw size={11} />
+              </button>
+            }
+          />
+          <TooltipPopup>Reset to default</TooltipPopup>
+        </Tooltip>
       )}
       <button
         ref={buttonRef}

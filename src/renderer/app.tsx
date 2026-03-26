@@ -1,4 +1,5 @@
 import { ToastProvider } from "@/components/ui/toast";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -175,11 +176,13 @@ export function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-        <KeybindingProvider>
-          <ToastProvider position="bottom-right">
-            <AppContent />
-          </ToastProvider>
-        </KeybindingProvider>
+        <TooltipProvider>
+          <KeybindingProvider>
+            <ToastProvider position="bottom-right">
+              <AppContent />
+            </ToastProvider>
+          </KeybindingProvider>
+        </TooltipProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );

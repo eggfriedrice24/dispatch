@@ -1,6 +1,7 @@
 import type { DiffMode } from "./diff-viewer";
 
 import { Kbd } from "@/components/ui/kbd";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "@/components/ui/tooltip";
 import { Check, ChevronLeft, ChevronRight, Columns2, FileText, Rows2 } from "lucide-react";
 
 import { getDiffFilePath, type DiffFile } from "../lib/diff-parser";
@@ -151,25 +152,39 @@ export function DiffToolbar({
 
       {/* File nav */}
       <div className="flex items-center gap-1">
-        <button
-          type="button"
-          onClick={onPrev}
-          disabled={currentIndex === 0}
-          className="border-border bg-bg-raised text-text-secondary hover:text-text-primary flex h-5 w-5 cursor-pointer items-center justify-center rounded-sm border disabled:cursor-not-allowed disabled:opacity-30"
-        >
-          <ChevronLeft size={13} />
-        </button>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <button
+                type="button"
+                onClick={onPrev}
+                disabled={currentIndex === 0}
+                className="border-border bg-bg-raised text-text-secondary hover:text-text-primary flex h-5 w-5 cursor-pointer items-center justify-center rounded-sm border disabled:cursor-not-allowed disabled:opacity-30"
+              >
+                <ChevronLeft size={13} />
+              </button>
+            }
+          />
+          <TooltipPopup>Previous file</TooltipPopup>
+        </Tooltip>
         <span className="text-text-tertiary font-mono text-[10px]">
           {totalFiles > 0 ? `${currentIndex + 1}/${totalFiles}` : "0/0"}
         </span>
-        <button
-          type="button"
-          onClick={onNext}
-          disabled={currentIndex >= totalFiles - 1}
-          className="border-border bg-bg-raised text-text-secondary hover:text-text-primary flex h-5 w-5 cursor-pointer items-center justify-center rounded-sm border disabled:cursor-not-allowed disabled:opacity-30"
-        >
-          <ChevronRight size={13} />
-        </button>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <button
+                type="button"
+                onClick={onNext}
+                disabled={currentIndex >= totalFiles - 1}
+                className="border-border bg-bg-raised text-text-secondary hover:text-text-primary flex h-5 w-5 cursor-pointer items-center justify-center rounded-sm border disabled:cursor-not-allowed disabled:opacity-30"
+              >
+                <ChevronRight size={13} />
+              </button>
+            }
+          />
+          <TooltipPopup>Next file</TooltipPopup>
+        </Tooltip>
       </div>
     </div>
   );

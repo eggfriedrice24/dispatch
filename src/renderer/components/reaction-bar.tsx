@@ -1,6 +1,7 @@
 import type { GhReactionContent, GhReactionGroup } from "@/shared/ipc";
 
 import { toastManager } from "@/components/ui/toast";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "@/components/ui/tooltip";
 import { useMutation } from "@tanstack/react-query";
 import { SmilePlus } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -132,14 +133,20 @@ export function ReactionBar({ reactions, subjectId, prNumber }: ReactionBarProps
 
       {/* Add reaction button */}
       <div className="relative">
-        <button
-          type="button"
-          onClick={() => setPickerOpen(!pickerOpen)}
-          className="text-text-ghost hover:text-text-tertiary hover:bg-bg-raised inline-flex cursor-pointer items-center rounded-full border border-transparent p-0.5 transition-colors"
-          title="Add reaction"
-        >
-          <SmilePlus size={14} />
-        </button>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <button
+                type="button"
+                onClick={() => setPickerOpen(!pickerOpen)}
+                className="text-text-ghost hover:text-text-tertiary hover:bg-bg-raised inline-flex cursor-pointer items-center rounded-full border border-transparent p-0.5 transition-colors"
+              >
+                <SmilePlus size={14} />
+              </button>
+            }
+          />
+          <TooltipPopup>Add reaction</TooltipPopup>
+        </Tooltip>
 
         {pickerOpen && (
           <ReactionPicker

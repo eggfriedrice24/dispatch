@@ -3,6 +3,7 @@ import type { GhPrDetail } from "@/shared/ipc";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
 import { toastManager } from "@/components/ui/toast";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "@/components/ui/tooltip";
 import { useMutation } from "@tanstack/react-query";
 import { Check, PencilLine, X } from "lucide-react";
 import { useCallback, useState } from "react";
@@ -138,27 +139,39 @@ export function EditablePrTitle({
           </div>
 
           <div className="flex items-center gap-1">
-            <Button
-              size="icon-xs"
-              loading={updateTitleMutation.isPending}
-              onClick={saveTitle}
-              className="bg-primary text-primary-foreground hover:bg-accent-hover shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-glow)]"
-              aria-label={`Save title for pull request #${prNumber}`}
-              title="Save title"
-            >
-              <Check size={12} />
-            </Button>
-            <Button
-              size="icon-xs"
-              variant="ghost"
-              disabled={updateTitleMutation.isPending}
-              onClick={cancelEditing}
-              className="text-text-secondary hover:bg-bg-raised hover:text-text-primary"
-              aria-label={`Cancel editing title for pull request #${prNumber}`}
-              title="Cancel"
-            >
-              <X size={12} />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    size="icon-xs"
+                    loading={updateTitleMutation.isPending}
+                    onClick={saveTitle}
+                    className="bg-primary text-primary-foreground hover:bg-accent-hover shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-glow)]"
+                    aria-label={`Save title for pull request #${prNumber}`}
+                  >
+                    <Check size={12} />
+                  </Button>
+                }
+              />
+              <TooltipPopup>Save title</TooltipPopup>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    size="icon-xs"
+                    variant="ghost"
+                    disabled={updateTitleMutation.isPending}
+                    onClick={cancelEditing}
+                    className="text-text-secondary hover:bg-bg-raised hover:text-text-primary"
+                    aria-label={`Cancel editing title for pull request #${prNumber}`}
+                  >
+                    <X size={12} />
+                  </Button>
+                }
+              />
+              <TooltipPopup>Cancel</TooltipPopup>
+            </Tooltip>
           </div>
         </div>
 
