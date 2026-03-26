@@ -8,6 +8,7 @@
 
 export const IPC_CHANNEL = "dispatch:ipc";
 export const BADGE_COUNT_CHANNEL = "set-badge-count";
+export const ANALYTICS_CHANNEL = "analytics:track";
 
 // ---------------------------------------------------------------------------
 // Service types shared across processes
@@ -376,6 +377,7 @@ export interface IpcApi {
       strategy: "merge" | "squash" | "rebase";
       admin?: boolean;
       auto?: boolean;
+      hasMergeQueue?: boolean;
     };
     result: { queued: boolean };
   };

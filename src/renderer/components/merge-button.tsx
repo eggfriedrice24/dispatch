@@ -65,6 +65,7 @@ export function MergeButton({
       strategy: "merge" | "squash" | "rebase";
       admin?: boolean;
       auto?: boolean;
+      hasMergeQueue?: boolean;
     }) => ipc("pr.merge", args),
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["pr"] });
@@ -181,7 +182,7 @@ export function MergeButton({
             size="sm"
             variant="ghost"
             className="text-warning hover:text-warning gap-1 text-[10px]"
-            onClick={() => mergeMutation.mutate({ cwd, prNumber, strategy, admin: true })}
+            onClick={() => mergeMutation.mutate({ cwd, prNumber, strategy, admin: true, hasMergeQueue: true })}
             disabled={mergeMutation.isPending}
           >
             Skip queue
@@ -211,6 +212,7 @@ export function MergeButton({
                 cwd,
                 prNumber,
                 strategy: "squash",
+                hasMergeQueue: true,
               });
             }}
           >
@@ -240,7 +242,7 @@ export function MergeButton({
               type="button"
               onClick={() => {
                 setMenuOpen(false);
-                mergeMutation.mutate({ cwd, prNumber, strategy: "squash", admin: true });
+                mergeMutation.mutate({ cwd, prNumber, strategy: "squash", admin: true, hasMergeQueue: true });
               }}
               disabled={mergeMutation.isPending}
               className="text-warning hover:bg-warning/10 flex w-full cursor-pointer items-center gap-1.5 rounded-sm px-3 py-1.5 text-left text-xs transition-colors"

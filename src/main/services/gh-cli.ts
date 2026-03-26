@@ -18,7 +18,8 @@ import type {
 } from "../../shared/ipc";
 
 import { cacheDisplayNames } from "../db/repository";
-import { execFile } from "./shell";
+import { trackFromMain } from "./analytics";
+import { type ExecResult, execFile } from "./shell";
 
 /**
  * GitHub CLI (`gh`) adapter.
@@ -31,10 +32,59 @@ import { execFile } from "./shell";
  * Types are imported from shared/ipc.ts — single source of truth.
  */
 
+// ---------------------------------------------------------------------------
+// gh error tracking
+// ---------------------------------------------------------------------------
+
+/**
+ * Categorise a `gh` CLI error into a safe, non-sensitive bucket.
+ */
+function categoriseGhError(error: unknown): string {
+  const msg = String((error as Error)?.message ?? "");
+  if (msg.includes("ETIMEDOUT") || msg.includes("ESOCKETTIMEDOUT") || msg.includes("timeout")) {
+    return "timeout";
+  }
+  if (msg.includes("auth") || msg.includes("401") || msg.includes("403")) {
+    return "auth";
+  }
+  if (msg.includes("404") || msg.includes("not found") || msg.includes("Could not resolve")) {
+    return "not_found";
+  }
+  if (msg.includes("rate limit") || msg.includes("429")) {
+    return "rate_limit";
+  }
+  if (msg.includes("ENOENT")) {
+    return "not_installed";
+  }
+  if (msg.includes("no checks reported")) {
+    return "empty_checks";
+  }
+  return "unknown";
+}
+
+/**
+ * Wrapper around `execFile("gh", ...)` that tracks errors via PostHog.
+ *
+ * Only the subcommand (e.g. "api", "pr") and error category are sent —
+ * never repo names, PR numbers, URLs, or error messages.
+ */
+async function ghExec(
+  args: string[],
+  options: { cwd?: string; timeout?: number } = {},
+): Promise<ExecResult> {
+  try {
+    return await execFile("gh", args, options);
+  } catch (error) {
+    const subcommand = args[0] ?? "unknown";
+    const category = categoriseGhError(error);
+    trackFromMain("gh_cli_error", { subcommand, category });
+    throw error;
+  }
+}
+
 export async function getAuthenticatedUser(): Promise<GhUser | null> {
   try {
-    const { stdout } = await execFile(
-      "gh",
+    const { stdout } = await ghExec(
       ["api", "user", "--jq", "{login: .login, avatarUrl: .avatar_url, name: .name}"],
       { timeout: 10_000 },
     );
@@ -46,7 +96,7 @@ export async function getAuthenticatedUser(): Promise<GhUser | null> {
 
 export async function listAccounts(): Promise<GhAccount[]> {
   try {
-    const { stdout } = await execFile("gh", ["auth", "status", "--json", "hosts"], {
+    const { stdout } = await ghExec(["auth", "status", "--json", "hosts"], {
       timeout: 10_000,
     });
     const data = parseJsonOutput<{
@@ -84,7 +134,7 @@ export async function listAccounts(): Promise<GhAccount[]> {
 }
 
 export async function switchAccount(host: string, login: string): Promise<void> {
-  await execFile("gh", ["auth", "switch", "--hostname", host, "--user", login], {
+  await ghExec(["auth", "switch", "--hostname", host, "--user", login], {
     timeout: 10_000,
   });
   invalidateAllCaches();
@@ -139,8 +189,7 @@ export async function getRepoHost(cwd: string): Promise<string | null> {
 }
 
 export async function getRepoInfo(cwd: string): Promise<RepoInfo> {
-  const { stdout } = await execFile(
-    "gh",
+  const { stdout } = await ghExec(
     ["repo", "view", "--json", "nameWithOwner,isFork,parent,viewerPermission,defaultBranchRef"],
     { cwd, timeout: 10_000 },
   );
@@ -159,8 +208,7 @@ export async function getRepoInfo(cwd: string): Promise<RepoInfo> {
   try {
     const { owner, repo } = await getOwnerRepo(cwd);
     const defaultBranch = data.defaultBranchRef?.name ?? "main";
-    const { stdout: gqlOut } = await execFile(
-      "gh",
+    const { stdout: gqlOut } = await ghExec(
       [
         "api",
         "graphql",
@@ -194,7 +242,7 @@ export async function getRepoInfo(cwd: string): Promise<RepoInfo> {
 
 export async function isGhAuthenticated(): Promise<boolean> {
   try {
-    await execFile("gh", ["auth", "status"], { timeout: 10_000 });
+    await ghExec(["auth", "status"], { timeout: 10_000 });
     return true;
   } catch {
     return false;
@@ -474,7 +522,7 @@ export function listPrsCore(
     key,
     loader: async () => {
       const args = buildFilterArgs(filter, PR_LIST_CORE_FIELDS);
-      const { stdout } = await execFile("gh", args, { cwd, timeout: 30_000 });
+      const { stdout } = await ghExec(args, { cwd, timeout: 30_000 });
       const data = parseJsonOutput<GhPrListItemCore[]>(stdout);
       // Persist author display names to the 1-week DB cache
       cacheDisplayNames(
@@ -499,7 +547,7 @@ export function listPrsEnrichment(
     key,
     loader: async () => {
       const args = buildFilterArgs(filter, PR_LIST_ENRICHMENT_FIELDS);
-      const { stdout } = await execFile("gh", args, { cwd, timeout: 60_000 });
+      const { stdout } = await ghExec(args, { cwd, timeout: 60_000 });
       return parseJsonOutput<GhPrEnrichment[]>(stdout);
     },
   });
@@ -519,7 +567,7 @@ export function listPrs(
     key,
     loader: async () => {
       const args = buildFilterArgs(filter, PR_LIST_ALL_FIELDS);
-      const { stdout } = await execFile("gh", args, { cwd, timeout: 60_000 });
+      const { stdout } = await ghExec(args, { cwd, timeout: 60_000 });
       const data = parseJsonOutput<GhPrListItem[]>(stdout);
 
       // Also populate the core and enrichment caches from the full result.
@@ -578,8 +626,7 @@ const PR_DETAIL_FIELDS = [
 ].join(",");
 
 export async function getPrDetail(cwd: string, prNumber: number): Promise<GhPrDetail> {
-  const { stdout } = await execFile(
-    "gh",
+  const { stdout } = await ghExec(
     ["pr", "view", String(prNumber), "--json", PR_DETAIL_FIELDS],
     { cwd },
   );
@@ -591,7 +638,7 @@ export async function getPrDetail(cwd: string, prNumber: number): Promise<GhPrDe
 // ---------------------------------------------------------------------------
 
 export async function getPrDiff(cwd: string, prNumber: number): Promise<string> {
-  const { stdout } = await execFile("gh", ["pr", "diff", String(prNumber)], { cwd });
+  const { stdout } = await ghExec(["pr", "diff", String(prNumber)], { cwd });
   return stdout;
 }
 
@@ -605,8 +652,7 @@ export async function getFileAtRef(
   filePath: string,
 ): Promise<string | null> {
   try {
-    const { stdout } = await execFile(
-      "gh",
+    const { stdout } = await ghExec(
       [
         "api",
         `repos/{owner}/{repo}/contents/${filePath}?ref=${ref}`,
@@ -625,8 +671,7 @@ export async function getPrCommits(
   cwd: string,
   prNumber: number,
 ): Promise<Array<{ oid: string; message: string; author: string; committedDate: string }>> {
-  const { stdout } = await execFile(
-    "gh",
+  const { stdout } = await ghExec(
     [
       "pr",
       "view",
@@ -646,7 +691,7 @@ export async function getPrCommits(
 }
 
 export async function updatePrTitle(cwd: string, prNumber: number, title: string): Promise<void> {
-  await execFile("gh", ["pr", "edit", String(prNumber), "--title", title], {
+  await ghExec(["pr", "edit", String(prNumber), "--title", title], {
     cwd,
     timeout: 15_000,
   });
@@ -654,7 +699,7 @@ export async function updatePrTitle(cwd: string, prNumber: number, title: string
 }
 
 export async function updatePrBody(cwd: string, prNumber: number, body: string): Promise<void> {
-  await execFile("gh", ["pr", "edit", String(prNumber), "--body", body], {
+  await ghExec(["pr", "edit", String(prNumber), "--body", body], {
     cwd,
     timeout: 15_000,
   });
@@ -668,8 +713,7 @@ export async function updatePrBody(cwd: string, prNumber: number, body: string):
 export async function listRepoLabels(
   cwd: string,
 ): Promise<Array<{ name: string; color: string; description: string }>> {
-  const { stdout } = await execFile(
-    "gh",
+  const { stdout } = await ghExec(
     ["label", "list", "--json", "name,color,description", "--limit", "200"],
     { cwd, timeout: 15_000 },
   );
@@ -677,14 +721,14 @@ export async function listRepoLabels(
 }
 
 export async function addPrLabel(cwd: string, prNumber: number, label: string): Promise<void> {
-  await execFile("gh", ["pr", "edit", String(prNumber), "--add-label", label], {
+  await ghExec(["pr", "edit", String(prNumber), "--add-label", label], {
     cwd,
     timeout: 15_000,
   });
 }
 
 export async function removePrLabel(cwd: string, prNumber: number, label: string): Promise<void> {
-  await execFile("gh", ["pr", "edit", String(prNumber), "--remove-label", label], {
+  await ghExec(["pr", "edit", String(prNumber), "--remove-label", label], {
     cwd,
     timeout: 15_000,
   });
@@ -704,8 +748,7 @@ export async function removePrLabel(cwd: string, prNumber: number, label: string
 export async function getPrChecks(cwd: string, prNumber: number): Promise<GhCheckRun[]> {
   let stdout: string;
   try {
-    const result = await execFile(
-      "gh",
+    const result = await ghExec(
       ["pr", "checks", String(prNumber), "--json", "name,state,bucket,link,startedAt,completedAt"],
       { cwd },
     );
@@ -762,7 +805,7 @@ function mapBucketToConclusion(bucket: string): string | null {
 }
 
 export async function getRunLogs(cwd: string, runId: number): Promise<string> {
-  const { stdout } = await execFile("gh", ["run", "view", String(runId), "--log"], {
+  const { stdout } = await ghExec(["run", "view", String(runId), "--log"], {
     cwd,
     timeout: 60_000,
   });
@@ -770,7 +813,7 @@ export async function getRunLogs(cwd: string, runId: number): Promise<string> {
 }
 
 export async function rerunFailedJobs(cwd: string, runId: number): Promise<void> {
-  await execFile("gh", ["run", "rerun", String(runId), "--failed"], { cwd });
+  await ghExec(["run", "rerun", String(runId), "--failed"], { cwd });
   invalidateWorkflowCaches(cwd);
 }
 
@@ -786,23 +829,28 @@ export async function mergePr(
   strategy: MergeStrategy,
   admin = false,
   auto = false,
+  hasMergeQueue = false,
 ): Promise<{ queued: boolean }> {
-  const args = ["pr", "merge", String(prNumber), `--${strategy}`, "--delete-branch"];
+  const args = ["pr", "merge", String(prNumber), `--${strategy}`];
+  // gh CLI errors with "--delete-branch" when merge queues are enabled (gh >= v2.64.0).
+  // For merge queue repos, rely on GitHub's "Automatically delete head branches" setting.
+  if (!hasMergeQueue) {
+    args.push("--delete-branch");
+  }
   if (admin) {
     args.push("--admin");
   }
   if (auto) {
     args.push("--auto");
   }
-  const { stdout } = await execFile("gh", args, { cwd });
+  const { stdout } = await ghExec(args, { cwd });
   invalidatePrListCaches(cwd);
   const queued = /merge queue|enqueue|auto-merge/i.test(stdout);
   return { queued };
 }
 
 export async function updatePrBranch(cwd: string, prNumber: number): Promise<void> {
-  await execFile(
-    "gh",
+  await ghExec(
     ["api", `repos/{owner}/{repo}/pulls/${prNumber}/update-branch`, "-X", "PUT"],
     { cwd, timeout: 30_000 },
   );
@@ -810,7 +858,7 @@ export async function updatePrBranch(cwd: string, prNumber: number): Promise<voi
 }
 
 export async function closePr(cwd: string, prNumber: number): Promise<void> {
-  await execFile("gh", ["pr", "close", String(prNumber)], { cwd });
+  await ghExec(["pr", "close", String(prNumber)], { cwd });
   invalidatePrListCaches(cwd);
 }
 
@@ -825,8 +873,7 @@ export async function getMergeQueueStatus(
 } | null> {
   try {
     const { owner, repo } = await getOwnerRepo(cwd);
-    const { stdout } = await execFile(
-      "gh",
+    const { stdout } = await ghExec(
       [
         "api",
         "graphql",
@@ -875,8 +922,7 @@ export async function getPrReviewComments(
   cwd: string,
   prNumber: number,
 ): Promise<GhReviewComment[]> {
-  const { stdout } = await execFile(
-    "gh",
+  const { stdout } = await ghExec(
     ["api", `repos/{owner}/{repo}/pulls/${prNumber}/comments`, "--paginate"],
     { cwd, timeout: 30_000 },
   );
@@ -889,8 +935,7 @@ export async function replyToReviewComment(
   commentId: number,
   body: string,
 ): Promise<void> {
-  await execFile(
-    "gh",
+  await ghExec(
     [
       "api",
       `repos/{owner}/{repo}/pulls/${prNumber}/comments`,
@@ -907,7 +952,7 @@ export async function replyToReviewComment(
 }
 
 export async function createPrComment(cwd: string, prNumber: number, body: string): Promise<void> {
-  await execFile("gh", ["pr", "comment", String(prNumber), "--body", body], {
+  await ghExec(["pr", "comment", String(prNumber), "--body", body], {
     cwd,
     timeout: 15_000,
   });
@@ -922,8 +967,7 @@ export async function getIssueComments(
   cwd: string,
   prNumber: number,
 ): Promise<Array<{ id: string; body: string; author: { login: string }; createdAt: string }>> {
-  const { stdout } = await execFile(
-    "gh",
+  const { stdout } = await ghExec(
     ["pr", "view", String(prNumber), "--json", "comments", "--jq", ".comments"],
     { cwd, timeout: 15_000 },
   );
@@ -938,8 +982,7 @@ export async function getIssueComments(
 
 export async function getPrContributors(cwd: string, prNumber: number): Promise<string[]> {
   // Gather unique logins from: PR author, reviewers, commenters
-  const { stdout } = await execFile(
-    "gh",
+  const { stdout } = await ghExec(
     [
       "pr",
       "view",
@@ -955,8 +998,7 @@ export async function getPrContributors(cwd: string, prNumber: number): Promise<
 
   // Also get repo contributors (recent, limited)
   try {
-    const { stdout: contribOut } = await execFile(
-      "gh",
+    const { stdout: contribOut } = await ghExec(
       ["api", "repos/{owner}/{repo}/contributors", "--jq", ".[].login", "-q", "--paginate"],
       { cwd, timeout: 10_000 },
     );
@@ -984,8 +1026,7 @@ export async function searchUsers(
     return [];
   }
   try {
-    const { stdout } = await execFile(
-      "gh",
+    const { stdout } = await ghExec(
       [
         "api",
         `search/users?q=${encodeURIComponent(query)}&per_page=8`,
@@ -1016,8 +1057,7 @@ export function listIssuesAndPrs(
     loader: async () => {
       // Fetch issues and PRs in parallel (2 lightweight calls)
       const [issueResult, prResult] = await Promise.all([
-        execFile(
-          "gh",
+        ghExec(
           [
             "issue",
             "list",
@@ -1030,8 +1070,7 @@ export function listIssuesAndPrs(
           ],
           { cwd, timeout: 15_000 },
         ),
-        execFile(
-          "gh",
+        ghExec(
           [
             "pr",
             "list",
@@ -1076,8 +1115,7 @@ export function listIssuesAndPrs(
 }
 
 export async function resolveReviewThread(cwd: string, threadId: string): Promise<void> {
-  await execFile(
-    "gh",
+  await ghExec(
     [
       "api",
       "graphql",
@@ -1090,8 +1128,7 @@ export async function resolveReviewThread(cwd: string, threadId: string): Promis
 }
 
 export async function unresolveReviewThread(cwd: string, threadId: string): Promise<void> {
-  await execFile(
-    "gh",
+  await ghExec(
     [
       "api",
       "graphql",
@@ -1133,8 +1170,7 @@ export async function getPrReviewRequests(
       }
     }
   }`;
-  const { stdout } = await execFile(
-    "gh",
+  const { stdout } = await ghExec(
     ["api", "graphql", "-f", `owner=${owner}`, "-f", `repo=${repo}`, "-f", `query=${query}`],
     { cwd, timeout: 15_000 },
   );
@@ -1203,8 +1239,7 @@ export async function getPrReviewThreads(
       }
     }
   }`;
-  const { stdout } = await execFile(
-    "gh",
+  const { stdout } = await ghExec(
     ["api", "graphql", "-f", `owner=${owner}`, "-f", `repo=${repo}`, "-f", `query=${query}`],
     { cwd, timeout: 15_000 },
   );
@@ -1242,14 +1277,12 @@ export async function createReviewComment(args: {
   path: string;
   line: number;
 }): Promise<void> {
-  const { stdout: commitSha } = await execFile(
-    "gh",
+  const { stdout: commitSha } = await ghExec(
     ["pr", "view", String(args.prNumber), "--json", "headRefOid", "--jq", ".headRefOid"],
     { cwd: args.cwd },
   );
 
-  await execFile(
-    "gh",
+  await ghExec(
     [
       "api",
       `repos/{owner}/{repo}/pulls/${args.prNumber}/comments`,
@@ -1301,7 +1334,7 @@ export async function submitReview(args: {
   if (args.body) {
     ghArgs.push("--body", args.body);
   }
-  await execFile("gh", ghArgs, { cwd: args.cwd, timeout: 15_000 });
+  await ghExec(ghArgs, { cwd: args.cwd, timeout: 15_000 });
   invalidatePrListCaches(args.cwd);
 }
 
@@ -1321,8 +1354,7 @@ export async function getCheckAnnotations(cwd: string, prNumber: number): Promis
     const [, runId] = runIdMatch;
 
     try {
-      const { stdout } = await execFile(
-        "gh",
+      const { stdout } = await ghExec(
         ["api", `repos/{owner}/{repo}/check-runs/${runId}/annotations`, "--paginate"],
         { cwd, timeout: 15_000 },
       );
@@ -1365,8 +1397,7 @@ export function listWorkflows(cwd: string): Promise<GhWorkflow[]> {
     cache: genericCache,
     key,
     loader: async () => {
-      const { stdout } = await execFile(
-        "gh",
+      const { stdout } = await ghExec(
         ["workflow", "list", "--json", "id,name,state", "--limit", "50"],
         { cwd },
       );
@@ -1398,7 +1429,7 @@ export function listWorkflowRuns(
       if (workflowId) {
         ghArgs.push("--workflow", String(workflowId));
       }
-      const { stdout } = await execFile("gh", ghArgs, { cwd });
+      const { stdout } = await ghExec(ghArgs, { cwd });
       return parseJsonOutput<GhWorkflowRun[]>(stdout);
     },
   }) as Promise<GhWorkflowRun[]>;
@@ -1408,8 +1439,7 @@ export async function getWorkflowRunDetail(
   cwd: string,
   runId: number,
 ): Promise<GhWorkflowRunDetail> {
-  const { stdout } = await execFile(
-    "gh",
+  const { stdout } = await ghExec(
     [
       "run",
       "view",
@@ -1434,22 +1464,22 @@ export async function triggerWorkflow(args: {
       ghArgs.push("-f", `${key}=${value}`);
     }
   }
-  await execFile("gh", ghArgs, { cwd: args.cwd, timeout: 15_000 });
+  await ghExec(ghArgs, { cwd: args.cwd, timeout: 15_000 });
   invalidateWorkflowCaches(args.cwd);
 }
 
 export async function cancelWorkflowRun(cwd: string, runId: number): Promise<void> {
-  await execFile("gh", ["run", "cancel", String(runId)], { cwd });
+  await ghExec(["run", "cancel", String(runId)], { cwd });
   invalidateWorkflowCaches(cwd);
 }
 
 export async function rerunWorkflowRun(cwd: string, runId: number): Promise<void> {
-  await execFile("gh", ["run", "rerun", String(runId)], { cwd });
+  await ghExec(["run", "rerun", String(runId)], { cwd });
   invalidateWorkflowCaches(cwd);
 }
 
 export async function getWorkflowYaml(cwd: string, workflowId: string): Promise<string> {
-  const { stdout } = await execFile("gh", ["workflow", "view", workflowId, "--yaml"], {
+  const { stdout } = await ghExec(["workflow", "view", workflowId, "--yaml"], {
     cwd,
   });
   return stdout;
@@ -1574,8 +1604,7 @@ export function getPrCycleTime(
     cache: genericCache,
     key,
     loader: async () => {
-      const { stdout } = await execFile(
-        "gh",
+      const { stdout } = await ghExec(
         [
           "pr",
           "list",
@@ -1645,8 +1674,7 @@ export function getReviewLoad(
     cache: genericCache,
     key,
     loader: async () => {
-      const { stdout } = await execFile(
-        "gh",
+      const { stdout } = await ghExec(
         ["pr", "list", "--state", "all", "--json", "number,createdAt,reviews", "--limit", "50"],
         { cwd, timeout: 30_000 },
       );
@@ -1738,8 +1766,7 @@ export function listReleases(
     loader: async () => {
       const upstreamArgs = await getUpstreamArgs(cwd);
       // gh release list only supports: createdAt, isDraft, isLatest, isPrerelease, name, publishedAt, tagName
-      const { stdout } = await execFile(
-        "gh",
+      const { stdout } = await ghExec(
         [
           ...upstreamArgs,
           "release",
@@ -1766,8 +1793,7 @@ export function listReleases(
         releases,
         MAX_CONCURRENT_GH_CALLS,
         async (release) => {
-          const { stdout: detail } = await execFile(
-            "gh",
+          const { stdout: detail } = await ghExec(
             [...upstreamArgs, "release", "view", release.tagName, "--json", "body,author"],
             { cwd, timeout: 10_000 },
           );
@@ -1810,21 +1836,19 @@ export async function createRelease(args: {
   if (args.isPrerelease) {
     ghArgs.push("--prerelease");
   }
-  const { stdout } = await execFile("gh", ghArgs, { cwd: args.cwd, timeout: 30_000 });
+  const { stdout } = await ghExec(ghArgs, { cwd: args.cwd, timeout: 30_000 });
   invalidateReleaseCaches(args.cwd);
   return { url: stdout.trim() };
 }
 
 export async function generateChangelog(cwd: string, sinceTag: string): Promise<string> {
   // Get merged PRs since the tag
-  const { stdout: tagDate } = await execFile(
-    "gh",
+  const { stdout: tagDate } = await ghExec(
     ["release", "view", sinceTag, "--json", "createdAt", "--jq", ".createdAt"],
     { cwd, timeout: 10_000 },
   );
 
-  const { stdout } = await execFile(
-    "gh",
+  const { stdout } = await ghExec(
     ["pr", "list", "--state", "merged", "--json", "number,title,author,mergedAt", "--limit", "50"],
     { cwd, timeout: 15_000 },
   );
@@ -1892,8 +1916,7 @@ export async function getPrReactions(cwd: string, prNumber: number): Promise<GhP
     }
   }`;
 
-  const { stdout } = await execFile(
-    "gh",
+  const { stdout } = await ghExec(
     ["api", "graphql", "-f", `owner=${owner}`, "-f", `repo=${repo}`, "-f", `query=${query}`],
     { cwd, timeout: 30_000 },
   );
@@ -1964,8 +1987,7 @@ export async function addReaction(
   subjectId: string,
   content: GhReactionContent,
 ): Promise<void> {
-  await execFile(
-    "gh",
+  await ghExec(
     [
       "api",
       "graphql",
@@ -1981,8 +2003,7 @@ export async function removeReaction(
   subjectId: string,
   content: GhReactionContent,
 ): Promise<void> {
-  await execFile(
-    "gh",
+  await ghExec(
     [
       "api",
       "graphql",
