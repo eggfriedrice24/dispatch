@@ -1,4 +1,5 @@
-import { AlertTriangle, Terminal } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { AlertTriangle, RefreshCw, Terminal } from "lucide-react";
 
 /**
  * Environment check error screen (SPEC.md § 4.3).
@@ -11,9 +12,10 @@ interface EnvCheckProps {
   ghVersion: string | null;
   gitVersion: string | null;
   ghAuth: boolean;
+  onRetry: () => void;
 }
 
-export function EnvCheck({ ghVersion, gitVersion, ghAuth }: EnvCheckProps) {
+export function EnvCheck({ ghVersion, gitVersion, ghAuth, onRetry }: EnvCheckProps) {
   const issues: Array<{ title: string; description: string; command: string }> = [];
 
   if (!gitVersion) {
@@ -79,9 +81,18 @@ export function EnvCheck({ ghVersion, gitVersion, ghAuth }: EnvCheckProps) {
         ))}
       </div>
 
-      <p className="text-text-tertiary text-[11px]">
-        Run the commands above in your terminal, then restart Dispatch.
-      </p>
+      <div className="flex flex-col items-center gap-3">
+        <Button
+          variant="outline"
+          onClick={onRetry}
+        >
+          <RefreshCw size={14} />
+          Retry
+        </Button>
+        <p className="text-text-tertiary text-[11px]">
+          Run the commands above in your terminal, then retry.
+        </p>
+      </div>
     </div>
   );
 }

@@ -66,6 +66,10 @@ function AppContent() {
     queryClient.invalidateQueries({ queryKey: ["workspace"] });
   }, []);
 
+  const handleRetryEnvCheck = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ["env", "check"] });
+  }, []);
+
   // Determine which screen to show (only matters when showApp is true)
   const phase = resolvePhase({
     envData: envQuery.data ?? null,
@@ -90,6 +94,7 @@ function AppContent() {
           activeWorkspace={activeQuery.data ?? null}
           workspaces={workspacesQuery.data ?? []}
           onOnboardingComplete={handleOnboardingComplete}
+          onRetryEnvCheck={handleRetryEnvCheck}
         />
       )}
     </>
@@ -130,12 +135,14 @@ function AppScreen({
   activeWorkspace,
   workspaces,
   onOnboardingComplete,
+  onRetryEnvCheck,
 }: {
   phase: AppPhase;
   envData: { ghVersion: string | null; gitVersion: string | null; ghAuth: boolean } | null;
   activeWorkspace: string | null;
   workspaces: Array<{ path: string }>;
   onOnboardingComplete: () => void;
+  onRetryEnvCheck: () => void;
 }) {
   switch (phase) {
     case "env-error": {
@@ -144,6 +151,7 @@ function AppScreen({
           ghVersion={envData?.ghVersion ?? null}
           gitVersion={envData?.gitVersion ?? null}
           ghAuth={envData?.ghAuth ?? false}
+          onRetry={onRetryEnvCheck}
         />
       );
     }
