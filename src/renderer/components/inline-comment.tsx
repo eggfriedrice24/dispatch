@@ -20,6 +20,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useBotSettings } from "../hooks/use-bot-settings";
 import { useMinimizedComments } from "../hooks/use-minimized-comments";
+import { useSyntaxHighlighter } from "../hooks/use-syntax-highlight";
+import { inferLanguage } from "../lib/highlighter";
 import { ipc } from "../lib/ipc";
 import { openExternal } from "../lib/open-external";
 import { queryClient } from "../lib/query-client";
@@ -746,6 +748,7 @@ function CommentBody({
               <SuggestionBlock
                 key={`suggestion-${i}`}
                 suggestion={part.content}
+                language={inferLanguage(comment.path)}
               />
             );
           })}
@@ -816,9 +819,33 @@ function parseSuggestions(body: string): { bodyParts: BodyPart[]; suggestions: s
   return { bodyParts: parts, suggestions };
 }
 
-function SuggestionBlock({ suggestion }: { suggestion: string }) {
-  // Parse suggestion lines into del/add
+function SuggestionBlock({ suggestion, language }: { suggestion: string; language: string }) {
+  const highlighter = useSyntaxHighlighter();
   const lines = suggestion.split("\n");
+
+  // Tokenize lines for syntax highlighting.
+  // Strip +/- prefixes, join into full code block for context-aware highlighting,
+  // then map per-line tokens back.
+  const tokensByLine = useMemo(() => {
+    if (!highlighter || language === "text") {
+      return null;
+    }
+    try {
+      if (!highlighter.getLoadedLanguages().includes(language)) {
+        return null;
+      }
+      const strippedLines = lines.map((l) =>
+        l.startsWith("+") || l.startsWith("-") ? l.slice(1) : l,
+      );
+      const result = highlighter.codeToTokens(strippedLines.join("\n"), {
+        lang: language as Parameters<typeof highlighter.codeToTokens>[1]["lang"],
+        theme: "github-dark-default",
+      } as Parameters<typeof highlighter.codeToTokens>[1]);
+      return result.tokens;
+    } catch {
+      return null;
+    }
+  }, [highlighter, language, lines]);
 
   return (
     <div
@@ -872,28 +899,41 @@ function SuggestionBlock({ suggestion }: { suggestion: string }) {
           }}
         >
           {lines.map((line, i) => {
-            const trimmed = line;
-            if (trimmed.startsWith("-")) {
+            const lineTokens = tokensByLine?.[i];
+            const content = lineTokens ? (
+              lineTokens.map((token, ti) => (
+                <span
+                  key={ti}
+                  style={{ color: token.color }}
+                >
+                  {token.content}
+                </span>
+              ))
+            ) : (
+              (line.startsWith("+") || line.startsWith("-") ? line.slice(1) : line)
+            );
+
+            if (line.startsWith("-")) {
               return (
                 <div
                   key={i}
-                  style={{ color: "var(--danger)", textDecoration: "line-through", opacity: 0.7 }}
+                  style={{ textDecoration: "line-through", opacity: 0.7, background: "rgba(248,81,73,0.1)" }}
                 >
-                  {trimmed.slice(1)}
+                  {content}
                 </div>
               );
             }
-            if (trimmed.startsWith("+")) {
+            if (line.startsWith("+")) {
               return (
                 <div
                   key={i}
-                  style={{ color: "var(--success)" }}
+                  style={{ background: "rgba(63,185,80,0.1)" }}
                 >
-                  {trimmed.slice(1)}
+                  {content}
                 </div>
               );
             }
-            return <div key={i}>{line}</div>;
+            return <div key={i}>{content}</div>;
           })}
         </code>
       </pre>

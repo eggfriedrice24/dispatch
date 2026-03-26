@@ -1,9 +1,12 @@
+import type { Highlighter } from "shiki";
+
 import { AlertCircle, Info, Lightbulb, OctagonAlert, TriangleAlert } from "lucide-react";
 import Markdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import remarkGemoji from "remark-gemoji";
 import remarkGfm from "remark-gfm";
 
+import { useSyntaxHighlighter } from "../hooks/use-syntax-highlight";
 import { openExternal } from "../lib/open-external";
 
 /**
@@ -65,7 +68,46 @@ function preprocess(md: string, repo?: string): string {
   return parts.join("");
 }
 
+/**
+ * Syntax-highlight a fenced code block using Shiki.
+ * Returns an array of <span> elements with token colors, or null on failure.
+ */
+function highlightCode(
+  highlighter: Highlighter,
+  code: string,
+  lang: string,
+): React.ReactNode[] | null {
+  try {
+    if (!highlighter.getLoadedLanguages().includes(lang)) {
+      return null;
+    }
+    const result = highlighter.codeToTokens(code, {
+      lang: lang as Parameters<Highlighter["codeToTokens"]>[1]["lang"],
+      theme: "github-dark-default",
+    } as Parameters<Highlighter["codeToTokens"]>[1]);
+    return result.tokens.flatMap((line, li) => {
+      const spans = line.map((token, ti) => (
+        <span
+          key={`${li}-${ti}`}
+          style={{ color: token.color }}
+        >
+          {token.content}
+        </span>
+      ));
+      // Add newline between lines (not after last)
+      if (li < result.tokens.length - 1) {
+        spans.push(<span key={`${li}-nl`}>{"\n"}</span>);
+      }
+      return spans;
+    });
+  } catch {
+    return null;
+  }
+}
+
 export function MarkdownBody({ content, repo, className = "" }: MarkdownBodyProps) {
+  const highlighter = useSyntaxHighlighter();
+
   if (!content.trim()) {
     return <p className="text-text-ghost text-xs italic">No description provided.</p>;
   }
@@ -108,6 +150,34 @@ export function MarkdownBody({ content, repo, className = "" }: MarkdownBodyProp
               >
                 {children}
               </a>
+            );
+          },
+          // Syntax-highlight fenced code blocks
+          code({ className: codeClass, children, ...rest }) {
+            // Fenced blocks get className="language-xxx" from react-markdown
+            const langMatch =
+              typeof codeClass === "string" ? codeClass.match(/language-(\w+)/) : null;
+            if (langMatch && highlighter) {
+              const code = String(children).replace(/\n$/, "");
+              const tokens = highlightCode(highlighter, code, langMatch[1]!);
+              if (tokens) {
+                return (
+                  <code
+                    className={codeClass}
+                    {...rest}
+                  >
+                    {tokens}
+                  </code>
+                );
+              }
+            }
+            return (
+              <code
+                className={codeClass}
+                {...rest}
+              >
+                {children}
+              </code>
             );
           },
           // Render GitHub alert divs with icons
