@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, GitCommitHorizontal, Search } from "lucide-react";
+import { ArrowLeft, Search } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 
 import { usePreference } from "../hooks/use-preference";
@@ -162,10 +162,13 @@ export function ReviewSidebar({ prNumber, onBack, onSelectPr }: ReviewSidebarPro
           className="border-border-subtle flex items-center gap-2 border-b px-3 py-2"
           style={{ background: "rgba(91, 164, 230, 0.06)" }}
         >
-          <GitCommitHorizontal
-            size={12}
-            className="text-info shrink-0"
-          />
+          <button
+            type="button"
+            onClick={() => setSelectedCommit(null)}
+            className="text-info hover:text-text-primary shrink-0 cursor-pointer text-[10px] font-medium transition-colors"
+          >
+            <ArrowLeft size={12} />
+          </button>
           <div className="min-w-0 flex-1">
             <div className="text-text-primary truncate text-[11px] font-medium">
               {selectedCommit.message.split("\n")[0]}
@@ -174,13 +177,6 @@ export function ReviewSidebar({ prNumber, onBack, onSelectPr }: ReviewSidebarPro
               {selectedCommit.oid.slice(0, 7)}
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => setSelectedCommit(null)}
-            className="text-info hover:text-text-primary shrink-0 cursor-pointer text-[10px] font-medium transition-colors"
-          >
-            <ArrowLeft size={12} />
-          </button>
         </div>
       )}
 

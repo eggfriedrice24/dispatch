@@ -893,6 +893,8 @@ function PanelCommitsContent({ prNumber }: { prNumber: number }) {
   }
 
   const isActive = (oid: string) => selectedCommit?.oid === oid;
+  const uniqueAuthors = new Set(commits.map((c) => c.author));
+  const hasMultipleAuthors = uniqueAuthors.size > 1;
 
   return (
     <div>
@@ -937,7 +939,14 @@ function PanelCommitsContent({ prNumber }: { prNumber: number }) {
             </span>
             <div className="min-w-0 flex-1">
               <div className="text-text-primary text-xs">{commit.message.split("\n")[0]}</div>
-              <div className="text-text-tertiary mt-0.5 text-[10px]">
+              <div className="text-text-tertiary mt-0.5 flex items-center gap-1 text-[10px]">
+                {hasMultipleAuthors && (
+                  <GitHubAvatar
+                    login={commit.author}
+                    size={13}
+                    className="shrink-0 rounded-full"
+                  />
+                )}
                 {commit.author} · {relativeTime(new Date(commit.committedDate))}
               </div>
             </div>
