@@ -374,6 +374,7 @@ export interface IpcApi {
       prNumber: number;
       strategy: "merge" | "squash" | "rebase";
       admin?: boolean;
+      auto?: boolean;
     };
     result: { queued: boolean };
   };
@@ -473,6 +474,7 @@ export interface IpcApi {
     result: LogEntry[];
   };
   "git.diff": { args: { cwd: string; fromRef: string; toRef: string }; result: string };
+  "git.commitDiff": { args: { cwd: string; sha: string }; result: string };
   "git.showFile": { args: { cwd: string; ref: string; filePath: string }; result: string | null };
   "git.repoRoot": { args: { cwd: string }; result: string | null };
   "gh.fileAtRef": { args: { cwd: string; ref: string; filePath: string }; result: string | null };

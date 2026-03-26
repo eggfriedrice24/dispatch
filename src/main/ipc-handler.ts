@@ -178,7 +178,7 @@ const handlers: { [M in IpcMethod]: Handler<M> } = {
     await ghCli.removePrLabel(args.cwd, args.prNumber, args.label);
   },
   "pr.merge": async (args) => {
-    return ghCli.mergePr(args.cwd, args.prNumber, args.strategy, args.admin);
+    return ghCli.mergePr(args.cwd, args.prNumber, args.strategy, args.admin, args.auto);
   },
   "pr.updateBranch": async (args) => {
     await ghCli.updatePrBranch(args.cwd, args.prNumber);
@@ -232,6 +232,7 @@ const handlers: { [M in IpcMethod]: Handler<M> } = {
   "git.blame": async (args) => gitCli.blame(args),
   "git.fileHistory": async (args) => gitCli.fileHistory(args.cwd, args.filePath, args.limit),
   "git.diff": async (args) => gitCli.diff(args.cwd, args.fromRef, args.toRef),
+  "git.commitDiff": async (args) => gitCli.commitDiff(args.cwd, args.sha),
   "git.showFile": async (args) => gitCli.showFile(args.cwd, args.ref, args.filePath),
   "gh.fileAtRef": async (args) => ghCli.getFileAtRef(args.cwd, args.ref, args.filePath),
   "git.repoRoot": async (args) => gitCli.getRepoRoot(args.cwd),

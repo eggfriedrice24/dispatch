@@ -463,6 +463,7 @@ function MergeBarButton({
         prNumber,
         strategy: hasMergeQueue ? "squash" : strategy,
         admin: (args && args.admin) ?? (!requirementsMet && canAdmin ? true : undefined),
+        auto: hasMergeQueue && !(args && args.admin),
       }),
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["pr"] });

@@ -64,6 +64,7 @@ export function MergeButton({
       prNumber: number;
       strategy: "merge" | "squash" | "rebase";
       admin?: boolean;
+      auto?: boolean;
     }) => ipc("pr.merge", args),
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["pr"] });
@@ -210,6 +211,7 @@ export function MergeButton({
                 cwd,
                 prNumber,
                 strategy: "squash",
+                auto: true,
               });
             }}
           >
