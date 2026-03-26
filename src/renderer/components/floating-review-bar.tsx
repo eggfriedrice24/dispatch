@@ -445,6 +445,10 @@ function MergeBarButton({
     reviewDecision: string;
     mergeable: string;
     statusCheckRollup: Array<{ conclusion: string | null }>;
+    autoMergeRequest: {
+      enabledBy: { login: string };
+      mergeMethod: string;
+    } | null;
   };
   canAdmin: boolean;
   hasMergeQueue: boolean;
@@ -482,7 +486,7 @@ function MergeBarButton({
     },
     onSuccess: (result, variables) => {
       queryClient.invalidateQueries({ queryKey: ["pr"] });
-      
+
       // Check if auto-merge was used
       const resolved = resolveMergeStrategy({
         hasMergeQueue,
@@ -491,25 +495,33 @@ function MergeBarButton({
         explicitAdmin: variables?.admin,
         strategy,
       });
-      
+
       if (resolved.auto) {
-        if (result.queued) {
-          toastManager.add({
-            title: requirementsMet 
-              ? `PR #${prNumber} queued for merge`
-              : `PR #${prNumber} will auto-merge when ready`,
-            description: requirementsMet ? undefined : "Waiting for checks and approvals",
-            type: "success",
-          });
+        // With --auto flag, GitHub enables auto-merge (doesn't immediately merge if requirements not met)
+        if (requirementsMet) {
+          // Requirements met: either merged immediately or queued in merge queue
+          if (result.queued) {
+            toastManager.add({
+              title: `PR #${prNumber} queued for merge`,
+              type: "success",
+            });
+          } else {
+            toastManager.add({
+              title: `PR #${prNumber} merged`,
+              description: "Branch deleted.",
+              type: "success",
+            });
+          }
         } else {
+          // Requirements NOT met: auto-merge enabled, will merge when ready
           toastManager.add({
-            title: `PR #${prNumber} merged`,
-            description: "Branch deleted.",
+            title: `Auto-merge enabled for PR #${prNumber}`,
+            description: "Will merge when checks pass and approvals are received",
             type: "success",
           });
         }
       } else {
-        // Admin or standard merge
+        // Admin or standard merge (immediate)
         toastManager.add({
           title: `PR #${prNumber} merged`,
           description: "Branch deleted.",
@@ -528,7 +540,9 @@ function MergeBarButton({
     rebase: "Rebase & Merge",
   };
 
-  const disabled = isDraft || !canMerge;
+  // Disable if auto-merge is already enabled
+  const autoMergeAlreadyEnabled = pr.autoMergeRequest !== null;
+  const disabled = isDraft || !canMerge || autoMergeAlreadyEnabled;
   const mainBg = disabled ? "var(--bg-raised)" : "var(--success)";
   const mainColor = disabled ? "var(--text-tertiary)" : "var(--bg-root)";
   const mainBorder = disabled ? "var(--border)" : "var(--success)";

@@ -70,26 +70,34 @@ export function MergeButton({
     }) => ipc("pr.merge", args),
     onSuccess: (result, variables) => {
       queryClient.invalidateQueries({ queryKey: ["pr"] });
-      
+
       // If using auto-merge, provide clearer feedback
       if (variables.auto) {
-        if (result.queued) {
-          toastManager.add({
-            title: requirementsMet 
-              ? `PR #${prNumber} queued for merge`
-              : `PR #${prNumber} will auto-merge when ready`,
-            description: requirementsMet ? undefined : "Waiting for checks and approvals",
-            type: "success",
-          });
+        // With --auto flag, GitHub enables auto-merge (doesn't immediately merge if requirements not met)
+        if (requirementsMet) {
+          // Requirements met: either merged immediately or queued in merge queue
+          if (result.queued) {
+            toastManager.add({
+              title: `PR #${prNumber} queued for merge`,
+              type: "success",
+            });
+          } else {
+            toastManager.add({
+              title: `PR #${prNumber} merged`,
+              description: "Branch deleted.",
+              type: "success",
+            });
+          }
         } else {
+          // Requirements NOT met: auto-merge enabled, will merge when ready
           toastManager.add({
-            title: `PR #${prNumber} merged`,
-            description: "Branch deleted.",
+            title: `Auto-merge enabled for PR #${prNumber}`,
+            description: "Will merge when checks pass and approvals are received",
             type: "success",
           });
         }
       } else {
-        // Admin or standard merge
+        // Admin or standard merge (immediate)
         toastManager.add({
           title: `PR #${prNumber} merged`,
           description: "Branch deleted.",
@@ -225,6 +233,9 @@ export function MergeButton({
 
   // Merge queue mode: single "Merge when ready" button with dropdown for close / admin override
   if (hasMergeQueue) {
+    // Disable if auto-merge is already enabled
+    const autoMergeAlreadyEnabled = pr.autoMergeRequest !== null;
+
     return (
       <div
         ref={menuRef}
@@ -233,11 +244,11 @@ export function MergeButton({
         <div className="flex">
           <Button
             size="sm"
-            variant={!requirementsMet ? "outline" : "success"}
+            variant={!requirementsMet || autoMergeAlreadyEnabled ? "outline" : "success"}
             className={`gap-1.5 ${canAdmin ? "rounded-r-none" : ""} ${
-              !requirementsMet ? "disabled:opacity-100" : ""
+              !requirementsMet || autoMergeAlreadyEnabled ? "disabled:opacity-100" : ""
             }`}
-            disabled={!requirementsMet || mergeMutation.isPending}
+            disabled={!requirementsMet || autoMergeAlreadyEnabled || mergeMutation.isPending}
             onClick={() => {
               const resolved = resolveMergeStrategy({
                 hasMergeQueue: true,
@@ -263,9 +274,7 @@ export function MergeButton({
               size="sm"
               variant={!requirementsMet ? "outline" : "success"}
               className={`rounded-l-none border-l px-1.5 ${
-                !requirementsMet
-                  ? "disabled:opacity-100"
-                  : "border-l-[#08080a]/20"
+                !requirementsMet ? "disabled:opacity-100" : "border-l-[#08080a]/20"
               }`}
               disabled={mergeMutation.isPending || closeMutation.isPending}
               onClick={() => setMenuOpen(!menuOpen)}

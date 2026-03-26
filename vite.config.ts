@@ -48,5 +48,6 @@ export default defineConfig({
     include: ["src/**/*.{test,spec}.{ts,tsx}"],
     exclude: ["node_modules", "dist", "dist-electron"],
     passWithNoTests: true,
+    environment: "happy-dom",
   },
 });
