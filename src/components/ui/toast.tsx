@@ -141,7 +141,7 @@ function Toasts({ position }: { position: ToastPosition }): React.ReactElement {
                 )}
                 {toast.type === "error" && (
                   <Toast.Close
-                    className="text-muted-foreground hover:text-foreground -mr-1 shrink-0 cursor-pointer rounded-sm p-0.5 transition-colors"
+                    className="text-muted-foreground hover:text-foreground -mr-1 shrink-0 cursor-pointer self-start rounded-sm p-0.5 transition-colors"
                     data-slot="toast-close"
                   >
                     <XIcon className="h-3.5 w-3.5" />
