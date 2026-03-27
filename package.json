@@ -12,7 +12,6 @@
     "dev": "vite",
     "build": "vite build",
     "build:app": "bun ./scripts/build-app.mjs",
-    "release:app": "bun ./scripts/build-app.mjs --publish always",
     "preview": "vite preview",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",

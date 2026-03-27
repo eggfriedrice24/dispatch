@@ -11,9 +11,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  ci:
+  quality:
     name: Lint, Format, Typecheck, Test, Build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout
@@ -39,3 +39,69 @@ jobs:
 
       - name: Package app
         run: bun run build:app -- --linux --x64 --dir
+
+  release_smoke:
+    name: Release smoke test
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Test version update
+        run: |
+          tmp="$(mktemp -d)"
+          cp package.json "$tmp/package.json"
+          cp bun.lock "$tmp/bun.lock"
+
+          bun scripts/update-release-version.ts "9.9.9-smoke.0" --root "$tmp"
+          grep '"version": "9.9.9-smoke.0"' "$tmp/package.json"
+
+          rm -rf "$tmp"
+
+      - name: Test manifest merging
+        run: |
+          tmp="$(mktemp -d)"
+
+          cat > "$tmp/latest-mac.yml" << 'MANIFEST'
+          version: 9.9.9-smoke.0
+          files:
+            - url: Dispatch-9.9.9-smoke.0-arm64.zip
+              sha512: arm64zip
+              size: 125621344
+            - url: Dispatch-9.9.9-smoke.0-arm64.dmg
+              sha512: arm64dmg
+              size: 131754935
+          path: Dispatch-9.9.9-smoke.0-arm64.zip
+          sha512: arm64zip
+          releaseDate: '2026-01-01T00:00:00.000Z'
+          MANIFEST
+
+          cat > "$tmp/latest-mac-x64.yml" << 'MANIFEST'
+          version: 9.9.9-smoke.0
+          files:
+            - url: Dispatch-9.9.9-smoke.0-x64.zip
+              sha512: x64zip
+              size: 132000112
+            - url: Dispatch-9.9.9-smoke.0-x64.dmg
+              sha512: x64dmg
+              size: 138148807
+          path: Dispatch-9.9.9-smoke.0-x64.zip
+          sha512: x64zip
+          releaseDate: '2026-01-01T00:00:00.000Z'
+          MANIFEST
+
+          bun scripts/merge-mac-update-manifests.ts \
+            "$tmp/latest-mac.yml" \
+            "$tmp/latest-mac-x64.yml"
+
+          grep "arm64" "$tmp/latest-mac.yml"
+          grep "x64" "$tmp/latest-mac.yml"
+
+          rm -rf "$tmp"
