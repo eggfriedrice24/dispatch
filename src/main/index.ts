@@ -23,7 +23,12 @@ import { registerIpcHandler } from "./ipc-handler";
 import { initAcp, shutdownAcp } from "./services/acp";
 import { trackFromMain } from "./services/analytics";
 import { getExternalUrl, openExternalUrl } from "./services/external-links";
+import { fixPath } from "./services/fix-path";
 import { type TrayState, startPolling, stopPolling } from "./services/tray-poller";
+
+// Resolve the user's full shell PATH so spawned tools (gh, git) are found.
+// Must run before any child process spawning.
+fixPath();
 
 // ---------------------------------------------------------------------------
 // Window configuration
