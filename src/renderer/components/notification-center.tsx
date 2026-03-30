@@ -130,7 +130,7 @@ export function NotificationCenter() {
         <MenuSeparator />
 
         {notifications.length === 0 ? (
-          <div className="text-text-tertiary px-3 py-6 text-center text-xs">
+          <div className="text-text-secondary px-3 py-6 text-center text-xs">
             No notifications yet
           </div>
         ) : (
@@ -141,6 +141,7 @@ export function NotificationCenter() {
               return (
                 <MenuItem
                   key={notification.id}
+                  className="cursor-pointer"
                   aria-label={`${notification.read ? "" : "Unread: "}${notification.title}${notification.body ? `, ${notification.body}` : ""}, ${relativeTime(new Date(notification.createdAt))}`}
                   onClick={() => {
                     if (!notification.read) {
@@ -155,7 +156,7 @@ export function NotificationCenter() {
                   }}
                 >
                   <div
-                    className={`flex w-full items-start gap-2 ${notification.read ? "opacity-50" : ""}`}
+                    className="flex w-full items-start gap-2"
                     aria-hidden="true"
                   >
                     <div className="relative mt-0.5 shrink-0">
@@ -180,7 +181,9 @@ export function NotificationCenter() {
                       )}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-text-primary truncate text-[11px] font-medium">
+                      <p
+                        className={`truncate text-[11px] ${notification.read ? "text-text-secondary font-normal" : "text-text-primary font-medium"}`}
+                      >
                         {notification.title}
                       </p>
                       {notification.body && (
