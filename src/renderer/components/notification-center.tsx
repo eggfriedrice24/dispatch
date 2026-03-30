@@ -91,10 +91,19 @@ export function NotificationCenter() {
 
   return (
     <Menu>
-      <MenuTrigger className="text-text-secondary hover:bg-bg-raised hover:text-text-primary relative flex h-[30px] w-[30px] cursor-pointer items-center justify-center rounded-sm transition-colors">
-        <Bell size={15} />
+      <MenuTrigger
+        className="text-text-secondary hover:bg-bg-raised hover:text-text-primary relative flex h-[30px] w-[30px] cursor-pointer items-center justify-center rounded-sm transition-colors"
+        aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"}
+      >
+        <Bell
+          size={15}
+          aria-hidden="true"
+        />
         {unreadCount > 0 && (
-          <span className="bg-destructive text-bg-root absolute -top-0.5 -right-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full px-1 text-[8px] font-bold">
+          <span
+            className="bg-destructive text-bg-root absolute -top-0.5 -right-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full px-1 text-[8px] font-bold"
+            aria-hidden="true"
+          >
             {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}
@@ -132,6 +141,7 @@ export function NotificationCenter() {
               return (
                 <MenuItem
                   key={notification.id}
+                  aria-label={`${notification.read ? "" : "Unread: "}${notification.title}${notification.body ? `, ${notification.body}` : ""}, ${relativeTime(new Date(notification.createdAt))}`}
                   onClick={() => {
                     if (!notification.read) {
                       markReadMutation.mutate(notification.id);
@@ -146,6 +156,7 @@ export function NotificationCenter() {
                 >
                   <div
                     className={`flex w-full items-start gap-2 ${notification.read ? "opacity-50" : ""}`}
+                    aria-hidden="true"
                   >
                     <div className="relative mt-0.5 shrink-0">
                       {notification.authorLogin ? (
@@ -154,9 +165,7 @@ export function NotificationCenter() {
                             login={notification.authorLogin}
                             size={20}
                           />
-                          <div
-                            className={`bg-bg-elevated absolute -right-1 -bottom-1 flex h-3.5 w-3.5 items-center justify-center rounded-full`}
-                          >
+                          <div className="bg-bg-elevated absolute -right-1 -bottom-1 flex h-3.5 w-3.5 items-center justify-center rounded-full">
                             <Icon
                               size={9}
                               className={color}
@@ -175,13 +184,16 @@ export function NotificationCenter() {
                         {notification.title}
                       </p>
                       {notification.body && (
-                        <p className="text-text-tertiary mt-0.5 truncate text-[10px]">
+                        <p className="text-text-secondary mt-0.5 truncate text-[10px]">
                           {notification.body}
                         </p>
                       )}
-                      <p className="text-text-ghost mt-0.5 font-mono text-[9px]">
+                      <time
+                        dateTime={notification.createdAt}
+                        className="text-text-tertiary mt-0.5 block font-mono text-[9px]"
+                      >
                         {relativeTime(new Date(notification.createdAt))}
-                      </p>
+                      </time>
                     </div>
                     {!notification.read && (
                       <div className="bg-primary mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full" />
