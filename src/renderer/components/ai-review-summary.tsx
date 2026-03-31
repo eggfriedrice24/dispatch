@@ -1,6 +1,7 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import {
+  buildAiReviewContext,
   buildAiReviewConfidencePrompt,
   buildAiReviewSummaryPrompt,
   buildAiReviewSummarySnapshotKey,
@@ -9,7 +10,7 @@ import {
 } from "@/shared/ai-review-summary";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Sparkles, X } from "lucide-react";
-import { startTransition, useMemo, useState } from "react";
+import { type ReactNode, startTransition, useMemo, useState } from "react";
 
 import { useAiTaskConfig } from "../hooks/use-ai-task-config";
 import { ipc } from "../lib/ipc";
@@ -49,6 +50,18 @@ export function AiReviewSummary({
   const [dismissed, setDismissed] = useState(false);
   const isCard = variant === "card";
   const summaryCacheQueryKey = ["ai", "reviewSummary", cwd, prNumber] as const;
+  const reviewContext = useMemo(
+    () =>
+      buildAiReviewContext({
+        prNumber,
+        prTitle,
+        prBody,
+        author,
+        files,
+        diffSnippet,
+      }),
+    [author, diffSnippet, files, prBody, prNumber, prTitle],
+  );
   const summarySnapshotKey = useMemo(
     () =>
       buildAiReviewSummarySnapshotKey({
@@ -236,8 +249,8 @@ export function AiReviewSummary({
   // Estimate token count (rough: ~4 chars per token)
   const estimatedTokens = Math.round(
     (prBody.length +
-      files.reduce((s, f) => s + f.path.length + 20, 0) +
-      Math.min(diffSnippet.length, 3000)) /
+      files.reduce((sum, file) => sum + file.path.length + 20, 0) +
+      reviewContext.usedDiffChars) /
       4,
   );
 
@@ -280,6 +293,10 @@ export function AiReviewSummary({
 
         {summarizeMutation.isPending ? (
           <div className="mt-2 flex flex-col gap-2.5">
+            <ReviewScopeSummary
+              reviewContext={reviewContext}
+              compact={isCard}
+            />
             <div className="flex items-center gap-2">
               <Spinner className="text-primary h-3.5 w-3.5" />
               <span className="text-text-secondary text-xs">
@@ -294,6 +311,10 @@ export function AiReviewSummary({
           </div>
         ) : summaryText ? (
           <div className="mt-2">
+            <ReviewScopeSummary
+              reviewContext={reviewContext}
+              compact={isCard}
+            />
             {summaryNeedsRefresh && (
               <div className="border-warning/30 bg-warning/10 mb-2 rounded-md border px-2.5 py-2">
                 <div className="flex items-center gap-2">
@@ -330,6 +351,10 @@ export function AiReviewSummary({
           </p>
         ) : (
           <div className="mt-2">
+            <ReviewScopeSummary
+              reviewContext={reviewContext}
+              compact={isCard}
+            />
             {!isCard && (
               <>
                 <p className="text-text-tertiary mb-2 text-[10px]">
@@ -371,4 +396,50 @@ function AiConfidenceBadge({ score, compact = false }: { score: number; compact?
       AI {score}/100
     </span>
   );
+}
+
+function ReviewScopeSummary({
+  reviewContext,
+  compact = false,
+}: {
+  reviewContext: ReturnType<typeof buildAiReviewContext>;
+  compact?: boolean;
+}) {
+  return (
+    <div className={compact ? "mb-2 flex flex-col gap-1" : "mb-2.5 flex flex-col gap-1.5"}>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <ScopeBadge>
+          {reviewContext.coveredFiles}/{reviewContext.totalFiles} files
+        </ScopeBadge>
+        <ScopeBadge>
+          {formatDiffSize(reviewContext.usedDiffChars)}/
+          {formatDiffSize(reviewContext.totalDiffChars)} diff
+        </ScopeBadge>
+        <ScopeBadge>
+          {reviewContext.truncated ? "Partial diff context" : "Full diff context"}
+        </ScopeBadge>
+        <ScopeBadge>Changed files only</ScopeBadge>
+      </div>
+      <p className="text-text-secondary text-[10px] leading-4">
+        Uses PR description, changed-file metadata, and changed diff content. Dispatch does not scan
+        unchanged repository files for this review.
+      </p>
+    </div>
+  );
+}
+
+function ScopeBadge({ children }: { children: ReactNode }) {
+  return (
+    <span className="border-border bg-bg-raised text-text-secondary inline-flex items-center rounded-sm border px-1.5 py-0.5 font-mono text-[9px] font-medium">
+      {children}
+    </span>
+  );
+}
+
+function formatDiffSize(value: number): string {
+  if (value >= 1000) {
+    return `${(value / 1000).toFixed(1)}k`;
+  }
+
+  return String(value);
 }

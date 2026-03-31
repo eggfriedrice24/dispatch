@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildAiReviewContext,
   buildAiReviewSummarySnapshotKey,
   parseAiReviewConfidencePayload,
   parseAiReviewSummaryPayload,
@@ -35,6 +36,53 @@ describe("buildAiReviewSummarySnapshotKey", () => {
         prBody: "Caches and invalidates the generated AI summary.",
       }),
     ).not.toBe(buildAiReviewSummarySnapshotKey(BASE_INPUT));
+  });
+
+  it("changes when the diff changes outside the old 3000-char window", () => {
+    const prefix = "x".repeat(3200);
+
+    expect(
+      buildAiReviewSummarySnapshotKey({
+        ...BASE_INPUT,
+        diffSnippet: `${prefix}tail-a`,
+      }),
+    ).not.toBe(
+      buildAiReviewSummarySnapshotKey({
+        ...BASE_INPUT,
+        diffSnippet: `${prefix}tail-b`,
+      }),
+    );
+  });
+});
+
+describe("buildAiReviewContext", () => {
+  it("covers multiple changed files instead of only the first diff chunk", () => {
+    const reviewContext = buildAiReviewContext(
+      {
+        ...BASE_INPUT,
+        diffSnippet: [
+          "diff --git a/src/a.ts b/src/a.ts",
+          "--- a/src/a.ts",
+          "+++ b/src/a.ts",
+          "@@ -1,2 +1,4 @@",
+          "+const one = 1;",
+          "+const two = 2;",
+          "diff --git a/src/b.ts b/src/b.ts",
+          "--- a/src/b.ts",
+          "+++ b/src/b.ts",
+          "@@ -1,2 +1,4 @@",
+          "+const three = 3;",
+          "+const four = 4;",
+        ].join("\n"),
+      },
+      900,
+    );
+
+    expect(reviewContext.coveredFiles).toBe(2);
+    expect(reviewContext.totalFiles).toBe(2);
+    expect(reviewContext.includesWholeCodebase).toBeFalsy();
+    expect(reviewContext.diffExcerpt).toContain("diff --git a/src/a.ts b/src/a.ts");
+    expect(reviewContext.diffExcerpt).toContain("diff --git a/src/b.ts b/src/b.ts");
   });
 });
 

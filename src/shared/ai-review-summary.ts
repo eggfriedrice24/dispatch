@@ -15,8 +15,23 @@ export interface AiReviewConfidencePayload {
   confidenceScore: number;
 }
 
+export interface AiReviewContext {
+  diffExcerpt: string;
+  coveredFiles: number;
+  totalFiles: number;
+  usedDiffChars: number;
+  totalDiffChars: number;
+  truncated: boolean;
+  includesPrDescription: boolean;
+  includesChangedFiles: boolean;
+  includesWholeCodebase: false;
+}
+
 const FNV_OFFSET_BASIS = 2_166_136_261;
 const FNV_PRIME = 16_777_619;
+const AI_REVIEW_DIFF_BUDGET = 12_000;
+const AI_REVIEW_BASELINE_CHARS_PER_FILE = 320;
+const AI_REVIEW_MAX_CHARS_PER_FILE = 1600;
 
 function hashString(value: string): string {
   let hash = FNV_OFFSET_BASIS;
@@ -53,25 +68,124 @@ export function buildAiReviewSummarySnapshotKey(input: AiReviewSummarySnapshotIn
     input.prBody.trim(),
     input.author.trim(),
     normalizedFiles,
-    input.diffSnippet.slice(0, 3000),
+    input.diffSnippet,
   ].join("\n---\n");
 
   return hashString(normalizedSnapshot);
+}
+
+export function buildAiReviewContext(
+  input: AiReviewSummarySnapshotInput,
+  diffBudget = AI_REVIEW_DIFF_BUDGET,
+): AiReviewContext {
+  const diffSections = splitDiffSections(input.diffSnippet);
+  const totalDiffChars = input.diffSnippet.length;
+  const includesPrDescription = input.prBody.trim().length > 0;
+  const includesChangedFiles = input.files.length > 0;
+
+  if (diffSections.length === 0) {
+    return {
+      diffExcerpt: input.diffSnippet.slice(0, diffBudget),
+      coveredFiles: totalDiffChars > 0 ? 1 : 0,
+      totalFiles: input.files.length,
+      usedDiffChars: Math.min(totalDiffChars, diffBudget),
+      totalDiffChars,
+      truncated: totalDiffChars > diffBudget,
+      includesPrDescription,
+      includesChangedFiles,
+      includesWholeCodebase: false,
+    };
+  }
+
+  const fileScores = new Map(
+    input.files.map((file) => [file.path, file.additions + file.deletions] as const),
+  );
+  const rankedSections = diffSections
+    .map((section) => ({
+      ...section,
+      score: fileScores.get(section.path) ?? section.content.length,
+    }))
+    .toSorted((left, right) => {
+      if (right.score !== left.score) {
+        return right.score - left.score;
+      }
+      return left.path.localeCompare(right.path);
+    });
+
+  const excerptLengths = new Map<string, number>();
+  let remaining = diffBudget;
+
+  for (const section of rankedSections) {
+    if (remaining <= 0) {
+      break;
+    }
+
+    const nextLength = Math.min(
+      section.content.length,
+      AI_REVIEW_BASELINE_CHARS_PER_FILE,
+      remaining,
+    );
+    excerptLengths.set(section.path, nextLength);
+    remaining -= nextLength;
+  }
+
+  for (const section of rankedSections) {
+    if (remaining <= 0) {
+      break;
+    }
+
+    const currentLength = excerptLengths.get(section.path) ?? 0;
+    if (currentLength < section.content.length && currentLength < AI_REVIEW_MAX_CHARS_PER_FILE) {
+      const nextLength = Math.min(
+        section.content.length,
+        AI_REVIEW_MAX_CHARS_PER_FILE,
+        currentLength + remaining,
+      );
+      remaining -= nextLength - currentLength;
+      excerptLengths.set(section.path, nextLength);
+    }
+  }
+
+  const visibleSections = rankedSections
+    .map((section) => {
+      const excerptLength = excerptLengths.get(section.path) ?? 0;
+      if (excerptLength === 0) {
+        return null;
+      }
+
+      const excerpt = section.content.slice(0, excerptLength);
+      return excerptLength < section.content.length
+        ? `${excerpt}\n... [truncated for summary context]`
+        : excerpt;
+    })
+    .filter((section): section is string => section !== null);
+
+  const usedDiffChars = [...excerptLengths.values()].reduce((sum, length) => sum + length, 0);
+
+  return {
+    diffExcerpt: visibleSections.join("\n\n"),
+    coveredFiles: excerptLengths.size,
+    totalFiles: diffSections.length,
+    usedDiffChars,
+    totalDiffChars,
+    truncated: usedDiffChars < totalDiffChars,
+    includesPrDescription,
+    includesChangedFiles,
+    includesWholeCodebase: false,
+  };
 }
 
 export function buildAiReviewSummaryPrompt(input: AiReviewSummarySnapshotInput): {
   systemPrompt: string;
   userPrompt: string;
 } {
-  const fileList = input.files
-    .slice(0, 30)
-    .map((file) => `  ${file.path} (+${file.additions}, -${file.deletions})`)
-    .join("\n");
+  const reviewContext = buildAiReviewContext(input);
+  const fileList = formatFileList(input.files);
 
   return {
     systemPrompt:
-      'You write pull request sidebar summaries for a busy reviewer. Return strict JSON only in the shape {"summary":"markdown"}. The summary must be markdown with at most 3 bullets and under 90 words. Do not restate the PR title, author, or description. Focus on the code changes and the one or two areas that deserve review attention. If there is no notable risk, omit the risk bullet.',
-    userPrompt: `PR: ${input.prTitle} #${input.prNumber}\nAuthor: ${input.author}\n\nDescription:\n${input.prBody}\n\nFiles changed:\n${fileList}\n\nDiff (first 3000 chars):\n${input.diffSnippet.slice(0, 3000)}`,
+      'You write pull request sidebar summaries for a busy reviewer. Return strict JSON only in the shape {"summary":"markdown"}. The summary must be markdown with at most 3 bullets and under 90 words. Do not restate the PR title, author, or description. Focus on the code changes and the one or two areas that deserve review attention. If there is no notable risk, omit the risk bullet. Do not claim repository-wide understanding beyond the supplied review context.',
+    userPrompt: buildPromptBody(input, fileList, reviewContext),
   };
 }
 
@@ -79,15 +193,13 @@ export function buildAiReviewConfidencePrompt(input: AiReviewSummarySnapshotInpu
   systemPrompt: string;
   userPrompt: string;
 } {
-  const fileList = input.files
-    .slice(0, 30)
-    .map((file) => `  ${file.path} (+${file.additions}, -${file.deletions})`)
-    .join("\n");
+  const reviewContext = buildAiReviewContext(input);
+  const fileList = formatFileList(input.files);
 
   return {
     systemPrompt:
-      'You assess how confidently a pull request can be summarized from limited review context. Return strict JSON only in the shape {"confidenceScore":72}. confidenceScore must be an integer from 0 to 100. Lower the score when the diff is broad, noisy, risky, or hard to assess from the provided snippet. Higher scores mean the important review surface is visible from the provided files and diff context.',
-    userPrompt: `PR: ${input.prTitle} #${input.prNumber}\nAuthor: ${input.author}\n\nDescription:\n${input.prBody}\n\nFiles changed:\n${fileList}\n\nDiff (first 3000 chars):\n${input.diffSnippet.slice(0, 3000)}`,
+      'You assess how confidently a pull request can be summarized from limited review context. Return strict JSON only in the shape {"confidenceScore":72}. confidenceScore must be an integer from 0 to 100. Lower the score when the diff is broad, noisy, risky, or hard to assess from the provided context. Higher scores mean the important review surface is visible from the supplied changed files and diff excerpts. Penalize the score when the context is truncated or clearly partial.',
+    userPrompt: buildPromptBody(input, fileList, reviewContext),
   };
 }
 
@@ -157,4 +269,69 @@ export function parseAiReviewConfidencePayload(raw: string): AiReviewConfidenceP
   return {
     confidenceScore,
   };
+}
+
+function splitDiffSections(rawDiff: string): Array<{ path: string; content: string }> {
+  if (!rawDiff.trim()) {
+    return [];
+  }
+
+  const sections = rawDiff.split(/^diff --git /gmu).filter(Boolean);
+
+  return sections.map((section) => {
+    const content = section.startsWith("diff --git ") ? section : `diff --git ${section}`;
+    const firstLine = content.split("\n", 1)[0] ?? "";
+    const match = firstLine.match(/^diff --git a\/(.+?) b\/(.+)$/u);
+    const oldPath = match?.[1] ?? "";
+    const newPath = match?.[2] ?? "";
+    const path = newPath || oldPath;
+
+    return {
+      path,
+      content,
+    };
+  });
+}
+
+function buildPromptBody(
+  input: AiReviewSummarySnapshotInput,
+  fileList: string,
+  reviewContext: AiReviewContext,
+): string {
+  return [
+    `PR: ${input.prTitle} #${input.prNumber}`,
+    `Author: ${input.author}`,
+    "",
+    "Description:",
+    input.prBody || "(none)",
+    "",
+    "Files changed:",
+    fileList,
+    "",
+    "Review context available to you:",
+    `- PR description: ${reviewContext.includesPrDescription ? "included" : "not provided"}`,
+    `- Changed-file manifest: ${reviewContext.includesChangedFiles ? "included" : "not provided"}`,
+    `- Diff coverage: ${reviewContext.coveredFiles}/${reviewContext.totalFiles} changed files`,
+    `- Diff bytes: ${reviewContext.usedDiffChars}/${reviewContext.totalDiffChars}`,
+    `- Whole-codebase context: not included`,
+    reviewContext.truncated
+      ? "- Context is truncated to fit the review budget."
+      : "- Full diff context is included.",
+    "",
+    "Diff excerpts:",
+    reviewContext.diffExcerpt || "(no diff excerpts available)",
+  ].join("\n");
+}
+
+function formatFileList(
+  files: ReadonlyArray<{ path: string; additions: number; deletions: number }>,
+): string {
+  if (files.length === 0) {
+    return "(none)";
+  }
+
+  return files
+    .slice(0, 30)
+    .map((file) => `  ${file.path} (+${file.additions}, -${file.deletions})`)
+    .join("\n");
 }

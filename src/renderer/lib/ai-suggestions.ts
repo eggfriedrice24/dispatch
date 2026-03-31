@@ -1,3 +1,4 @@
+/* eslint-disable max-params, no-continue -- Suggestion extraction is a linear rule pass over AI output and reads more clearly with guarded early exits. */
 /**
  * AI Code Review Suggestions — types and utilities.
  *
@@ -5,6 +6,10 @@
  * the prompt builder for structured JSON output, and a robust
  * response parser with line number validation.
  */
+
+const DISPATCH_AI_REVIEW_MARKER_PREFIX = "dispatch-ai-review:";
+const FNV_OFFSET_BASIS = 2_166_136_261;
+const FNV_PRIME = 16_777_619;
 
 // ---------------------------------------------------------------------------
 // Types
@@ -29,6 +34,18 @@ export interface AiSuggestion {
   status: "pending" | "posted" | "dismissed";
 }
 
+export interface ExistingReviewComment {
+  path: string;
+  line: number | null;
+  body: string;
+}
+
+export interface SuggestionPromptChangedFile {
+  path: string;
+  additions: number;
+  deletions: number;
+}
+
 // ---------------------------------------------------------------------------
 // Severity styling (mirrors inline-comment.tsx parseSeverity colors)
 // ---------------------------------------------------------------------------
@@ -40,27 +57,30 @@ export function getSeverityStyle(severity: AiSuggestionSeverity): {
   border: string;
 } {
   switch (severity) {
-    case "critical":
+    case "critical": {
       return {
         label: "Critical",
         bg: "var(--danger-muted)",
         color: "var(--danger)",
         border: "var(--danger)",
       };
-    case "warning":
+    }
+    case "warning": {
       return {
         label: "Warning",
         bg: "var(--warning-muted)",
         color: "var(--warning)",
         border: "var(--warning)",
       };
-    case "suggestion":
+    }
+    case "suggestion": {
       return {
         label: "Suggestion",
         bg: "var(--bg-raised)",
         color: "var(--primary)",
         border: "var(--primary)",
       };
+    }
   }
 }
 
@@ -70,6 +90,8 @@ export function getSeverityStyle(severity: AiSuggestionSeverity): {
 
 const SYSTEM_PROMPT = `You are a senior code reviewer. Analyze the following diff and suggest review comments that a human reviewer would find genuinely helpful.
 
+Work only from the PR metadata, changed-file manifest, existing review comments, and current file diff that are provided. Do not invent whole-codebase context or assume unchanged files were inspected.
+
 Focus on:
 - Bugs, logic errors, or security issues (severity: "critical")
 - Missing error handling, performance issues, design improvements (severity: "warning")
@@ -77,6 +99,9 @@ Focus on:
 
 Rules:
 - Return AT MOST 5 suggestions per file. Fewer is better.
+- Prefer one strong comment over multiple overlapping comments.
+- Do not repeat the same issue multiple times.
+- Do not restate or closely paraphrase any existing review comment.
 - Skip trivial formatting issues, style preferences, and obvious changes.
 - Each suggestion must reference a specific NEW-side line number from the diff.
 - Return ONLY a JSON array. No markdown fences, no explanation outside the array.
@@ -93,14 +118,32 @@ export function buildSuggestionPrompt(
   prBody: string,
   filePath: string,
   fileDiff: string,
+  changedFiles: ReadonlyArray<SuggestionPromptChangedFile>,
+  existingComments: ReadonlyArray<Pick<ExistingReviewComment, "line" | "body">>,
 ): Array<{ role: "system" | "user"; content: string }> {
   const description = prBody.length > 500 ? `${prBody.slice(0, 500)}…` : prBody;
+  const changedFilesSummary = formatChangedFilesSummary(changedFiles, filePath);
+  const existingCommentsSummary = formatExistingCommentsSummary(existingComments);
 
   return [
     { role: "system", content: SYSTEM_PROMPT },
     {
       role: "user",
-      content: `PR: ${prTitle}\nDescription: ${description}\n\nFile: ${filePath}\n\nDiff:\n${fileDiff}`,
+      content: [
+        `PR: ${prTitle}`,
+        `Description: ${description}`,
+        "",
+        "Changed files in this PR:",
+        changedFilesSummary,
+        "",
+        `Current file: ${filePath}`,
+        "",
+        "Existing review comments on this file:",
+        existingCommentsSummary,
+        "",
+        "Current file diff:",
+        fileDiff,
+      ].join("\n"),
     },
   ];
 }
@@ -120,6 +163,7 @@ export function parseSuggestionsResponse(
   raw: string,
   filePath: string,
   validLines: Set<number>,
+  existingComments: ReadonlyArray<ExistingReviewComment> = [],
 ): AiSuggestion[] {
   let cleaned = raw.trim();
   if (cleaned.startsWith("```")) {
@@ -131,18 +175,21 @@ export function parseSuggestionsResponse(
   }
   cleaned = cleaned.trim();
 
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(cleaned);
-  } catch {
-    return [];
-  }
+  const parsed: unknown = (() => {
+    try {
+      return JSON.parse(cleaned);
+    } catch {
+      return null;
+    }
+  })();
 
   if (!Array.isArray(parsed)) {
     return [];
   }
 
   const results: AiSuggestion[] = [];
+  const existingFingerprints = buildExistingCommentFingerprints(existingComments);
+  const seenFingerprints = new Set<string>();
 
   for (const item of parsed) {
     if (!item || typeof item !== "object") {
@@ -168,6 +215,13 @@ export function parseSuggestionsResponse(
       continue;
     }
 
+    const fingerprint = buildSuggestionFingerprint(filePath, body);
+    const duplicateFingerprint = buildDuplicateSuggestionFingerprint(filePath, title, body);
+
+    if (existingFingerprints.has(fingerprint) || seenFingerprints.has(duplicateFingerprint)) {
+      continue;
+    }
+
     results.push({
       id: crypto.randomUUID(),
       path: filePath,
@@ -177,9 +231,54 @@ export function parseSuggestionsResponse(
       body,
       status: "pending",
     });
+    seenFingerprints.add(duplicateFingerprint);
   }
 
   return results.slice(0, 5);
+}
+
+export function buildAiSuggestionsSnapshotKey(prNumber: number, rawDiff: string | null): string {
+  return hashString(`${prNumber}\n---\n${rawDiff ?? ""}`);
+}
+
+export function appendAiReviewMarker(path: string, body: string): string {
+  if (body.includes(DISPATCH_AI_REVIEW_MARKER_PREFIX)) {
+    return body;
+  }
+
+  const trimmedBody = body.trim();
+  const marker = `<!-- ${DISPATCH_AI_REVIEW_MARKER_PREFIX}${buildSuggestionFingerprint(path, body)} -->`;
+  return trimmedBody.length > 0 ? `${trimmedBody}\n\n${marker}` : marker;
+}
+
+export function buildExistingCommentFingerprints(
+  comments: ReadonlyArray<ExistingReviewComment>,
+): Set<string> {
+  const fingerprints = new Set<string>();
+
+  for (const comment of comments) {
+    const markerFingerprint = extractAiReviewMarker(comment.body);
+    if (markerFingerprint) {
+      fingerprints.add(markerFingerprint);
+      continue;
+    }
+
+    const normalizedBody = normalizeReviewText(comment.body);
+    if (!normalizedBody) {
+      continue;
+    }
+
+    fingerprints.add(buildSuggestionFingerprint(comment.path, comment.body));
+  }
+
+  return fingerprints;
+}
+
+export function isSuggestionDuplicate(
+  suggestion: Pick<AiSuggestion, "path" | "body">,
+  existingFingerprints: ReadonlySet<string>,
+): boolean {
+  return existingFingerprints.has(buildSuggestionFingerprint(suggestion.path, suggestion.body));
 }
 
 /**
@@ -193,7 +292,8 @@ export function extractFileDiff(fullDiff: string, filePath: string): string | nu
   for (const line of lines) {
     if (line.startsWith("diff --git")) {
       if (capturing) {
-        break; // End of our file's diff
+        // End of the current file section.
+        break;
       }
       if (line.includes(`b/${filePath}`)) {
         capturing = true;
@@ -222,4 +322,86 @@ export function collectValidLines(
     }
   }
   return valid;
+}
+
+function formatChangedFilesSummary(
+  changedFiles: ReadonlyArray<SuggestionPromptChangedFile>,
+  currentFilePath: string,
+): string {
+  if (changedFiles.length === 0) {
+    return "- No changed-file manifest was provided.";
+  }
+
+  const visibleFiles = changedFiles.slice(0, 25);
+  const rows = visibleFiles.map((file) => {
+    const currentLabel = file.path === currentFilePath ? " [current]" : "";
+    return `- ${file.path} (+${file.additions}, -${file.deletions})${currentLabel}`;
+  });
+
+  if (visibleFiles.length < changedFiles.length) {
+    rows.push(`- … ${changedFiles.length - visibleFiles.length} more changed files`);
+  }
+
+  return rows.join("\n");
+}
+
+function formatExistingCommentsSummary(
+  comments: ReadonlyArray<Pick<ExistingReviewComment, "line" | "body">>,
+): string {
+  if (comments.length === 0) {
+    return "- None.";
+  }
+
+  const visibleComments = comments.slice(0, 8);
+  const rows = visibleComments.map((comment) => {
+    const linePrefix = comment.line ? `line ${comment.line}: ` : "";
+    const body = collapseWhitespace(stripAiReviewMarker(comment.body)).slice(0, 220);
+    return `- ${linePrefix}${body}${body.length >= 220 ? "…" : ""}`;
+  });
+
+  if (visibleComments.length < comments.length) {
+    rows.push(`- … ${comments.length - visibleComments.length} more existing comments`);
+  }
+
+  return rows.join("\n");
+}
+
+function buildDuplicateSuggestionFingerprint(path: string, title: string, body: string): string {
+  return hashString(
+    [path.trim().toLowerCase(), normalizeReviewText(title), normalizeReviewText(body)].join(
+      "\n---\n",
+    ),
+  );
+}
+
+function buildSuggestionFingerprint(path: string, body: string): string {
+  return hashString([path.trim().toLowerCase(), normalizeReviewText(body)].join("\n---\n"));
+}
+
+function extractAiReviewMarker(body: string): string | null {
+  const markerMatch = body.match(/<!--\s*dispatch-ai-review:([0-9a-f]{8})\s*-->/iu);
+  return markerMatch?.[1] ?? null;
+}
+
+function stripAiReviewMarker(body: string): string {
+  return body.replaceAll(/<!--\s*dispatch-ai-review:[0-9a-f]{8}\s*-->/giu, "").trim();
+}
+
+function normalizeReviewText(value: string): string {
+  return collapseWhitespace(stripAiReviewMarker(value)).toLowerCase();
+}
+
+function collapseWhitespace(value: string): string {
+  return value.replaceAll(/\s+/gu, " ").trim();
+}
+
+function hashString(value: string): string {
+  let hash = FNV_OFFSET_BASIS;
+
+  for (const character of value) {
+    hash ^= character.codePointAt(0) ?? 0;
+    hash = Math.imul(hash, FNV_PRIME);
+  }
+
+  return (new Uint32Array([hash])[0] ?? 0).toString(16).padStart(8, "0");
 }

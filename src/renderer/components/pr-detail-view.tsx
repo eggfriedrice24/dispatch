@@ -269,6 +269,7 @@ function PrDetail({ prNumber }: { prNumber: number }) {
     prBody: prDetail?.body ?? "",
     files,
     rawDiff: rawDiff ?? null,
+    existingComments: commentsQuery.data ?? [],
     enabled: aiEnabled,
   });
 
@@ -605,6 +606,7 @@ function PrDetail({ prNumber }: { prNumber: number }) {
             </div>
           ) : currentFile ? (
             <DiffViewer
+              key={`${selectedCommit?.oid ?? headSha ?? "head"}:${currentFilePath}:${viewMode}`}
               file={currentFile}
               highlighter={highlighter}
               language={inferLanguage(getDiffFilePath(currentFile))}

@@ -2,14 +2,20 @@
  * UseAiSuggestions manages AI-generated code review suggestions.
  */
 
+import type { GhReviewComment } from "@/shared/ipc";
+
 import { toastManager } from "@/components/ui/toast";
 import { useCallback, useMemo, useRef, useState } from "react";
 
 import {
   type AiSuggestion,
+  appendAiReviewMarker,
+  buildAiSuggestionsSnapshotKey,
+  buildExistingCommentFingerprints,
   buildSuggestionPrompt,
   collectValidLines,
   extractFileDiff,
+  isSuggestionDuplicate,
   parseSuggestionsResponse,
 } from "../lib/ai-suggestions";
 import { getDiffFilePath, type DiffFile } from "../lib/diff-parser";
@@ -29,6 +35,7 @@ interface UseAiSuggestionsOpts {
   prBody: string;
   files: DiffFile[];
   rawDiff: string | null;
+  existingComments: ReadonlyArray<GhReviewComment>;
   enabled: boolean;
 }
 
@@ -38,10 +45,15 @@ export function useAiSuggestions({
   prBody,
   files,
   rawDiff,
+  existingComments,
   enabled,
 }: UseAiSuggestionsOpts) {
   const { cwd } = useWorkspace();
   const config = useAiTaskConfig("commentSuggestions");
+  const snapshotKey = useMemo(
+    () => buildAiSuggestionsSnapshotKey(prNumber, rawDiff),
+    [prNumber, rawDiff],
+  );
 
   const [byFile, setByFile] = useState<Map<string, AiSuggestion[]>>(new Map());
   const [generating, setGenerating] = useState<Set<string>>(new Set());
@@ -52,11 +64,15 @@ export function useAiSuggestions({
   const generatingRef = useRef<Set<string>>(new Set());
 
   const autoSuggest = usePreference("aiAutoSuggest") === "true";
+  const existingCommentFingerprints = useMemo(
+    () => buildExistingCommentFingerprints(existingComments),
+    [existingComments],
+  );
 
-  // Reset state when PR changes
-  const prevPrRef = useRef(prNumber);
-  if (prevPrRef.current !== prNumber) {
-    prevPrRef.current = prNumber;
+  // Reset state when the diff snapshot changes
+  const prevSnapshotRef = useRef(snapshotKey);
+  if (prevSnapshotRef.current !== snapshotKey) {
+    prevSnapshotRef.current = snapshotKey;
     setByFile(new Map());
     setGenerating(new Set());
     setError(null);
@@ -114,7 +130,23 @@ export function useAiSuggestions({
       setError(null);
 
       try {
-        const messages = buildSuggestionPrompt(prTitle, prBody, filePath, fileDiff);
+        const messages = buildSuggestionPrompt(
+          prTitle,
+          prBody,
+          filePath,
+          fileDiff,
+          files.map((file) => ({
+            path: getDiffFilePath(file),
+            additions: file.additions,
+            deletions: file.deletions,
+          })),
+          existingComments
+            .filter((comment) => comment.path === filePath)
+            .map((comment) => ({
+              line: comment.line,
+              body: comment.body,
+            })),
+        );
 
         const responseText = await ipc("ai.complete", {
           cwd,
@@ -123,7 +155,12 @@ export function useAiSuggestions({
           maxTokens: 2048,
         });
 
-        const suggestions = parseSuggestionsResponse(responseText, filePath, validLines);
+        const suggestions = parseSuggestionsResponse(
+          responseText,
+          filePath,
+          validLines,
+          existingComments.filter((comment) => comment.path === filePath),
+        );
         analyzedRef.current.add(filePath);
 
         setByFile((prev) => {
@@ -144,7 +181,7 @@ export function useAiSuggestions({
         });
       }
     },
-    [config.isConfigured, enabled, rawDiff, files, prTitle, prBody, cwd],
+    [config.isConfigured, enabled, rawDiff, files, prTitle, prBody, cwd, existingComments],
   );
 
   // -------------------------------------------------------------------------
@@ -174,7 +211,7 @@ export function useAiSuggestions({
         await ipc("pr.createComment", {
           cwd,
           prNumber,
-          body: body ?? suggestion.body,
+          body: appendAiReviewMarker(suggestion.path, body ?? suggestion.body),
           path: suggestion.path,
           line: suggestion.line,
         });
@@ -222,8 +259,12 @@ export function useAiSuggestions({
 
   const suggestionsForFile = useCallback(
     (filePath: string): AiSuggestion[] =>
-      (byFile.get(filePath) ?? []).filter((s) => s.status === "pending"),
-    [byFile],
+      (byFile.get(filePath) ?? []).filter(
+        (suggestion) =>
+          suggestion.status === "pending" &&
+          !isSuggestionDuplicate(suggestion, existingCommentFingerprints),
+      ),
+    [byFile, existingCommentFingerprints],
   );
 
   const isGenerating = useCallback(
@@ -234,10 +275,16 @@ export function useAiSuggestions({
   const totalCount = useMemo(
     () =>
       [...byFile.values()].reduce(
-        (sum, suggestions) => sum + suggestions.filter((s) => s.status === "pending").length,
+        (sum, suggestions) =>
+          sum +
+          suggestions.filter(
+            (suggestion) =>
+              suggestion.status === "pending" &&
+              !isSuggestionDuplicate(suggestion, existingCommentFingerprints),
+          ).length,
         0,
       ),
-    [byFile],
+    [byFile, existingCommentFingerprints],
   );
 
   return {

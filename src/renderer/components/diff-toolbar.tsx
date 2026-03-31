@@ -111,7 +111,9 @@ export function DiffToolbar({
               </button>
             }
           />
-          <TooltipPopup>Generate AI review suggestions for this file</TooltipPopup>
+          <TooltipPopup>
+            Review this file with PR description and changed-file context. No whole-codebase scan.
+          </TooltipPopup>
         </Tooltip>
       )}
 

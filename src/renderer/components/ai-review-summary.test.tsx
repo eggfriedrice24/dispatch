@@ -374,6 +374,8 @@ describe("AiReviewSummary", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("- Cached summary")).toBeInTheDocument();
     expect(screen.getByText("AI 61/100")).toBeInTheDocument();
+    expect(screen.getByText("1/1 files")).toBeInTheDocument();
+    expect(screen.getByText("Changed files only")).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: /refresh/i })).not.toHaveLength(0);
   });
 
