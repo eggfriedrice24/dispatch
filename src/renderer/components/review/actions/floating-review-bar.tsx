@@ -1,0 +1,825 @@
+/* eslint-disable import/max-dependencies -- Floating review bar intentionally composes review and merge controls. */
+import type { GhPrDetail } from "@/shared/ipc";
+
+import { Spinner } from "@/components/ui/spinner";
+import { toastManager } from "@/components/ui/toast";
+import { useMediaQuery } from "@/hooks/use-media-query";
+import { ipc } from "@/renderer/lib/app/ipc";
+import { queryClient } from "@/renderer/lib/app/query-client";
+import { resolveMergeStrategy } from "@/renderer/lib/review/merge-strategy";
+import { summarizePrChecks } from "@/renderer/lib/review/pr-check-status";
+import { useMutation } from "@tanstack/react-query";
+import {
+  Check,
+  ChevronDown,
+  Eye,
+  GitMerge,
+  MessageSquare,
+  RefreshCw,
+  ShieldAlert,
+} from "lucide-react";
+import { useRef, useState } from "react";
+
+/**
+ * Floating review bar — mockup-pr-review-v14.html § .review-bar
+ *
+ * Frosted glass bar at bottom-center. Stats → pending pill → sep → action buttons.
+ */
+
+interface FloatingReviewBarProps {
+  viewedCount: number;
+  totalFiles: number;
+  commentCount: number;
+  checkSummary: Array<{ name: string; status: string; conclusion: string | null }>;
+  isAuthor: boolean;
+  isDraft: boolean;
+  pr: GhPrDetail;
+  cwd: string;
+  prNumber: number;
+  canAdmin: boolean;
+  hasMergeQueue: boolean;
+  currentUserReview: string | null;
+  isReRequested: boolean;
+  panelOpen?: boolean;
+}
+
+export function FloatingReviewBar({
+  viewedCount,
+  totalFiles,
+  commentCount,
+  checkSummary,
+  isAuthor,
+  isDraft,
+  pr,
+  cwd,
+  prNumber,
+  canAdmin,
+  hasMergeQueue,
+  currentUserReview,
+  isReRequested,
+  panelOpen = false,
+}: FloatingReviewBarProps) {
+  const compactBar = useMediaQuery({ max: 1180 });
+  const denseBar = useMediaQuery({ max: 960 });
+  const checks = summarizePrChecks(checkSummary);
+  const allPassing = checks.state === "passing";
+
+  return (
+    <div
+      style={{
+        position: "absolute",
+        bottom: "12px",
+        left: panelOpen ? "calc((100% - min(380px, 45%)) / 2)" : "50%",
+        transform: "translateX(-50%)",
+        zIndex: 3,
+        maxWidth: panelOpen ? "calc(100% - min(380px, 45%) - 24px)" : "calc(100% - 24px)",
+        background: "var(--bar-glass)",
+        backdropFilter: "blur(12px)",
+        WebkitBackdropFilter: "blur(12px)",
+        border: "1px solid var(--border-strong)",
+        borderRadius: "var(--radius-xl)",
+        padding: denseBar ? "4px 4px 4px 10px" : "5px 5px 5px 12px",
+        display: "flex",
+        alignItems: "center",
+        gap: compactBar ? "6px" : "8px",
+        overflow: "hidden",
+        boxShadow: "var(--shadow-lg), var(--shadow-glow)",
+        transition: "left 0.3s ease",
+      }}
+    >
+      {/* Stats */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: compactBar ? "6px" : "8px",
+          fontSize: "11px",
+          color: "var(--text-secondary)",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {/* Viewed */}
+        <div style={{ display: "flex", alignItems: "center", gap: "3px" }}>
+          <span style={{ color: "var(--text-tertiary)" }}>
+            <Eye size={11} />
+          </span>
+          <span
+            style={{
+              fontFamily: "var(--font-mono)",
+              fontSize: "10px",
+              color: "var(--text-primary)",
+            }}
+          >
+            {viewedCount}/{totalFiles}
+          </span>
+        </div>
+
+        {/* Comments */}
+        <div style={{ display: "flex", alignItems: "center", gap: "3px" }}>
+          <span style={{ color: "var(--text-tertiary)" }}>
+            <MessageSquare size={11} />
+          </span>
+          <span
+            style={{
+              fontFamily: "var(--font-mono)",
+              fontSize: "10px",
+              color: "var(--text-primary)",
+            }}
+          >
+            {commentCount}
+          </span>
+        </div>
+
+        {/* Checks */}
+        <div style={{ display: "flex", alignItems: "center", gap: "3px" }}>
+          <span style={{ color: "var(--text-tertiary)" }}>
+            <Check size={11} />
+          </span>
+          <span
+            style={{
+              fontFamily: "var(--font-mono)",
+              fontSize: "10px",
+              color: allPassing
+                ? "var(--success)"
+                : checks.failed > 0
+                  ? "var(--danger)"
+                  : checks.pending > 0
+                    ? "var(--warning)"
+                    : "var(--text-primary)",
+            }}
+          >
+            {checks.failed > 0
+              ? `${checks.failed} failed`
+              : checks.total > 0
+                ? `${checks.passed}/${checks.total}`
+                : "—"}
+          </span>
+        </div>
+      </div>
+
+      {/* Auto-merge pill */}
+      {pr.autoMergeRequest && (
+        <span
+          style={{
+            fontSize: "10px",
+            fontWeight: 500,
+            padding: "1px 7px",
+            borderRadius: "var(--radius-full)",
+            background: "var(--info-muted)",
+            color: "var(--info)",
+            fontFamily: "var(--font-mono)",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "3px",
+          }}
+        >
+          <GitMerge size={9} />
+          auto
+        </span>
+      )}
+
+      {/* Update branch button when behind */}
+      {pr.mergeStateStatus === "BEHIND" && (
+        <UpdateBranchPill
+          cwd={cwd}
+          prNumber={prNumber}
+          compact={compactBar}
+          dense={denseBar}
+        />
+      )}
+
+      {/* Separator */}
+      <div
+        style={{
+          width: "1px",
+          height: denseBar ? "16px" : "18px",
+          background: "var(--border)",
+          flexShrink: 0,
+        }}
+      />
+
+      {/* Action buttons */}
+      <div style={{ display: "flex", alignItems: "center", gap: compactBar ? "2px" : "3px" }}>
+        {!isAuthor && (
+          <>
+            <RequestChangesBarButton
+              cwd={cwd}
+              prNumber={prNumber}
+              compact={compactBar}
+              dense={denseBar}
+            />
+            <ApproveBarButton
+              cwd={cwd}
+              prNumber={prNumber}
+              currentUserReview={currentUserReview}
+              isReRequested={isReRequested}
+              compact={compactBar}
+              dense={denseBar}
+            />
+          </>
+        )}
+        <MergeBarButton
+          cwd={cwd}
+          prNumber={prNumber}
+          pr={pr}
+          canAdmin={canAdmin}
+          hasMergeQueue={hasMergeQueue}
+          isDraft={isDraft}
+          compact={compactBar}
+          dense={denseBar}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Buttons — matching mockup .btn .btn-outline / .btn-success / .btn-primary
+// ---------------------------------------------------------------------------
+
+const btnBase: React.CSSProperties = {
+  padding: "5px 10px",
+  borderRadius: "var(--radius-md)",
+  fontSize: "11px",
+  fontWeight: 500,
+  fontFamily: "var(--font-sans)",
+  cursor: "pointer",
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "4px",
+  border: "1px solid transparent",
+  whiteSpace: "nowrap",
+  userSelect: "none",
+};
+
+function RequestChangesBarButton({
+  cwd,
+  prNumber,
+  compact,
+  dense,
+}: {
+  cwd: string;
+  prNumber: number;
+  compact: boolean;
+  dense: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [body, setBody] = useState("");
+  const hasReviewBody = body.trim().length > 0;
+
+  const reviewMutation = useMutation({
+    mutationFn: (reviewBody: string) =>
+      ipc("pr.submitReview", {
+        cwd,
+        prNumber,
+        event: "REQUEST_CHANGES" as const,
+        body: reviewBody,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pr"] });
+      toastManager.add({ title: "Changes requested", type: "success" });
+      setBody("");
+      setOpen(false);
+    },
+    onError: (err) => {
+      toastManager.add({ title: "Review failed", description: String(err.message), type: "error" });
+    },
+  });
+
+  return (
+    <div style={{ position: "relative" }}>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        title={dense ? "Request changes" : undefined}
+        aria-label="Request changes"
+        style={{
+          ...btnBase,
+          background: "transparent",
+          color: "var(--text-secondary)",
+          borderColor: "var(--border-strong)",
+          padding: dense ? "5px 7px" : compact ? "5px 8px" : btnBase.padding,
+        }}
+      >
+        <MessageSquare size={11} />
+        {!dense && (compact ? "Request" : "Request Changes")}
+        {!compact && (
+          <span style={{ fontFamily: "var(--font-mono)", fontSize: "9px", opacity: 0.5 }}>r</span>
+        )}
+      </button>
+      {open && (
+        <div
+          style={{
+            position: "absolute",
+            bottom: "100%",
+            left: 0,
+            marginBottom: "6px",
+            width: "280px",
+            maxWidth: "calc(100vw - 32px)",
+            background: "var(--bg-elevated)",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius-md)",
+            padding: "10px",
+            boxShadow: "var(--shadow-lg)",
+            zIndex: 50,
+          }}
+        >
+          <div
+            style={{
+              fontSize: "11px",
+              fontWeight: 500,
+              color: "var(--text-primary)",
+              marginBottom: "6px",
+            }}
+          >
+            What needs to change?
+          </div>
+          <textarea
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            placeholder="Describe what needs to change…"
+            rows={3}
+            autoFocus
+            style={{
+              width: "100%",
+              resize: "none",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius-sm)",
+              background: "var(--bg-root)",
+              color: "var(--text-primary)",
+              fontSize: "11px",
+              padding: "6px 8px",
+              lineHeight: 1.5,
+              outline: "none",
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") {
+                setOpen(false);
+                setBody("");
+              }
+            }}
+          />
+          <div
+            style={{ display: "flex", justifyContent: "flex-end", gap: "4px", marginTop: "6px" }}
+          >
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                setBody("");
+              }}
+              style={{
+                ...btnBase,
+                background: "transparent",
+                color: "var(--text-secondary)",
+                borderColor: "var(--border)",
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={!hasReviewBody || reviewMutation.isPending}
+              onClick={() => reviewMutation.mutate(body.trim())}
+              style={{
+                ...btnBase,
+                background: hasReviewBody ? "var(--danger)" : "var(--bg-raised)",
+                color: hasReviewBody ? "#fff" : "var(--text-tertiary)",
+                borderColor: hasReviewBody ? "var(--danger)" : "var(--border)",
+                cursor: hasReviewBody ? "pointer" : "not-allowed",
+                opacity: reviewMutation.isPending ? 0.5 : 1,
+              }}
+            >
+              {reviewMutation.isPending ? <Spinner className="h-3 w-3" /> : "Submit"}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ApproveBarButton({
+  cwd,
+  prNumber,
+  currentUserReview,
+  isReRequested,
+  compact,
+  dense,
+}: {
+  cwd: string;
+  prNumber: number;
+  currentUserReview: string | null;
+  isReRequested: boolean;
+  compact: boolean;
+  dense: boolean;
+}) {
+  const alreadyApproved = currentUserReview === "APPROVED" && !isReRequested;
+
+  const reviewMutation = useMutation({
+    mutationFn: () => ipc("pr.submitReview", { cwd, prNumber, event: "APPROVE" as const }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pr"] });
+      toastManager.add({ title: "PR approved", type: "success" });
+    },
+    onError: (err) => {
+      toastManager.add({ title: "Review failed", description: String(err.message), type: "error" });
+    },
+  });
+
+  if (alreadyApproved) {
+    return (
+      <button
+        type="button"
+        disabled
+        title={dense ? "Approved" : undefined}
+        aria-label="Approved"
+        style={{
+          ...btnBase,
+          background: "var(--success)",
+          color: "var(--bg-root)",
+          borderColor: "var(--success)",
+          opacity: 0.6,
+          padding: dense ? "5px 7px" : compact ? "5px 8px" : btnBase.padding,
+        }}
+      >
+        <Check size={11} />
+        {!dense && "Approved"}
+      </button>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => reviewMutation.mutate()}
+      disabled={reviewMutation.isPending}
+      title={dense ? "Approve" : undefined}
+      aria-label="Approve"
+      style={{
+        ...btnBase,
+        background: "var(--success)",
+        color: "var(--bg-root)",
+        borderColor: "var(--success)",
+        opacity: reviewMutation.isPending ? 0.5 : 1,
+        padding: dense ? "5px 7px" : compact ? "5px 8px" : btnBase.padding,
+      }}
+    >
+      {reviewMutation.isPending ? <Spinner className="h-3 w-3" /> : <Check size={11} />}
+      {!dense && "Approve"}
+      {!compact && (
+        <span style={{ fontFamily: "var(--font-mono)", fontSize: "9px", opacity: 0.5 }}>a</span>
+      )}
+    </button>
+  );
+}
+
+function MergeBarButton({
+  cwd,
+  prNumber,
+  pr,
+  canAdmin,
+  hasMergeQueue,
+  isDraft,
+  compact,
+  dense,
+}: {
+  cwd: string;
+  prNumber: number;
+  pr: {
+    reviewDecision: string;
+    mergeable: string;
+    statusCheckRollup: Array<{ conclusion: string | null }>;
+    autoMergeRequest: {
+      enabledBy: { login: string };
+      mergeMethod: string;
+    } | null;
+  };
+  canAdmin: boolean;
+  hasMergeQueue: boolean;
+  isDraft: boolean;
+  compact: boolean;
+  dense: boolean;
+}) {
+  const hasApproval = pr.reviewDecision === "APPROVED";
+  const checkSummary = summarizePrChecks(pr.statusCheckRollup);
+  const allChecksPassing =
+    checkSummary.failed === 0 && checkSummary.pending === 0 && checkSummary.total > 0;
+  const requirementsMet = hasApproval && allChecksPassing && pr.mergeable === "MERGEABLE";
+  const canMerge = requirementsMet || canAdmin;
+
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [strategy, setStrategy] = useState<"squash" | "merge" | "rebase">("squash");
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  const mergeMutation = useMutation({
+    mutationFn: (args: { admin?: boolean } | void) => {
+      const resolved = resolveMergeStrategy({
+        hasMergeQueue,
+        requirementsMet,
+        canAdmin,
+        explicitAdmin: args?.admin,
+        strategy,
+      });
+
+      return ipc("pr.merge", {
+        cwd,
+        prNumber,
+        strategy: resolved.strategy,
+        admin: resolved.admin,
+        auto: resolved.auto,
+        hasMergeQueue,
+      });
+    },
+    onSuccess: (result, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["pr"] });
+
+      // Check if auto-merge was used
+      const resolved = resolveMergeStrategy({
+        hasMergeQueue,
+        requirementsMet,
+        canAdmin,
+        explicitAdmin: variables?.admin,
+        strategy,
+      });
+
+      if (resolved.auto) {
+        // With --auto flag, GitHub enables auto-merge (doesn't immediately merge if requirements not met)
+        if (requirementsMet) {
+          // Requirements met: either merged immediately or queued in merge queue
+          if (result.queued) {
+            toastManager.add({
+              title: `PR #${prNumber} queued for merge`,
+              type: "success",
+            });
+          } else {
+            toastManager.add({
+              title: `PR #${prNumber} merged`,
+              description: "Branch deleted.",
+              type: "success",
+            });
+          }
+        } else {
+          // Requirements NOT met: auto-merge enabled, will merge when ready
+          toastManager.add({
+            title: `Auto-merge enabled for PR #${prNumber}`,
+            description: "Will merge when checks pass and approvals are received",
+            type: "success",
+          });
+        }
+      } else {
+        // Admin or standard merge (immediate)
+        toastManager.add({
+          title: `PR #${prNumber} merged`,
+          description: "Branch deleted.",
+          type: "success",
+        });
+      }
+    },
+    onError: (err) => {
+      toastManager.add({ title: "Merge failed", description: String(err.message), type: "error" });
+    },
+  });
+
+  const labels: Record<string, string> = {
+    squash: "Squash & Merge",
+    merge: "Merge",
+    rebase: "Rebase & Merge",
+  };
+
+  // Disable if auto-merge is already enabled
+  const autoMergeAlreadyEnabled = pr.autoMergeRequest !== null;
+  const disabled = isDraft || !canMerge || autoMergeAlreadyEnabled;
+  const mainBg = disabled ? "var(--bg-raised)" : "var(--success)";
+  const mainColor = disabled ? "var(--text-tertiary)" : "var(--bg-root)";
+  const mainBorder = disabled ? "var(--border)" : "var(--success)";
+  const mainCursor = disabled ? "not-allowed" : "pointer";
+
+  // Merge queue mode: "Merge when ready" with admin-only dropdown
+  if (hasMergeQueue) {
+    return (
+      <div
+        ref={menuRef}
+        style={{ position: "relative", display: "flex" }}
+      >
+        <button
+          type="button"
+          onClick={() => mergeMutation.mutate()}
+          disabled={isDraft || !canMerge || mergeMutation.isPending}
+          title={dense ? "Merge when ready" : undefined}
+          aria-label="Merge when ready"
+          style={{
+            ...btnBase,
+            background: mainBg,
+            color: mainColor,
+            borderColor: mainBorder,
+            cursor: mainCursor,
+            borderTopRightRadius: canAdmin ? 0 : undefined,
+            borderBottomRightRadius: canAdmin ? 0 : undefined,
+            padding: dense ? "5px 7px" : compact ? "5px 8px" : btnBase.padding,
+          }}
+        >
+          {mergeMutation.isPending ? <Spinner className="h-3 w-3" /> : <GitMerge size={11} />}
+          {!dense && (compact ? "Ready" : "Merge when ready")}
+        </button>
+        {canAdmin && (
+          <button
+            type="button"
+            onClick={() => setMenuOpen(!menuOpen)}
+            style={{
+              ...btnBase,
+              background: mainBg,
+              color: mainColor,
+              borderColor: mainBorder,
+              borderLeft: disabled ? "1px solid var(--border)" : "1px solid rgba(0,0,0,0.2)",
+              borderTopLeftRadius: 0,
+              borderBottomLeftRadius: 0,
+              padding: "5px 4px",
+            }}
+          >
+            <ChevronDown size={10} />
+          </button>
+        )}
+        {menuOpen && (
+          <div
+            style={{
+              position: "absolute",
+              bottom: "100%",
+              right: 0,
+              marginBottom: "4px",
+              width: "180px",
+              background: "var(--bg-elevated)",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius-md)",
+              padding: "4px",
+              boxShadow: "var(--shadow-lg)",
+              zIndex: 50,
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => {
+                setMenuOpen(false);
+                mergeMutation.mutate({ admin: true });
+              }}
+              disabled={mergeMutation.isPending}
+              style={{
+                display: "flex",
+                width: "100%",
+                alignItems: "center",
+                gap: "6px",
+                padding: "6px 10px",
+                borderRadius: "var(--radius-sm)",
+                fontSize: "11px",
+                cursor: "pointer",
+                border: "none",
+                background: "transparent",
+                color: "var(--warning)",
+              }}
+            >
+              <ShieldAlert size={11} />
+              Merge now (admin)
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Standard mode: split button with strategy selection
+  return (
+    <div
+      ref={menuRef}
+      style={{ position: "relative", display: "flex" }}
+    >
+      <button
+        type="button"
+        onClick={() => mergeMutation.mutate()}
+        disabled={isDraft || !canMerge || mergeMutation.isPending}
+        title={dense ? labels[strategy] : undefined}
+        aria-label={labels[strategy]}
+        style={{
+          ...btnBase,
+          background: mainBg,
+          color: mainColor,
+          borderColor: mainBorder,
+          cursor: mainCursor,
+          borderTopRightRadius: 0,
+          borderBottomRightRadius: 0,
+          padding: dense ? "5px 7px" : compact ? "5px 8px" : btnBase.padding,
+        }}
+      >
+        {mergeMutation.isPending ? <Spinner className="h-3 w-3" /> : <GitMerge size={11} />}
+        {!dense && (compact ? "Merge" : labels[strategy])}
+      </button>
+      <button
+        type="button"
+        onClick={() => setMenuOpen(!menuOpen)}
+        style={{
+          ...btnBase,
+          background: mainBg,
+          color: mainColor,
+          borderColor: mainBorder,
+          borderLeft: disabled ? "1px solid var(--border)" : "1px solid rgba(0,0,0,0.2)",
+          borderTopLeftRadius: 0,
+          borderBottomLeftRadius: 0,
+          padding: "5px 4px",
+        }}
+      >
+        <ChevronDown size={10} />
+      </button>
+      {menuOpen && (
+        <div
+          style={{
+            position: "absolute",
+            bottom: "100%",
+            right: 0,
+            marginBottom: "4px",
+            width: "180px",
+            background: "var(--bg-elevated)",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius-md)",
+            padding: "4px",
+            boxShadow: "var(--shadow-lg)",
+            zIndex: 50,
+          }}
+        >
+          {(["squash", "merge", "rebase"] as const).map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => {
+                setStrategy(s);
+                setMenuOpen(false);
+              }}
+              style={{
+                display: "flex",
+                width: "100%",
+                padding: "6px 10px",
+                borderRadius: "var(--radius-sm)",
+                fontSize: "11px",
+                cursor: "pointer",
+                border: "none",
+                background: strategy === s ? "var(--accent-muted)" : "transparent",
+                color: strategy === s ? "var(--accent-text)" : "var(--text-secondary)",
+                textAlign: "left",
+              }}
+            >
+              {labels[s]}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function UpdateBranchPill({
+  cwd,
+  prNumber,
+  compact,
+  dense,
+}: {
+  cwd: string;
+  prNumber: number;
+  compact: boolean;
+  dense: boolean;
+}) {
+  const updateMutation = useMutation({
+    mutationFn: () => ipc("pr.updateBranch", { cwd, prNumber }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pr"] });
+      toastManager.add({ title: "Branch updated", type: "success" });
+    },
+    onError: (err) => {
+      toastManager.add({
+        title: "Update failed",
+        description: String(err.message),
+        type: "error",
+      });
+    },
+  });
+
+  return (
+    <button
+      type="button"
+      onClick={() => updateMutation.mutate()}
+      disabled={updateMutation.isPending}
+      title={dense ? "Update branch" : undefined}
+      aria-label="Update branch"
+      style={{
+        ...btnBase,
+        background: "transparent",
+        color: "var(--warning)",
+        borderColor: "var(--border)",
+        fontSize: "10px",
+        padding: dense ? "2px 6px" : "2px 7px",
+        gap: "3px",
+        opacity: updateMutation.isPending ? 0.5 : 1,
+      }}
+    >
+      {updateMutation.isPending ? <Spinner className="h-2.5 w-2.5" /> : <RefreshCw size={9} />}
+      {!dense && (compact ? "Update" : "Update branch")}
+    </button>
+  );
+}

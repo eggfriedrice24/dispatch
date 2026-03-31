@@ -38,6 +38,7 @@ src/
 - **Main process** shells out to `gh` and `git` via child processes. Caches data in SQLite (`better-sqlite3`).
 - **Renderer** is a standard React app. Communicates with main via typed IPC. No direct Node.js access.
 - Context isolation enabled, node integration disabled, sandbox enabled.
+- Structural conventions and module boundaries live in [ARCHITECTURE.md](./ARCHITECTURE.md).
 
 ## Tech Stack
 

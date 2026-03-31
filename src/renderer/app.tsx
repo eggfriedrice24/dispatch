@@ -1,18 +1,19 @@
+/* eslint-disable import/max-dependencies -- App bootstrap intentionally composes the top-level providers and boot flow in one entrypoint. */
 import { ToastProvider } from "@/components/ui/toast";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { AppLayout } from "./components/app-layout";
-import { EnvCheck } from "./components/env-check";
-import { Onboarding } from "./components/onboarding";
-import { SplashScreen } from "./components/splash-screen";
-import { ipc } from "./lib/ipc";
-import { KeybindingProvider } from "./lib/keybinding-context";
-import { initPostHog } from "./lib/posthog";
-import { queryClient } from "./lib/query-client";
-import { ThemeProvider } from "./lib/theme-context";
-import { WorkspaceProvider } from "./lib/workspace-context";
+import { EnvCheck } from "./components/setup/env-check";
+import { Onboarding } from "./components/setup/onboarding";
+import { AppLayout } from "./components/shell/app-layout";
+import { SplashScreen } from "./components/shell/splash-screen";
+import { ipc } from "./lib/app/ipc";
+import { initPostHog } from "./lib/app/posthog";
+import { queryClient } from "./lib/app/query-client";
+import { ThemeProvider } from "./lib/app/theme-context";
+import { WorkspaceProvider } from "./lib/app/workspace-context";
+import { KeybindingProvider } from "./lib/keyboard/keybinding-context";
 
 /**
  * Boot flow:
