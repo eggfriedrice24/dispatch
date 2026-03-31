@@ -1,3 +1,4 @@
+/* eslint-disable require-await, no-inline-comments, no-promise-executor-return, unicorn/consistent-function-scoping -- This suite intentionally models async-shaped handlers and Promise edge cases. */
 import { describe, expect, it } from "vitest";
 
 /**
@@ -302,7 +303,7 @@ describe("IPC Error Handling - Critical Gaps", () => {
       const buggyHandler = async () => {
         try {
           throw new Error("Original error");
-        } catch {
+        } catch (error) {
           throw new Error("Error in catch block", { cause: error });
         }
       };
