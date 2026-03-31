@@ -60,7 +60,7 @@ interface DiffViewerProps {
 // Flat row model
 // ---------------------------------------------------------------------------
 
-type FlatLine = DiffLine & { pairIndex: number | null };
+type FlatLine = DiffLine & { pairKey: string | null };
 
 type FlatRow =
   | { kind: "line"; key: string; line: FlatLine }
@@ -89,55 +89,59 @@ function buildRows(
         content: hunk.header,
         oldLineNumber: null,
         newLineNumber: null,
-        pairIndex: null,
+        pairKey: null,
       },
     });
 
     for (let i = 0; i < hunk.lines.length; i++) {
       const line = hunk.lines[i]!;
       const next = hunk.lines[i + 1];
+      const prev = i > 0 ? hunk.lines[i - 1] : undefined;
 
-      let pairIndex: number | null = null;
-      if (line.type === "del" && next?.type === "add") {
-        pairIndex = rows.length + 1;
-      } else if (line.type === "add" && i > 0 && hunk.lines[i - 1]?.type === "del") {
-        pairIndex = rows.length - 1;
-      }
+      if (line.type !== "hunk-header") {
+        const lineKey = `line-${hunkIndex}-${i}-${line.type}-${line.oldLineNumber ?? "x"}-${line.newLineNumber ?? "x"}`;
 
-      const lineNum = line.newLineNumber ?? line.oldLineNumber;
-      const lineKey = `${line.type}-${line.oldLineNumber ?? "x"}-${line.newLineNumber ?? "x"}`;
-      rows.push({ kind: "line", key: lineKey, line: { ...line, pairIndex } });
-
-      if (lineNum) {
-        const posKey = `${filePath}:${lineNum}`;
-
-        const lineAnnotations = annotations.get(posKey);
-        if (lineAnnotations && lineAnnotations.length > 0) {
-          rows.push({ kind: "annotation", key: `ann-${posKey}`, annotations: lineAnnotations });
+        let pairKey: string | null = null;
+        if (line.type === "del" && next?.type === "add") {
+          pairKey = `line-${hunkIndex}-${i + 1}-${next.type}-${next.oldLineNumber ?? "x"}-${next.newLineNumber ?? "x"}`;
+        } else if (line.type === "add" && prev?.type === "del") {
+          pairKey = `line-${hunkIndex}-${i - 1}-${prev.type}-${prev.oldLineNumber ?? "x"}-${prev.newLineNumber ?? "x"}`;
         }
 
-        const lineComments = comments.get(posKey);
-        if (lineComments && lineComments.length > 0) {
-          rows.push({ kind: "comment", key: `cmt-${posKey}`, comments: lineComments });
+        const lineNum = line.newLineNumber ?? line.oldLineNumber;
+        rows.push({ kind: "line", key: lineKey, line: { ...line, pairKey } });
+
+        if (lineNum) {
+          const posKey = `${filePath}:${lineNum}`;
+
+          const lineAnnotations = annotations.get(posKey);
+          if (lineAnnotations && lineAnnotations.length > 0) {
+            rows.push({ kind: "annotation", key: `ann-${posKey}`, annotations: lineAnnotations });
+          }
+
+          const lineComments = comments.get(posKey);
+          if (lineComments && lineComments.length > 0) {
+            rows.push({ kind: "comment", key: `cmt-${posKey}`, comments: lineComments });
+          }
+
+          const lineSuggestions = aiSuggestions?.get(posKey);
+          if (lineSuggestions && lineSuggestions.length > 0) {
+            rows.push({
+              kind: "ai-suggestion",
+              key: `ai-${posKey}`,
+              suggestions: lineSuggestions,
+            });
+          }
         }
 
-        const lineSuggestions = aiSuggestions?.get(posKey);
-        if (lineSuggestions && lineSuggestions.length > 0) {
+        if (composerRange && lineNum === composerRange.endLine) {
           rows.push({
-            kind: "ai-suggestion",
-            key: `ai-${posKey}`,
-            suggestions: lineSuggestions,
+            kind: "composer",
+            key: `composer-${composerRange.startLine}-${composerRange.endLine}`,
+            startLine: composerRange.startLine,
+            endLine: composerRange.endLine,
           });
         }
-      }
-
-      if (composerRange && lineNum === composerRange.endLine) {
-        rows.push({
-          kind: "composer",
-          key: `composer-${composerRange.startLine}-${composerRange.endLine}`,
-          startLine: composerRange.startLine,
-          endLine: composerRange.endLine,
-        });
       }
     }
     hunkIndex++;
@@ -739,6 +743,16 @@ function UnifiedDiffView({
     return offsets;
   }, [rows, searchQuery]);
 
+  const linesByKey = useMemo(
+    () =>
+      new Map(
+        rows
+          .filter((row): row is FlatRow & { kind: "line" } => row.kind === "line")
+          .map((row) => [row.key, row.line]),
+      ),
+    [rows],
+  );
+
   return (
     <div className="w-full font-mono text-[12.5px] leading-5">
       {rows.map((row, index) => {
@@ -754,7 +768,7 @@ function UnifiedDiffView({
             <DiffLineRow
               key={row.key}
               line={row.line}
-              allRows={rows}
+              linesByKey={linesByKey}
               highlighter={highlighter}
               language={language}
               shikiTheme={shikiTheme}
@@ -832,7 +846,7 @@ function UnifiedDiffView({
 
 function DiffLineRow({
   line,
-  allRows,
+  linesByKey,
   highlighter,
   language,
   shikiTheme,
@@ -850,7 +864,7 @@ function DiffLineRow({
   activeSearchRef,
 }: {
   line: FlatLine;
-  allRows: FlatRow[];
+  linesByKey: Map<string, FlatLine>;
   highlighter: Highlighter | null;
   language: string;
   shikiTheme: string;
@@ -876,8 +890,7 @@ function DiffLineRow({
   }
 
   // Word diff pairing
-  const pairRow = line.pairIndex !== null ? allRows[line.pairIndex] : null;
-  const pair = pairRow?.kind === "line" ? pairRow.line : null;
+  const pair = line.pairKey ? (linesByKey.get(line.pairKey) ?? null) : null;
   const wordDiff =
     pair &&
     ((line.type === "del" && pair.type === "add") || (line.type === "add" && pair.type === "del"))

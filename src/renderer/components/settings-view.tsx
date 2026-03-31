@@ -1,12 +1,31 @@
+/* eslint-disable import/max-dependencies -- SettingsView intentionally composes several settings panes and helpers. */
+import type { AiProvider, AiProviderStatus } from "@/shared/ipc";
 import type { Highlighter } from "shiki";
 
+import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
+import { cn } from "@/lib/utils";
+import {
+  AI_MODEL_SLOT_SCOPED_PREFERENCE_KEYS,
+  AI_PROVIDER_SCOPED_PREFERENCE_KEYS,
+  AI_TASK_DEFINITIONS,
+  AI_TASK_SLOT_SCOPED_PREFERENCE_KEYS,
+  DEFAULT_AI_BASE_URL_BY_PROVIDER,
+  DEFAULT_AI_BINARY_PATH_BY_PROVIDER,
+  DEFAULT_AI_TASK_SLOT,
+  getAiProviderModelOptions,
+  LEGACY_AI_PREFERENCE_KEYS,
+  getAiModelSlotPreferenceKey,
+  getAiProviderPreferenceKey,
+  getAiTaskSlotPreferenceKey,
+  normalizeAiTaskSlot,
+} from "@/shared/ai-provider-settings";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   Bot,
+  ChevronDown,
   Check,
-  Cpu,
   GitMerge,
   Info,
   Keyboard,
@@ -22,7 +41,7 @@ import {
   TriangleAlert,
   X,
 } from "lucide-react";
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { memo, type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 
 import { DEFAULT_BOT_USERNAMES, parseJsonArray } from "../hooks/use-bot-settings";
 import { ensureTheme, getHighlighter } from "../lib/highlighter";
@@ -44,12 +63,17 @@ const PREF_KEYS = [
   "prPollInterval",
   "checksPollInterval",
   "aiEnabled",
-  "aiProvider",
-  "aiModel",
+  LEGACY_AI_PREFERENCE_KEYS.provider,
+  LEGACY_AI_PREFERENCE_KEYS.model,
+  LEGACY_AI_PREFERENCE_KEYS.binaryPath,
+  LEGACY_AI_PREFERENCE_KEYS.homePath,
   "analytics-opted-in",
   "crash-reports-opted-in",
   "aiApiKey",
-  "aiBaseUrl",
+  LEGACY_AI_PREFERENCE_KEYS.baseUrl,
+  ...AI_PROVIDER_SCOPED_PREFERENCE_KEYS,
+  ...AI_MODEL_SLOT_SCOPED_PREFERENCE_KEYS,
+  ...AI_TASK_SLOT_SCOPED_PREFERENCE_KEYS,
   "botTitleTags",
   "botUsernames",
   "defaultDiffView",
@@ -59,20 +83,166 @@ const PREF_KEYS = [
 ];
 
 function getDefaultAiBaseUrl(provider: string): string {
-  switch (provider) {
-    case "openai": {
-      return "https://api.openai.com/v1";
-    }
-    case "anthropic": {
-      return "https://api.anthropic.com/v1";
-    }
-    case "ollama": {
-      return "http://localhost:11434";
+  return DEFAULT_AI_BASE_URL_BY_PROVIDER[provider as AiProvider] ?? "Default";
+}
+
+function getDefaultAiBinaryPath(provider: string): string {
+  return DEFAULT_AI_BINARY_PATH_BY_PROVIDER[provider as AiProvider] ?? "";
+}
+
+function getProviderLabel(provider: AiProvider | null | undefined): string {
+  return AI_PROVIDER_LIST.find((candidate) => candidate.id === provider)?.label ?? "Provider";
+}
+
+function normalizeAiProvider(
+  value: string | null | undefined,
+): "codex" | "claude" | "copilot" | "ollama" | "none" {
+  switch (value) {
+    case "codex":
+    case "claude":
+    case "copilot":
+    case "ollama":
+    case "none": {
+      return value;
     }
     default: {
-      return "Default";
+      return "none";
     }
   }
+}
+
+const AI_PROVIDER_LIST: Array<{
+  id: AiProvider;
+  label: string;
+  description: string;
+  hint: string;
+}> = [
+  {
+    id: "codex",
+    label: "Codex",
+    description: "Local Codex CLI integration for OpenAI models and non-interactive review tasks.",
+    hint: "Run codex login first. Dispatch uses codex exec in non-interactive mode.",
+  },
+  {
+    id: "claude",
+    label: "Claude",
+    description:
+      "Local Claude Code integration for Anthropic models across summaries, explanations, and review flows.",
+    hint: "Run claude auth login first. Dispatch uses claude -p with tools disabled.",
+  },
+  {
+    id: "copilot",
+    label: "Copilot",
+    description: "GitHub Copilot CLI integration for GitHub-backed models and review suggestions.",
+    hint: "Install `copilot` or `gh copilot` first. Dispatch uses Copilot CLI print mode with read-only tools.",
+  },
+  {
+    id: "ollama",
+    label: "Ollama",
+    description: "Local Ollama runtime integration over HTTP for self-hosted models.",
+    hint: "Dispatch talks directly to the local Ollama daemon over HTTP.",
+  },
+];
+
+function formatCheckedAgo(timestamp: number): string {
+  if (timestamp <= 0) {
+    return "Checking now";
+  }
+
+  const elapsedSeconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1000));
+  if (elapsedSeconds < 60) {
+    return `Checked ${elapsedSeconds}s ago`;
+  }
+
+  const elapsedMinutes = Math.floor(elapsedSeconds / 60);
+  if (elapsedMinutes < 60) {
+    return `Checked ${elapsedMinutes}m ago`;
+  }
+
+  const elapsedHours = Math.floor(elapsedMinutes / 60);
+  return `Checked ${elapsedHours}h ago`;
+}
+
+function resolveProviderDotClass(status: AiProviderStatus | undefined): string {
+  if (!status) {
+    return "bg-text-ghost";
+  }
+
+  if (status.provider === "ollama") {
+    return status.available ? "bg-info shadow-[0_0_12px_rgba(91,164,230,0.25)]" : "bg-danger";
+  }
+
+  if (status.authenticated) {
+    return "bg-success shadow-[0_0_12px_rgba(61,214,140,0.28)]";
+  }
+
+  return status.available ? "bg-warning" : "bg-danger";
+}
+
+function formatProviderVersion(version: string | null): string | null {
+  return version ? `v${version}` : null;
+}
+
+function formatTaskList(items: string[]): string {
+  if (items.length === 0) {
+    return "No tasks";
+  }
+
+  if (items.length === 1) {
+    return items[0] ?? "";
+  }
+
+  return `${items.slice(0, -1).join(", ")} and ${items.at(-1) ?? ""}`;
+}
+
+function getBinaryPathPlaceholder(
+  provider: AiProvider,
+  providerConfig:
+    | {
+        binaryPath: string | null;
+        binaryPathSource: string;
+        binaryPathEnvVar: string | null;
+      }
+    | undefined,
+): string {
+  if (providerConfig?.binaryPathSource === "environment" && providerConfig.binaryPathEnvVar) {
+    return `Using ${providerConfig.binaryPathEnvVar}`;
+  }
+
+  return providerConfig?.binaryPath ?? getDefaultAiBinaryPath(provider);
+}
+
+function getHomePathPlaceholder(
+  providerConfig:
+    | {
+        homePath: string | null;
+        homePathSource: string;
+        homePathEnvVar: string | null;
+      }
+    | undefined,
+): string {
+  if (providerConfig?.homePathSource === "environment" && providerConfig.homePathEnvVar) {
+    return `Using ${providerConfig.homePathEnvVar}`;
+  }
+
+  return providerConfig?.homePath ?? "Optional";
+}
+
+function getBaseUrlPlaceholder(
+  provider: AiProvider,
+  providerConfig:
+    | {
+        baseUrl: string | null;
+        baseUrlSource: string;
+        baseUrlEnvVar: string | null;
+      }
+    | undefined,
+): string {
+  if (providerConfig?.baseUrlSource === "environment" && providerConfig.baseUrlEnvVar) {
+    return `Using ${providerConfig.baseUrlEnvVar}`;
+  }
+
+  return providerConfig?.baseUrl ?? getDefaultAiBaseUrl(provider);
 }
 
 const THEME_OPTIONS = [
@@ -274,8 +444,7 @@ const NAV_SECTIONS_BASE = [
   { id: "keybindings", label: "Keybindings", icon: Keyboard },
   { id: "general", label: "General", icon: GitMerge },
   { id: "bots", label: "Bots", icon: Bot },
-  { id: "agents", label: "Agents (ACP)", icon: Cpu },
-  { id: "ai", label: "AI Provider", icon: Sparkles },
+  { id: "ai", label: "AI Models", icon: Sparkles },
   { id: "privacy", label: "Privacy", icon: Shield },
   { id: "about", label: "About", icon: Info },
 ] as const;
@@ -283,6 +452,11 @@ const NAV_SECTIONS_BASE = [
 type SectionId = (typeof NAV_SECTIONS_BASE)[number]["id"];
 
 const KEYBINDING_CATEGORIES: ShortcutCategory[] = ["Navigation", "Actions", "Search", "Views"];
+
+interface AiProviderTestState {
+  kind: "success" | "error";
+  message: string;
+}
 
 export function SettingsView() {
   const { theme, setTheme, resolvedTheme, codeTheme, setCodeTheme } = useTheme();
@@ -308,6 +482,13 @@ export function SettingsView() {
   const prefs = prefsQuery.data ?? {};
   const aiConfig = aiConfigQuery.data;
   const aiEnabled = prefs.aiEnabled === "true";
+  const aiProvidersQuery = useQuery({
+    queryKey: ["ai", "providersStatus"],
+    queryFn: () => ipc("ai.providersStatus"),
+    staleTime: 15_000,
+    refetchInterval: 15_000,
+    enabled: aiEnabled,
+  });
   const mergeStrategy = prefs.mergeStrategy ?? "squash";
   const prPollInterval = prefs.prPollInterval ?? "30";
   const checksPollInterval = prefs.checksPollInterval ?? "10";
@@ -319,15 +500,62 @@ export function SettingsView() {
     () => (aiEnabled ? NAV_SECTIONS_BASE : NAV_SECTIONS_BASE.filter((s) => s.id !== "ai")),
     [aiEnabled],
   );
-  const effectiveAiProvider = prefs.aiProvider ?? aiConfig?.provider ?? "none";
-  const envAiVars = [
-    aiConfig?.providerSource === "environment" ? aiConfig.providerEnvVar : null,
-    aiConfig?.modelSource === "environment" ? aiConfig.modelEnvVar : null,
-    aiConfig?.apiKeySource === "environment" ? aiConfig.apiKeyEnvVar : null,
-    aiConfig?.baseUrlSource === "environment" ? aiConfig.baseUrlEnvVar : null,
-  ].filter(
-    (value, index, values): value is string => Boolean(value) && values.indexOf(value) === index,
+  const envAiVars = useMemo(
+    () =>
+      [
+        ...(aiConfig
+          ? Object.values(aiConfig.providers).flatMap((providerConfig) => [
+              providerConfig.modelSource === "environment" ? providerConfig.modelEnvVar : null,
+              providerConfig.binaryPathSource === "environment"
+                ? providerConfig.binaryPathEnvVar
+                : null,
+              providerConfig.homePathSource === "environment"
+                ? providerConfig.homePathEnvVar
+                : null,
+              providerConfig.baseUrlSource === "environment" ? providerConfig.baseUrlEnvVar : null,
+            ])
+          : []),
+        ...(aiConfig
+          ? Object.values(aiConfig.slots).flatMap((slotConfig) => [
+              slotConfig.providerSource === "environment" ? slotConfig.providerEnvVar : null,
+              slotConfig.modelSource === "environment" ? slotConfig.modelEnvVar : null,
+            ])
+          : []),
+      ].filter(
+        (value, index, values): value is string =>
+          Boolean(value) && values.indexOf(value) === index,
+      ),
+    [aiConfig],
   );
+  const aiProviderStatusById = useMemo(
+    () => new Map((aiProvidersQuery.data ?? []).map((status) => [status.provider, status])),
+    [aiProvidersQuery.data],
+  );
+  const [expandedAiProvider, setExpandedAiProvider] = useState<AiProvider | null>(null);
+  const [providerTestState, setProviderTestState] = useState<
+    Partial<Record<AiProvider, AiProviderTestState>>
+  >({});
+  const taskSlotById = useMemo(
+    () =>
+      Object.fromEntries(
+        AI_TASK_DEFINITIONS.map((task) => [
+          task.id,
+          normalizeAiTaskSlot(prefs[getAiTaskSlotPreferenceKey(task.id)]) ??
+            DEFAULT_AI_TASK_SLOT[task.id],
+        ]),
+      ) as Record<(typeof AI_TASK_DEFINITIONS)[number]["id"], "big" | "small">,
+    [prefs],
+  );
+  const tasksBySlot = useMemo(
+    () => ({
+      big: AI_TASK_DEFINITIONS.filter((task) => taskSlotById[task.id] === "big"),
+      small: AI_TASK_DEFINITIONS.filter((task) => taskSlotById[task.id] === "small"),
+    }),
+    [taskSlotById],
+  );
+  const checkedAgoLabel = aiProvidersQuery.isError
+    ? "Provider check failed"
+    : formatCheckedAgo(aiProvidersQuery.dataUpdatedAt);
 
   const saveMutation = useMutation({
     mutationFn: async (args: { key: string; value: string }) => {
@@ -335,12 +563,54 @@ export function SettingsView() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["preferences"] });
+      queryClient.invalidateQueries({ queryKey: ["ai"] });
     },
   });
 
   function savePref(key: string, value: string) {
     saveMutation.mutate({ key, value });
   }
+  const providerTestMutation = useMutation({
+    mutationFn: async (args: {
+      provider: AiProvider;
+      model: string;
+      binaryPath?: string;
+      homePath?: string;
+      baseUrl?: string;
+    }) => {
+      const response = await ipc("ai.test", args);
+      return {
+        provider: args.provider,
+        response,
+      };
+    },
+    onMutate: (args) => {
+      setProviderTestState((current) => ({
+        ...current,
+        [args.provider]: undefined,
+      }));
+    },
+    onSuccess: ({ provider, response }) => {
+      setProviderTestState((current) => ({
+        ...current,
+        [provider]: {
+          kind: "success",
+          message: response,
+        },
+      }));
+      queryClient.invalidateQueries({ queryKey: ["ai", "providersStatus"] });
+    },
+    onError: (error, args) => {
+      setProviderTestState((current) => ({
+        ...current,
+        [args.provider]: {
+          kind: "error",
+          message: error instanceof Error ? error.message : "Provider test failed.",
+        },
+      }));
+      queryClient.invalidateQueries({ queryKey: ["ai", "providersStatus"] });
+    },
+  });
 
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [showNukeConfirm, setShowNukeConfirm] = useState(false);
@@ -368,6 +638,8 @@ export function SettingsView() {
       </div>
     );
   }
+
+  const contentMaxWidthClass = activeSection === "ai" ? "max-w-[980px]" : "max-w-lg";
 
   return (
     <div className="flex flex-1 overflow-hidden">
@@ -441,7 +713,7 @@ export function SettingsView() {
 
       {/* Content area */}
       <div className="flex-1 overflow-y-auto px-10 py-6">
-        <div className="max-w-lg">
+        <div className={contentMaxWidthClass}>
           {activeSection === "appearance" && (
             <>
               <h2 className="text-text-primary text-base font-semibold">Appearance</h2>
@@ -747,80 +1019,323 @@ export function SettingsView() {
             />
           )}
 
-          {activeSection === "agents" && <AgentSettings />}
-
           {activeSection === "ai" && aiEnabled && (
             <>
-              <h2 className="text-text-primary text-base font-semibold">AI Provider</h2>
-              <p className="text-text-tertiary mt-0.5 text-xs">
-                Configure an AI provider for code explanations and PR summaries.
-              </p>
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-text-primary text-base font-semibold">AI Models</h2>
+                  <p className="text-text-tertiary mt-0.5 text-xs">
+                    Route each AI workflow to an explicit big or small model slot, then configure
+                    the local providers those slots use.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 pt-0.5">
+                  <span className="text-text-ghost font-mono text-[10px]">{checkedAgoLabel}</span>
+                  <button
+                    type="button"
+                    onClick={() => aiProvidersQuery.refetch()}
+                    className="text-text-tertiary hover:text-text-primary hover:bg-bg-raised inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border border-transparent transition-colors"
+                    aria-label="Refresh provider status"
+                  >
+                    <RefreshCw
+                      size={13}
+                      className={aiProvidersQuery.isFetching ? "animate-spin" : ""}
+                    />
+                  </button>
+                </div>
+              </div>
               {envAiVars.length > 0 && (
                 <p className="text-text-tertiary mt-1 font-mono text-[10px]">
                   Using {envAiVars.join(", ")} from the environment. Saved settings override these
-                  values. Select None to disable AI in Dispatch.
+                  values.
                 </p>
               )}
-              <div className="mt-4 flex flex-col gap-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-text-secondary text-xs">Provider</span>
-                  <select
-                    value={effectiveAiProvider}
-                    onChange={(e) => savePref("aiProvider", e.target.value)}
-                    className="border-border bg-bg-root text-text-primary focus:border-primary w-36 rounded-md border px-2 py-1 text-xs focus:outline-none"
-                  >
-                    <option value="none">None</option>
-                    <option value="openai">OpenAI</option>
-                    <option value="anthropic">Anthropic</option>
-                    <option value="ollama">Ollama (local)</option>
-                  </select>
+              <section className="mt-6">
+                <h3 className="text-text-primary text-sm font-medium">Task Routing</h3>
+                <p className="text-text-tertiary mt-0.5 text-xs">
+                  Choose whether each AI workflow uses the big or small slot.
+                </p>
+                <div className="border-border mt-3 overflow-hidden rounded-xl border bg-[linear-gradient(180deg,rgba(255,255,255,0.015),rgba(255,255,255,0)),radial-gradient(circle_at_top_left,rgba(212,136,58,0.05),transparent_44%)] shadow-sm">
+                  {AI_TASK_DEFINITIONS.map((task, index) => {
+                    const selectedSlot = taskSlotById[task.id];
+                    const resolvedTask = aiConfig?.tasks[task.id];
+
+                    return (
+                      <AiTaskRoutingRow
+                        key={task.id}
+                        label={task.label}
+                        description={task.description}
+                        selectedSlot={selectedSlot}
+                        resolvedProviderLabel={getProviderLabel(resolvedTask?.provider)}
+                        resolvedModel={resolvedTask?.model ?? null}
+                        hasDivider={index > 0}
+                        onSelectSlot={(slot) => savePref(getAiTaskSlotPreferenceKey(task.id), slot)}
+                      />
+                    );
+                  })}
                 </div>
-                {effectiveAiProvider !== "none" && (
-                  <>
-                    <div className="flex items-center justify-between">
-                      <span className="text-text-secondary text-xs">Model</span>
-                      <input
-                        type="text"
-                        value={prefs.aiModel ?? ""}
-                        onChange={(e) => savePref("aiModel", e.target.value)}
-                        placeholder={aiConfig?.model ?? "Model name"}
-                        className="border-border bg-bg-root text-text-primary placeholder:text-text-tertiary focus:border-primary w-36 rounded-md border px-2 py-1 font-mono text-xs focus:outline-none"
+              </section>
+
+              <section className="mt-8">
+                <h3 className="text-text-primary text-sm font-medium">Model Slots</h3>
+                <p className="text-text-tertiary mt-0.5 text-xs">
+                  Each slot chooses a provider and model. Tasks above can point to either slot.
+                </p>
+                <div className="mt-3 grid gap-3 xl:grid-cols-2">
+                  {(["big", "small"] as const).map((slot) => {
+                    const providerPreferenceKey = getAiModelSlotPreferenceKey(slot, "provider");
+                    const modelPreferenceKey = getAiModelSlotPreferenceKey(slot, "model");
+                    const rawProviderPreference = prefs[providerPreferenceKey];
+                    const hasExplicitProviderPreference =
+                      typeof rawProviderPreference === "string" &&
+                      rawProviderPreference.trim().length > 0;
+                    const normalizedProviderPreference = normalizeAiProvider(rawProviderPreference);
+                    const slotConfig = aiConfig?.slots[slot];
+                    const slotProvider = hasExplicitProviderPreference
+                      ? normalizedProviderPreference === "none"
+                        ? null
+                        : normalizedProviderPreference
+                      : (slotConfig?.provider ?? null);
+                    const rawModelPreference = prefs[modelPreferenceKey];
+                    const hasExplicitModelPreference =
+                      typeof rawModelPreference === "string" &&
+                      rawModelPreference.trim().length > 0;
+                    const resolvedSlotModel =
+                      slotConfig?.model ??
+                      (typeof rawModelPreference === "string" ? rawModelPreference : "");
+                    const providerModelOptions = slotProvider
+                      ? getAiProviderModelOptions(slotProvider, resolvedSlotModel)
+                      : [];
+                    const slotTaskLabels = tasksBySlot[slot].map((task) => task.label);
+                    const slotHelperText =
+                      slotProvider === null
+                        ? "Choose a provider for this slot."
+                        : hasExplicitModelPreference
+                          ? "Saved specifically for this slot."
+                          : slotConfig?.modelSource === "environment" && slotConfig.modelEnvVar
+                            ? `Using ${slotConfig.modelEnvVar}.`
+                            : slotConfig?.modelSource === "default"
+                              ? `Using the default ${slot} model for ${getProviderLabel(slotProvider)}.`
+                              : "Inheriting the provider or legacy model until you override this slot.";
+
+                    return (
+                      <AiModelSlotCard
+                        key={slot}
+                        slot={slot}
+                        provider={slotProvider}
+                        model={resolvedSlotModel}
+                        helperText={slotHelperText}
+                        usageText={`Used by ${formatTaskList(slotTaskLabels)}.`}
+                        providerModelOptions={[...providerModelOptions]}
+                        onSelectProvider={(provider) =>
+                          savePref(providerPreferenceKey, provider ?? "none")
+                        }
+                        onChangeModel={(value) => savePref(modelPreferenceKey, value)}
+                        onSelectModel={(value) => savePref(modelPreferenceKey, value)}
                       />
-                    </div>
-                    {effectiveAiProvider !== "ollama" && (
-                      <div className="flex items-center justify-between">
-                        <span className="text-text-secondary text-xs">API Key</span>
-                        <input
-                          type="password"
-                          value={prefs.aiApiKey ?? ""}
-                          onChange={(e) => savePref("aiApiKey", e.target.value)}
-                          placeholder={
-                            aiConfig?.apiKeySource === "environment" && aiConfig.apiKeyEnvVar
-                              ? `Using ${aiConfig.apiKeyEnvVar}`
-                              : "sk-..."
-                          }
-                          className="border-border bg-bg-root text-text-primary placeholder:text-text-tertiary focus:border-primary w-36 rounded-md border px-2 py-1 font-mono text-xs focus:outline-none"
-                        />
-                      </div>
-                    )}
-                    <div className="flex items-center justify-between">
-                      <span className="text-text-secondary text-xs">Base URL</span>
-                      <input
-                        type="text"
-                        value={prefs.aiBaseUrl ?? ""}
-                        onChange={(e) => savePref("aiBaseUrl", e.target.value)}
-                        placeholder={aiConfig?.baseUrl ?? getDefaultAiBaseUrl(effectiveAiProvider)}
-                        className="border-border bg-bg-root text-text-primary placeholder:text-text-tertiary focus:border-primary w-36 rounded-md border px-2 py-1 font-mono text-xs focus:outline-none"
-                      />
-                    </div>
-                    <p className="text-text-ghost -mt-1 text-[10px]">
-                      OpenAI-compatible deployments can use a custom base URL such as{" "}
-                      <span className="font-mono">https://gateway.example.com/v1</span> or a
-                      fully-qualified endpoint.
-                    </p>
-                  </>
-                )}
-              </div>
+                    );
+                  })}
+                </div>
+              </section>
+
+              <section className="mt-8">
+                <p className="text-text-tertiary text-[10px] font-semibold tracking-[0.08em] uppercase">
+                  Providers
+                </p>
+                <div className="border-border mt-3 overflow-hidden rounded-xl border bg-[radial-gradient(circle_at_top_left,rgba(212,136,58,0.07),transparent_42%),linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0))] shadow-sm">
+                  {AI_PROVIDER_LIST.map((provider, index) => {
+                    const status = aiProviderStatusById.get(provider.id);
+                    const isExpanded = expandedAiProvider === provider.id;
+                    const binaryPathPreferenceKey = getAiProviderPreferenceKey(
+                      provider.id,
+                      "binaryPath",
+                    );
+                    const homePathPreferenceKey = getAiProviderPreferenceKey(
+                      provider.id,
+                      "homePath",
+                    );
+                    const baseUrlPreferenceKey = getAiProviderPreferenceKey(provider.id, "baseUrl");
+                    const providerConfig = aiConfig?.providers[provider.id];
+                    const providerBinaryPathValue = binaryPathPreferenceKey
+                      ? (prefs[binaryPathPreferenceKey] ?? "")
+                      : "";
+                    const providerHomePathValue = homePathPreferenceKey
+                      ? (prefs[homePathPreferenceKey] ?? "")
+                      : "";
+                    const providerBaseUrlValue = baseUrlPreferenceKey
+                      ? (prefs[baseUrlPreferenceKey] ?? "")
+                      : "";
+                    const providerTestFeedback = providerTestState[provider.id];
+                    const isTestingProvider =
+                      providerTestMutation.isPending &&
+                      providerTestMutation.variables?.provider === provider.id;
+                    const slotBadges = [
+                      aiConfig?.slots.big.provider === provider.id ? "Big" : null,
+                      aiConfig?.slots.small.provider === provider.id ? "Small" : null,
+                    ].filter(Boolean) as string[];
+                    const providerTestModel =
+                      (aiConfig?.slots.big.provider === provider.id
+                        ? aiConfig.slots.big.model
+                        : null) ??
+                      (aiConfig?.slots.small.provider === provider.id
+                        ? aiConfig.slots.small.model
+                        : null) ??
+                      providerConfig?.model ??
+                      "";
+
+                    return (
+                      <AiProviderRow
+                        key={provider.id}
+                        label={provider.label}
+                        version={formatProviderVersion(status?.version ?? null)}
+                        statusText={status?.statusText ?? "Checking availability"}
+                        dotClass={resolveProviderDotClass(status)}
+                        isExpanded={isExpanded}
+                        hasDivider={index > 0}
+                        badges={slotBadges}
+                        onToggleExpanded={() =>
+                          setExpandedAiProvider((current) =>
+                            current === provider.id ? null : provider.id,
+                          )
+                        }
+                      >
+                        <div className="space-y-4">
+                          <div className="grid gap-3 md:grid-cols-2">
+                            {provider.id === "ollama" ? (
+                              <label className="flex flex-col gap-1.5">
+                                <span className="text-text-tertiary text-[10px] font-semibold tracking-[0.08em] uppercase">
+                                  Base URL
+                                </span>
+                                <input
+                                  type="text"
+                                  value={providerBaseUrlValue}
+                                  onChange={(e) => {
+                                    if (baseUrlPreferenceKey) {
+                                      savePref(baseUrlPreferenceKey, e.target.value);
+                                    }
+                                  }}
+                                  placeholder={getBaseUrlPlaceholder(provider.id, providerConfig)}
+                                  className="border-border bg-bg-root text-text-primary placeholder:text-text-tertiary focus:border-primary rounded-md border px-3 py-2 font-mono text-xs focus:outline-none"
+                                />
+                                <p className="text-text-ghost text-[10px]">
+                                  Leave blank to use {getDefaultAiBaseUrl(provider.id)}.
+                                </p>
+                              </label>
+                            ) : (
+                              <label className="flex flex-col gap-1.5">
+                                <span className="text-text-tertiary text-[10px] font-semibold tracking-[0.08em] uppercase">
+                                  Binary Path
+                                </span>
+                                <input
+                                  type="text"
+                                  value={providerBinaryPathValue}
+                                  onChange={(e) => {
+                                    if (binaryPathPreferenceKey) {
+                                      savePref(binaryPathPreferenceKey, e.target.value);
+                                    }
+                                  }}
+                                  placeholder={getBinaryPathPlaceholder(
+                                    provider.id,
+                                    providerConfig,
+                                  )}
+                                  className="border-border bg-bg-root text-text-primary placeholder:text-text-tertiary focus:border-primary rounded-md border px-3 py-2 font-mono text-xs focus:outline-none"
+                                />
+                                <p className="text-text-ghost text-[10px]">
+                                  Leave blank to use {getDefaultAiBinaryPath(provider.id)} from
+                                  PATH.
+                                </p>
+                              </label>
+                            )}
+                            {provider.id === "codex" && (
+                              <label className="flex flex-col gap-1.5 md:col-span-2">
+                                <span className="text-text-tertiary text-[10px] font-semibold tracking-[0.08em] uppercase">
+                                  Codex Home
+                                </span>
+                                <input
+                                  type="text"
+                                  value={providerHomePathValue}
+                                  onChange={(e) => {
+                                    if (homePathPreferenceKey) {
+                                      savePref(homePathPreferenceKey, e.target.value);
+                                    }
+                                  }}
+                                  placeholder={getHomePathPlaceholder(providerConfig)}
+                                  className="border-border bg-bg-root text-text-primary placeholder:text-text-tertiary focus:border-primary rounded-md border px-3 py-2 font-mono text-xs focus:outline-none"
+                                />
+                              </label>
+                            )}
+                          </div>
+                          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                            <div className="space-y-1">
+                              <p className="text-text-secondary max-w-xl text-[11px] leading-[1.6]">
+                                {provider.description}
+                              </p>
+                              <p className="text-text-ghost text-[10px]">{provider.hint}</p>
+                              <p className="text-text-ghost text-[10px]">
+                                Models for this provider are chosen in the big and small slot cards
+                                above.
+                              </p>
+                              {providerTestFeedback && !isTestingProvider && (
+                                <div
+                                  className={cn(
+                                    "mt-2 inline-flex max-w-xl items-start gap-2 rounded-md border px-2.5 py-2 text-[10px] leading-[1.5]",
+                                    providerTestFeedback.kind === "success"
+                                      ? "border-[rgba(61,214,140,0.28)] bg-[rgba(61,214,140,0.08)] text-[--success]"
+                                      : "border-[rgba(255,107,107,0.24)] bg-[rgba(255,107,107,0.08)] text-[--danger]",
+                                  )}
+                                >
+                                  {providerTestFeedback.kind === "success" ? (
+                                    <Check
+                                      size={12}
+                                      className="mt-0.5 shrink-0"
+                                    />
+                                  ) : (
+                                    <TriangleAlert
+                                      size={12}
+                                      className="mt-0.5 shrink-0"
+                                    />
+                                  )}
+                                  <span className="font-mono">{providerTestFeedback.message}</span>
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 self-start">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  providerTestMutation.mutate({
+                                    provider: provider.id,
+                                    model: providerTestModel,
+                                    binaryPath: providerBinaryPathValue || undefined,
+                                    homePath: providerHomePathValue || undefined,
+                                    baseUrl: providerBaseUrlValue || undefined,
+                                  })
+                                }
+                                disabled={
+                                  providerTestMutation.isPending || providerTestModel.length === 0
+                                }
+                                className="text-text-secondary hover:text-text-primary hover:bg-bg-raised inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-md border border-[--border] px-3 py-2 text-[11px] font-medium transition-colors disabled:cursor-default disabled:opacity-60"
+                              >
+                                {isTestingProvider ? (
+                                  <Spinner className="h-3.5 w-3.5" />
+                                ) : (
+                                  <Sparkles size={12} />
+                                )}
+                                {isTestingProvider ? "Testing…" : "Test"}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </AiProviderRow>
+                    );
+                  })}
+                </div>
+              </section>
+              {aiProvidersQuery.isError && (
+                <p className="text-danger mt-2 text-[11px]">
+                  Failed to refresh provider status. Check your local installs and try again.
+                </p>
+              )}
             </>
           )}
 
@@ -995,120 +1510,239 @@ export function SettingsView() {
   );
 }
 
-// ---------------------------------------------------------------------------
-// Agent (ACP) settings section
-// ---------------------------------------------------------------------------
-
-function AgentSettings() {
-  const agentsQuery = useQuery({
-    queryKey: ["acp", "agents"],
-    queryFn: () => ipc("acp.agents.list"),
-    staleTime: 30_000,
-  });
-
-  const discoverMutation = useMutation({
-    mutationFn: () => ipc("acp.agents.discover"),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["acp", "agents"] });
-    },
-  });
-
-  const setDefaultMutation = useMutation({
-    mutationFn: (agentId: string) => ipc("acp.agents.setDefault", { agentId }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["acp", "agents"] });
-    },
-  });
-
-  const agents = agentsQuery.data ?? [];
-  const availableAgents = agents.filter((a) => a.available);
-
+function AiProviderRow({
+  label,
+  version,
+  statusText,
+  dotClass,
+  isExpanded,
+  hasDivider,
+  badges,
+  onToggleExpanded,
+  children,
+}: {
+  label: string;
+  version: string | null;
+  statusText: string;
+  dotClass: string;
+  isExpanded: boolean;
+  hasDivider: boolean;
+  badges: string[];
+  onToggleExpanded: () => void;
+  children: ReactNode;
+}) {
   return (
-    <>
-      <h2 className="text-text-primary text-base font-semibold">Agents (ACP)</h2>
-      <p className="text-text-tertiary mt-0.5 text-xs">
-        Connect to AI coding agents via the{" "}
-        <span className="text-text-secondary font-medium">Agent Client Protocol</span>. Agents run
-        as local processes and manage their own authentication.
-      </p>
-
-      <div className="mt-4">
-        <div className="flex items-center gap-2">
+    <Collapsible open={isExpanded}>
+      <div className={cn(hasDivider && "border-border border-t")}>
+        <div className="flex items-center gap-3 px-5 py-5">
+          <span className={cn("h-3 w-3 shrink-0 rounded-full", dotClass)} />
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+              <span className="text-text-primary text-[16px] font-semibold tracking-[-0.02em]">
+                {label}
+              </span>
+              {version && (
+                <span className="text-text-tertiary font-mono text-[11px]">{version}</span>
+              )}
+              {badges.map((badge) => (
+                <span
+                  key={badge}
+                  className="rounded-full border border-[--border-accent] bg-[--accent-muted] px-2 py-0.5 font-mono text-[9px] font-semibold tracking-[0.08em] text-[--accent-text] uppercase"
+                >
+                  {badge}
+                </span>
+              ))}
+            </div>
+            <p className="text-text-secondary mt-1 text-[11px] leading-[1.5]">{statusText}</p>
+          </div>
           <button
             type="button"
-            disabled={discoverMutation.isPending}
-            onClick={() => discoverMutation.mutate()}
-            className="border-border bg-bg-root text-text-primary hover:bg-bg-raised flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs transition-colors disabled:opacity-50"
+            onClick={onToggleExpanded}
+            className="text-text-tertiary hover:text-text-primary hover:bg-bg-raised inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-md transition-colors"
+            aria-label={`Toggle ${label} settings`}
           >
-            <RefreshCw
-              size={12}
-              className={discoverMutation.isPending ? "animate-spin" : ""}
+            <ChevronDown
+              size={15}
+              className={cn(
+                "transition-transform duration-[--duration-fast]",
+                isExpanded && "rotate-180",
+              )}
             />
-            Scan for agents
           </button>
-          {discoverMutation.isSuccess && (
-            <span className="text-text-tertiary text-[10px]">
-              Found {availableAgents.length} agent{availableAgents.length !== 1 ? "s" : ""}
-            </span>
-          )}
         </div>
+        <CollapsibleContent className="border-border-subtle border-t">
+          <div className="bg-[linear-gradient(180deg,rgba(255,255,255,0.01),rgba(255,255,255,0)),radial-gradient(circle_at_top_left,rgba(212,136,58,0.05),transparent_55%)] px-5 py-4">
+            {children}
+          </div>
+        </CollapsibleContent>
+      </div>
+    </Collapsible>
+  );
+}
 
-        {agents.length > 0 && (
-          <div className="border-border mt-3 divide-y divide-[#25231f] rounded-lg border">
-            {agents.map((agent) => (
-              <div
-                key={agent.id}
-                className="flex items-center gap-3 px-3 py-2.5"
-              >
-                <div
-                  className={`h-2 w-2 rounded-full ${agent.available ? "bg-green-500" : "bg-neutral-600"}`}
-                />
-                <div className="flex-1">
-                  <div className="text-text-primary text-xs font-medium">{agent.name}</div>
-                  <div className="text-text-ghost mt-0.5 font-mono text-[10px]">
-                    {agent.binaryPath
-                      ? agent.binaryPath
-                      : agent.available && agent.npmPackage
-                        ? `via npx (${agent.npmPackage})`
-                        : "Not installed"}
-                  </div>
-                </div>
-                {agent.available && (
-                  <button
-                    type="button"
-                    onClick={() => setDefaultMutation.mutate(agent.id)}
-                    className="border-primary/30 text-primary hover:bg-primary/10 rounded-md border px-2 py-1 text-[10px] font-medium transition-colors"
-                  >
-                    Set default
-                  </button>
+function AiTaskRoutingRow({
+  label,
+  description,
+  selectedSlot,
+  resolvedProviderLabel,
+  resolvedModel,
+  hasDivider,
+  onSelectSlot,
+}: {
+  label: string;
+  description: string;
+  selectedSlot: "big" | "small";
+  resolvedProviderLabel: string;
+  resolvedModel: string | null;
+  hasDivider: boolean;
+  onSelectSlot: (slot: "big" | "small") => void;
+}) {
+  return (
+    <div className={cn(hasDivider && "border-border border-t", "px-4 py-3")}>
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="text-text-primary text-[13px] font-medium">{label}</span>
+            <span className="text-text-ghost font-mono text-[10px]">
+              {resolvedProviderLabel}
+              {resolvedModel ? ` • ${resolvedModel}` : ""}
+            </span>
+          </div>
+          <p className="text-text-tertiary mt-1 text-[11px] leading-[1.5]">{description}</p>
+        </div>
+        <div className="border-border bg-bg-raised flex rounded-md border p-[2px]">
+          {(["small", "big"] as const).map((slot) => (
+            <button
+              key={slot}
+              type="button"
+              onClick={() => onSelectSlot(slot)}
+              className={cn(
+                "cursor-pointer rounded-[4px] px-3 py-1.5 font-mono text-[10px] font-medium uppercase transition-colors",
+                selectedSlot === slot
+                  ? "bg-bg-elevated text-[--accent-text] shadow-sm"
+                  : "text-text-tertiary hover:text-text-primary",
+              )}
+            >
+              {slot}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AiModelSlotCard({
+  slot,
+  provider,
+  model,
+  helperText,
+  usageText,
+  providerModelOptions,
+  onSelectProvider,
+  onChangeModel,
+  onSelectModel,
+}: {
+  slot: "big" | "small";
+  provider: AiProvider | null;
+  model: string;
+  helperText: string;
+  usageText: string;
+  providerModelOptions: Array<{ label: string; value: string }>;
+  onSelectProvider: (provider: AiProvider | null) => void;
+  onChangeModel: (value: string) => void;
+  onSelectModel: (value: string) => void;
+}) {
+  return (
+    <div className="border-border overflow-hidden rounded-xl border bg-[linear-gradient(180deg,rgba(255,255,255,0.015),rgba(255,255,255,0)),radial-gradient(circle_at_top_left,rgba(212,136,58,0.06),transparent_44%)] shadow-sm">
+      <div className="border-border-subtle border-b px-4 py-3">
+        <div className="flex items-center gap-2">
+          <span className="text-text-primary text-[14px] font-semibold tracking-[-0.02em]">
+            {slot === "big" ? "Big model" : "Small model"}
+          </span>
+          <span className="rounded-full border border-[--border] px-2 py-0.5 font-mono text-[9px] font-semibold tracking-[0.08em] text-[--text-tertiary] uppercase">
+            {slot}
+          </span>
+        </div>
+        <p className="text-text-tertiary mt-1 text-[11px] leading-[1.5]">{usageText}</p>
+      </div>
+      <div className="space-y-4 px-4 py-4">
+        <div>
+          <span className="text-text-tertiary text-[10px] font-semibold tracking-[0.08em] uppercase">
+            Provider
+          </span>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            <button
+              type="button"
+              onClick={() => onSelectProvider(null)}
+              className={cn(
+                "rounded-md border px-2.5 py-1 font-mono text-[10px] transition-colors",
+                provider === null
+                  ? "border-[--border-accent] bg-[--accent-muted] text-[--accent-text]"
+                  : "text-text-tertiary hover:text-text-primary hover:bg-bg-raised border-[--border]",
+              )}
+            >
+              Off
+            </button>
+            {AI_PROVIDER_LIST.map((providerOption) => (
+              <button
+                key={providerOption.id}
+                type="button"
+                onClick={() => onSelectProvider(providerOption.id)}
+                className={cn(
+                  "rounded-md border px-2.5 py-1 font-mono text-[10px] transition-colors",
+                  provider === providerOption.id
+                    ? "border-[--border-accent] bg-[--accent-muted] text-[--accent-text]"
+                    : "text-text-tertiary hover:text-text-primary hover:bg-bg-raised border-[--border]",
                 )}
-              </div>
+              >
+                {providerOption.label}
+              </button>
             ))}
           </div>
-        )}
+        </div>
 
-        {agents.length === 0 && !discoverMutation.isPending && (
-          <div className="text-text-tertiary mt-4 text-xs">
-            No agents discovered yet. Click &quot;Scan for agents&quot; to search your system, or
-            install an ACP-compatible agent:
-            <div className="text-text-ghost mt-2 flex flex-col gap-1 font-mono text-[10px]">
-              <span>npx @agentclientprotocol/claude-agent-acp</span>
-              <span>codex-acp</span>
+        <label className="flex flex-col gap-1.5">
+          <span className="text-text-tertiary text-[10px] font-semibold tracking-[0.08em] uppercase">
+            Model
+          </span>
+          <input
+            type="text"
+            value={provider === null ? "" : model}
+            onChange={(e) => onChangeModel(e.target.value)}
+            disabled={provider === null}
+            placeholder={provider === null ? "Select a provider first" : "Model name"}
+            className="border-border bg-bg-root text-text-primary placeholder:text-text-tertiary focus:border-primary rounded-md border px-3 py-2 font-mono text-xs focus:outline-none disabled:cursor-default disabled:opacity-50"
+          />
+          <p className="text-text-ghost text-[10px]">{helperText}</p>
+        </label>
+
+        {provider !== null && providerModelOptions.length > 0 && (
+          <div>
+            <span className="text-text-tertiary text-[10px] font-semibold tracking-[0.08em] uppercase">
+              Suggested models
+            </span>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {providerModelOptions.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => onSelectModel(option.value)}
+                  className={cn(
+                    "rounded-md border px-2.5 py-1 font-mono text-[10px] transition-colors",
+                    model === option.value
+                      ? "border-[--border-accent] bg-[--accent-muted] text-[--accent-text]"
+                      : "text-text-tertiary hover:text-text-primary hover:bg-bg-raised border-[--border]",
+                  )}
+                >
+                  {option.label}
+                </button>
+              ))}
             </div>
           </div>
         )}
       </div>
-
-      <section className="mt-6">
-        <h3 className="text-text-secondary text-xs font-medium">How it works</h3>
-        <p className="text-text-tertiary mt-1 text-[11px] leading-relaxed">
-          When an ACP agent is available, AI features (summaries, explanations, check analysis) use
-          the agent instead of calling LLM APIs directly. The agent manages its own model, auth, and
-          tools. If no agent is available, Dispatch falls back to the direct AI provider configured
-          below.
-        </p>
-      </section>
-    </>
+    </div>
   );
 }
 

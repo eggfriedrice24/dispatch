@@ -1,22 +1,26 @@
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
-import { useMutation } from "@tanstack/react-query";
+import {
+  buildAiReviewConfidencePrompt,
+  buildAiReviewSummaryPrompt,
+  buildAiReviewSummarySnapshotKey,
+  parseAiReviewConfidencePayload,
+  parseAiReviewSummaryPayload,
+} from "@/shared/ai-review-summary";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Sparkles, X } from "lucide-react";
-import { useState } from "react";
+import { startTransition, useMemo, useState } from "react";
 
-import { useAcpStream } from "../hooks/use-acp-stream";
+import { useAiTaskConfig } from "../hooks/use-ai-task-config";
 import { ipc } from "../lib/ipc";
 import { useWorkspace } from "../lib/workspace-context";
-import { AcpStreamDisplay } from "./acp-stream-display";
-import { useAiConfig } from "./ai-explanation";
 import { MarkdownBody } from "./markdown-body";
 
 /**
  * AI review summary — Phase 3 §3.3.3
  *
  * Generates a structured summary of the entire PR.
- * Uses ACP agent when available (with streaming), falls back to direct API.
+ * Uses the configured AI provider directly.
  */
 
 interface AiReviewSummaryProps {
@@ -24,8 +28,9 @@ interface AiReviewSummaryProps {
   prTitle: string;
   prBody: string;
   author: string;
-  files: Array<{ path: string; additions: number; deletions: number }>;
+  files: ReadonlyArray<{ path: string; additions: number; deletions: number }>;
   diffSnippet: string;
+  variant?: "section" | "card";
 }
 
 export function AiReviewSummary({
@@ -35,92 +40,194 @@ export function AiReviewSummary({
   author,
   files,
   diffSnippet,
+  variant = "section",
 }: AiReviewSummaryProps) {
-  const config = useAiConfig();
+  const summaryConfig = useAiTaskConfig("reviewSummary");
+  const confidenceConfig = useAiTaskConfig("reviewConfidence");
   const { cwd } = useWorkspace();
+  const queryClient = useQueryClient();
   const [dismissed, setDismissed] = useState(false);
-  const [finalText, setFinalText] = useState<string | null>(null);
-  const [useAcp, setUseAcp] = useState(false);
-  const stream = useAcpStream();
+  const isCard = variant === "card";
+  const summaryCacheQueryKey = ["ai", "reviewSummary", cwd, prNumber] as const;
+  const summarySnapshotKey = useMemo(
+    () =>
+      buildAiReviewSummarySnapshotKey({
+        prNumber,
+        prTitle,
+        prBody,
+        author,
+        files,
+        diffSnippet,
+      }),
+    [author, diffSnippet, files, prBody, prNumber, prTitle],
+  );
+
+  const summaryQuery = useQuery({
+    queryKey: summaryCacheQueryKey,
+    queryFn: () => ipc("ai.reviewSummary.get", { cwd, prNumber }),
+    enabled: summaryConfig.isConfigured,
+    staleTime: 30_000,
+  });
 
   const summarizeMutation = useMutation({
     mutationFn: async () => {
-      const fileList = files
-        .slice(0, 30)
-        .map((f) => `  ${f.path} (+${f.additions}, -${f.deletions})`)
-        .join("\n");
+      const summaryPrompt = buildAiReviewSummaryPrompt({
+        prNumber,
+        prTitle,
+        prBody,
+        author,
+        files,
+        diffSnippet,
+      });
+      const summaryRequest = ipc("ai.complete", {
+        cwd,
+        task: "reviewSummary",
+        messages: [
+          {
+            role: "system",
+            content: summaryPrompt.systemPrompt,
+          },
+          {
+            role: "user",
+            content: summaryPrompt.userPrompt,
+          },
+        ],
+        maxTokens: 192,
+      });
+      const confidenceRequest = confidenceConfig.isConfigured
+        ? (() => {
+            const confidencePrompt = buildAiReviewConfidencePrompt({
+              prNumber,
+              prTitle,
+              prBody,
+              author,
+              files,
+              diffSnippet,
+            });
 
-      const prompt = `You are a senior code reviewer. Analyze this pull request and provide a structured review summary. Group changes by logical concern. Identify areas that deserve close review. Be specific and concise. Use markdown formatting.\n\nPR: ${prTitle} #${prNumber}\nAuthor: ${author}\n\nDescription:\n${prBody}\n\nFiles changed:\n${fileList}\n\nDiff (first 3000 chars):\n${diffSnippet.slice(0, 3000)}`;
+            return ipc("ai.complete", {
+              cwd,
+              task: "reviewConfidence",
+              messages: [
+                {
+                  role: "system",
+                  content: confidencePrompt.systemPrompt,
+                },
+                {
+                  role: "user",
+                  content: confidencePrompt.userPrompt,
+                },
+              ],
+              maxTokens: 96,
+            });
+          })()
+        : Promise.resolve<string | null>(null);
 
-      // Try ACP with streaming first
-      try {
-        const session = await ipc("acp.session.create", { cwd });
-        setUseAcp(true);
-        stream.start(session.sessionId);
+      const [summaryResponse, confidenceResponse] = await Promise.all([
+        summaryRequest,
+        confidenceRequest,
+      ]);
 
-        await ipc("acp.session.prompt", {
-          sessionId: session.sessionId,
-          text: prompt,
-        });
-
-        stream.stop();
-        return "acp"; // Signal that we used ACP streaming
-      } catch {
-        // ACP not available — fall back to direct API
-        stream.reset();
-        setUseAcp(false);
-
-        return ipc("ai.complete", {
-          provider: config.provider ?? undefined,
-          model: config.model ?? undefined,
-          baseUrl: config.baseUrl ?? undefined,
-          messages: [
-            {
-              role: "system",
-              content:
-                "You are a senior code reviewer. Analyze this pull request and provide a structured review summary. Group changes by logical concern. Identify areas that deserve close review. Be specific and concise. Use markdown formatting.",
-            },
-            {
-              role: "user",
-              content: `PR: ${prTitle} #${prNumber}\nAuthor: ${author}\n\nDescription:\n${prBody}\n\nFiles changed:\n${fileList}\n\nDiff (first 3000 chars):\n${diffSnippet.slice(0, 3000)}`,
-            },
-          ],
-          maxTokens: 1024,
-        });
+      const summaryPayload = parseAiReviewSummaryPayload(summaryResponse);
+      const confidencePayload = confidenceResponse
+        ? parseAiReviewConfidencePayload(confidenceResponse)
+        : null;
+      if (!summaryPayload) {
+        throw new Error("AI summary returned invalid JSON.");
       }
+      if (confidenceResponse && !confidencePayload) {
+        throw new Error("AI confidence returned invalid JSON.");
+      }
+
+      return ipc("ai.reviewSummary.set", {
+        cwd,
+        prNumber,
+        snapshotKey: summarySnapshotKey,
+        summary: summaryPayload.summary,
+        confidenceScore: confidencePayload?.confidenceScore ?? null,
+      });
     },
-    onSuccess: (result) => {
-      if (result === "acp") {
-        // Text was accumulated via streaming — capture final state
-        setFinalText(stream.text);
-      } else {
-        setFinalText(result);
-      }
+    onSuccess: (entry) => {
+      startTransition(() => {
+        queryClient.setQueryData(summaryCacheQueryKey, entry);
+        setDismissed(false);
+      });
     },
   });
 
-  const displayText = useAcp && stream.streaming ? stream.text : finalText;
-  const isStreaming = useAcp && stream.streaming;
-
-  if (!config.isConfigured) {
+  if (!summaryConfig.isConfigured) {
     return null;
+  }
+
+  const containerClassName = isCard
+    ? "bg-bg-raised border-border mt-2.5 overflow-hidden rounded-lg border"
+    : "border-border border-b";
+  const headerPaddingClassName = isCard ? "px-3 py-3" : "px-4 py-3";
+  const collapsedButtonClassName = isCard
+    ? "hover:bg-bg-elevated/70 flex w-full cursor-pointer items-center gap-2 px-3 py-2.5 transition-colors"
+    : "hover:bg-bg-raised/60 flex w-full cursor-pointer items-center gap-2 px-4 py-2 transition-colors";
+  const cardTriggerClassName =
+    "text-accent-text hover:bg-bg-elevated flex w-full cursor-pointer items-center gap-1.5 px-3 py-2.5 text-left text-[11px] font-medium transition-colors";
+  const cachedSummary = summaryQuery.data;
+  const summaryText = cachedSummary?.summary ?? null;
+  const confidenceScore = cachedSummary?.confidenceScore ?? null;
+  const summaryNeedsRefresh = Boolean(
+    cachedSummary && cachedSummary.snapshotKey !== summarySnapshotKey,
+  );
+  const showCompactCardTrigger =
+    isCard &&
+    !dismissed &&
+    !summaryText &&
+    !summarizeMutation.isPending &&
+    !summarizeMutation.isError;
+
+  if (showCompactCardTrigger) {
+    return (
+      <div className={containerClassName}>
+        <button
+          type="button"
+          onClick={() => summarizeMutation.mutate()}
+          className={cardTriggerClassName}
+        >
+          <Sparkles
+            size={10}
+            className="shrink-0"
+          />
+          <span>AI Summary</span>
+          <span className="text-text-tertiary ml-auto font-mono text-[9px] font-medium tracking-[0.04em] uppercase">
+            Generate
+          </span>
+        </button>
+      </div>
+    );
   }
 
   if (dismissed) {
     return (
-      <div className="border-border border-b">
+      <div className={containerClassName}>
         <button
           type="button"
           onClick={() => setDismissed(false)}
-          className="hover:bg-bg-raised/60 flex w-full cursor-pointer items-center gap-2 px-4 py-2 transition-colors"
+          className={isCard ? cardTriggerClassName : collapsedButtonClassName}
         >
           <Sparkles
             size={12}
-            className="text-primary"
+            className={isCard ? "shrink-0" : "text-primary"}
           />
-          <span className="text-text-ghost text-[10px] font-semibold tracking-[0.06em] uppercase">
+          <span
+            className={
+              isCard
+                ? "text-accent-text"
+                : "text-text-ghost text-[10px] font-semibold tracking-[0.06em] uppercase"
+            }
+          >
             AI Summary
           </span>
+          {isCard && (
+            <span className="text-text-tertiary ml-auto font-mono text-[9px] font-medium tracking-[0.04em] uppercase">
+              Show
+            </span>
+          )}
         </button>
       </div>
     );
@@ -135,8 +242,8 @@ export function AiReviewSummary({
   );
 
   return (
-    <div className="border-border border-b">
-      <div className="px-4 py-3">
+    <div className={containerClassName}>
+      <div className={headerPaddingClassName}>
         <div className="flex items-center gap-2">
           <Sparkles
             size={14}
@@ -145,7 +252,23 @@ export function AiReviewSummary({
           <span className="text-text-tertiary text-[10px] font-semibold tracking-[0.06em] uppercase">
             AI Summary
           </span>
+          {confidenceScore !== null && (
+            <AiConfidenceBadge
+              score={confidenceScore}
+              compact={isCard}
+            />
+          )}
           <div className="flex-1" />
+          {isCard && summaryText && (
+            <button
+              type="button"
+              onClick={() => summarizeMutation.mutate()}
+              disabled={summarizeMutation.isPending}
+              className="text-text-tertiary hover:text-accent-text cursor-pointer font-mono text-[9px] font-medium tracking-[0.04em] uppercase transition-colors disabled:cursor-default disabled:opacity-50"
+            >
+              Refresh
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setDismissed(true)}
@@ -155,36 +278,51 @@ export function AiReviewSummary({
           </button>
         </div>
 
-        {/* Streaming ACP response */}
-        {isStreaming ? (
-          <div className="mt-2">
-            <AcpStreamDisplay
-              text={stream.text}
-              tools={stream.tools}
-              streaming={stream.streaming}
-              className="text-xs"
-            />
-          </div>
-        ) : displayText ? (
-          <div className="mt-2">
-            <MarkdownBody
-              content={displayText || "No summary was returned."}
-              className="text-xs"
-            />
-          </div>
-        ) : summarizeMutation.isPending ? (
+        {summarizeMutation.isPending ? (
           <div className="mt-2 flex flex-col gap-2.5">
             <div className="flex items-center gap-2">
               <Spinner className="text-primary h-3.5 w-3.5" />
-              <span className="text-text-secondary text-xs">Generating summary…</span>
+              <span className="text-text-secondary text-xs">
+                {summaryText ? "Refreshing summary…" : "Generating a short summary…"}
+              </span>
             </div>
             <div className="flex flex-col gap-1.5">
               <Skeleton className="h-3 w-full rounded-sm" />
-              <Skeleton className="h-3 w-5/6 rounded-sm" />
-              <Skeleton className="h-3 w-4/6 rounded-sm" />
-              <Skeleton className="mt-1 h-3 w-full rounded-sm" />
-              <Skeleton className="h-3 w-3/4 rounded-sm" />
+              <Skeleton className="h-3 w-4/5 rounded-sm" />
+              <Skeleton className="h-3 w-3/5 rounded-sm" />
             </div>
+          </div>
+        ) : summaryText ? (
+          <div className="mt-2">
+            {summaryNeedsRefresh && (
+              <div className="border-warning/30 bg-warning/10 mb-2 rounded-md border px-2.5 py-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-warning text-[10px] font-semibold tracking-[0.06em] uppercase">
+                    Summary Out Of Date
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => summarizeMutation.mutate()}
+                    disabled={summarizeMutation.isPending}
+                    className="text-warning hover:text-accent-text ml-auto cursor-pointer font-mono text-[9px] font-medium tracking-[0.04em] uppercase transition-colors disabled:cursor-default disabled:opacity-50"
+                  >
+                    {summarizeMutation.isPending ? "Refreshing" : "Refresh"}
+                  </button>
+                </div>
+                <p className="text-text-secondary mt-1 text-xs">
+                  This PR changed since the last summary was generated.
+                </p>
+              </div>
+            )}
+            {summarizeMutation.isError && (
+              <p className="text-destructive mb-2 text-xs">
+                {String((summarizeMutation.error as Error)?.message ?? "Failed")}
+              </p>
+            )}
+            <MarkdownBody
+              content={summaryText || "No summary was returned."}
+              className="text-xs"
+            />
           </div>
         ) : summarizeMutation.isError ? (
           <p className="text-destructive mt-2 text-xs">
@@ -192,21 +330,45 @@ export function AiReviewSummary({
           </p>
         ) : (
           <div className="mt-2">
-            <p className="text-text-tertiary mb-2 text-[10px]">
-              ~{estimatedTokens} tokens · Uses your configured agent or AI provider.
-            </p>
-            <Button
-              size="sm"
-              variant="outline"
-              className="border-primary/30 text-primary hover:bg-primary/10 gap-1.5"
-              onClick={() => summarizeMutation.mutate()}
-            >
-              <Sparkles size={12} />
-              Generate summary
-            </Button>
+            {!isCard && (
+              <>
+                <p className="text-text-tertiary mb-2 text-[10px]">
+                  ~{estimatedTokens} tokens · Uses your configured AI provider.
+                </p>
+                <button
+                  type="button"
+                  className="border-primary/30 text-primary hover:bg-primary/10 inline-flex cursor-pointer items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors"
+                  onClick={() => summarizeMutation.mutate()}
+                >
+                  <Sparkles size={12} />
+                  Generate summary
+                </button>
+              </>
+            )}
           </div>
         )}
       </div>
     </div>
+  );
+}
+
+function AiConfidenceBadge({ score, compact = false }: { score: number; compact?: boolean }) {
+  const className =
+    score >= 75
+      ? "bg-success-muted text-success"
+      : score >= 45
+        ? "bg-warning-muted text-warning"
+        : "bg-danger-muted text-destructive";
+
+  return (
+    <span
+      className={`inline-flex items-center rounded-sm font-mono font-medium ${className}`}
+      style={{
+        padding: compact ? "1px 5px" : "1px 6px",
+        fontSize: compact ? "9px" : "10px",
+      }}
+    >
+      AI {score}/100
+    </span>
   );
 }

@@ -285,22 +285,13 @@ function parseHunkHeader(line: string): DiffHunk | null {
   const oldCount = match[2] !== undefined ? Number.parseInt(match[2], 10) : 1;
   const newStart = Number.parseInt(match[3]!, 10);
   const newCount = match[4] !== undefined ? Number.parseInt(match[4], 10) : 1;
-  const context = match[5]?.trim() ?? "";
-
-  const hunkLine: DiffLine = {
-    type: "hunk-header",
-    content: context,
-    oldLineNumber: null,
-    newLineNumber: null,
-  };
-
   return {
     header: line,
     oldStart,
     oldCount,
     newStart,
     newCount,
-    lines: [hunkLine],
+    lines: [],
   };
 }
 

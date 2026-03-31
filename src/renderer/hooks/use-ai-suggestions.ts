@@ -1,23 +1,22 @@
 /**
- * useAiSuggestions — manages AI-generated code review suggestions.
+ * UseAiSuggestions manages AI-generated code review suggestions.
  */
-
-import type { AiSuggestion } from "../lib/ai-suggestions";
-import type { DiffFile } from "../lib/diff-parser";
 
 import { toastManager } from "@/components/ui/toast";
 import { useCallback, useMemo, useRef, useState } from "react";
 
 import {
+  type AiSuggestion,
   buildSuggestionPrompt,
   collectValidLines,
   extractFileDiff,
   parseSuggestionsResponse,
 } from "../lib/ai-suggestions";
-import { getDiffFilePath } from "../lib/diff-parser";
+import { getDiffFilePath, type DiffFile } from "../lib/diff-parser";
 import { ipc } from "../lib/ipc";
 import { queryClient } from "../lib/query-client";
 import { useWorkspace } from "../lib/workspace-context";
+import { useAiTaskConfig } from "./use-ai-task-config";
 import { usePreference } from "./use-preference";
 
 // ---------------------------------------------------------------------------
@@ -42,6 +41,7 @@ export function useAiSuggestions({
   enabled,
 }: UseAiSuggestionsOpts) {
   const { cwd } = useWorkspace();
+  const config = useAiTaskConfig("commentSuggestions");
 
   const [byFile, setByFile] = useState<Map<string, AiSuggestion[]>>(new Map());
   const [generating, setGenerating] = useState<Set<string>>(new Set());
@@ -90,7 +90,7 @@ export function useAiSuggestions({
 
   const generateForFile = useCallback(
     async (filePath: string) => {
-      if (!enabled || !rawDiff) {
+      if (!enabled || !rawDiff || !config.isConfigured) {
         return;
       }
       if (analyzedRef.current.has(filePath) || generatingRef.current.has(filePath)) {
@@ -116,20 +116,12 @@ export function useAiSuggestions({
       try {
         const messages = buildSuggestionPrompt(prTitle, prBody, filePath, fileDiff);
 
-        // Try ACP first, fall back to direct API
-        let responseText: string;
-        try {
-          const result = await ipc("acp.complete", {
-            cwd,
-            text: messages.map((m) => `${m.role}: ${m.content}`).join("\n\n"),
-          });
-          responseText = result.text;
-        } catch {
-          responseText = await ipc("ai.complete", {
-            messages,
-            maxTokens: 2048,
-          });
-        }
+        const responseText = await ipc("ai.complete", {
+          cwd,
+          task: "commentSuggestions",
+          messages,
+          maxTokens: 2048,
+        });
 
         const suggestions = parseSuggestionsResponse(responseText, filePath, validLines);
         analyzedRef.current.add(filePath);
@@ -141,8 +133,8 @@ export function useAiSuggestions({
           }
           return next;
         });
-      } catch (err) {
-        setError(err instanceof Error ? err.message : String(err));
+      } catch (error) {
+        setError(error instanceof Error ? error.message : String(error));
       } finally {
         generatingRef.current.delete(filePath);
         setGenerating((prev) => {
@@ -152,7 +144,7 @@ export function useAiSuggestions({
         });
       }
     },
-    [enabled, rawDiff, files, prTitle, prBody, cwd],
+    [config.isConfigured, enabled, rawDiff, files, prTitle, prBody, cwd],
   );
 
   // -------------------------------------------------------------------------
@@ -190,10 +182,10 @@ export function useAiSuggestions({
         markAsPosted(suggestion.id, suggestion.path);
         void queryClient.invalidateQueries({ queryKey: ["pr", "comments"] });
         toastManager.add({ title: "Comment posted", type: "success" });
-      } catch (err) {
+      } catch (error) {
         toastManager.add({
           title: "Failed to post comment",
-          description: err instanceof Error ? err.message : String(err),
+          description: error instanceof Error ? error.message : String(error),
           type: "foreground",
         });
       }
@@ -229,9 +221,8 @@ export function useAiSuggestions({
   // -------------------------------------------------------------------------
 
   const suggestionsForFile = useCallback(
-    (filePath: string): AiSuggestion[] => {
-      return (byFile.get(filePath) ?? []).filter((s) => s.status === "pending");
-    },
+    (filePath: string): AiSuggestion[] =>
+      (byFile.get(filePath) ?? []).filter((s) => s.status === "pending"),
     [byFile],
   );
 
@@ -242,7 +233,7 @@ export function useAiSuggestions({
 
   const totalCount = useMemo(
     () =>
-      Array.from(byFile.values()).reduce(
+      [...byFile.values()].reduce(
         (sum, suggestions) => sum + suggestions.filter((s) => s.status === "pending").length,
         0,
       ),

@@ -1,7 +1,9 @@
+/* eslint-disable import/max-dependencies -- ReviewSidebar intentionally composes several existing review panes. */
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Search } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 
+import { useAiTriageSections } from "../hooks/use-ai-triage-sections";
 import { usePreference } from "../hooks/use-preference";
 import { parseDiff, type DiffFile } from "../lib/diff-parser";
 import { useFileNav } from "../lib/file-nav-context";
@@ -43,7 +45,13 @@ export function ReviewSidebar({ prNumber, onBack, onSelectPr }: ReviewSidebarPro
   // Commit-specific diff (only fetched when a commit is selected)
   const commitDiffQuery = useQuery({
     queryKey: ["git", "commitDiff", cwd, selectedCommit?.oid],
-    queryFn: () => ipc("git.commitDiff", { cwd, sha: selectedCommit!.oid }),
+    queryFn: () => {
+      if (!selectedCommit) {
+        throw new Error("Commit diff requested without a selected commit.");
+      }
+
+      return ipc("git.commitDiff", { cwd, sha: selectedCommit.oid });
+    },
     enabled: Boolean(selectedCommit),
     staleTime: 60_000,
   });
@@ -131,6 +139,18 @@ export function ReviewSidebar({ prNumber, onBack, onSelectPr }: ReviewSidebarPro
     refetchInterval: 60_000,
   });
   const pr = detailQuery.data;
+  const { sections: triageSections, meta: triageMeta } = useAiTriageSections({
+    cwd,
+    prNumber,
+    pr,
+    files,
+    triageGroups,
+    fileCommentCounts,
+    annotationPaths,
+    viewedFiles,
+    viewMode,
+    isCommitView: Boolean(selectedCommit),
+  });
 
   // Checks list — same query key as ChecksPanel so React Query dedupes.
   // Used for merge readiness so it stays in sync with the checks panel.
@@ -240,11 +260,12 @@ export function ReviewSidebar({ prNumber, onBack, onSelectPr }: ReviewSidebarPro
         <div className="flex-1 overflow-y-auto">
           {viewMode === "triage" ? (
             <TriageView
-              groups={triageGroups}
+              sections={triageSections}
               currentFileIndex={currentFileIndex}
               onSelectFile={setCurrentFileIndex}
               viewedFiles={viewedFiles}
               commentCounts={fileCommentCounts}
+              meta={triageMeta}
             />
           ) : (
             <div className="p-2">

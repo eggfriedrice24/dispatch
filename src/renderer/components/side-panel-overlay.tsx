@@ -14,7 +14,8 @@ import { summarizePrChecks } from "../lib/pr-check-status";
 import { queryClient } from "../lib/query-client";
 import { useRouter } from "../lib/router";
 import { useWorkspace } from "../lib/workspace-context";
-import { useAiConfig } from "./ai-explanation";
+import { AiFailureExplainer } from "./ai-failure-explainer";
+import { AiReviewSummary } from "./ai-review-summary";
 import { ConversationTab } from "./conversation-tab";
 import { GitHubAvatar } from "./github-avatar";
 import { MarkdownBody } from "./markdown-body";
@@ -54,6 +55,7 @@ export function SidePanelOverlay({
   issueComments,
   repo,
   onReviewClick,
+  diffSnippet,
   activeTab,
   onTabChange,
   reviewThreads,
@@ -139,6 +141,7 @@ export function SidePanelOverlay({
               pr={pr}
               prNumber={prNumber}
               repo={repo}
+              diffSnippet={diffSnippet}
               reactions={reactions}
               canEdit={canEdit}
             />
@@ -159,17 +162,18 @@ function PanelOverviewContent({
   pr,
   prNumber,
   repo,
+  diffSnippet,
   reactions,
   canEdit,
 }: {
   pr: GhPrDetail;
   prNumber: number;
   repo: string;
+  diffSnippet: string;
   reactions?: GhPrReactions;
   canEdit?: boolean;
 }) {
   const { cwd } = useWorkspace();
-  const aiConfig = useAiConfig();
   const nameFormat = useDisplayNameFormat();
   const [editingBody, setEditingBody] = useState(false);
   const [bodyValue, setBodyValue] = useState(pr.body);
@@ -500,39 +504,15 @@ function PanelOverviewContent({
         </div>
       )}
 
-      {/* AI Summary card */}
-      {aiConfig.isConfigured && (
-        <div
-          style={{
-            background: "var(--bg-raised)",
-            border: "1px solid var(--border)",
-            borderRadius: "var(--radius-lg)",
-            overflow: "hidden",
-            marginTop: "10px",
-          }}
-        >
-          <div
-            className="text-accent-text hover:bg-bg-elevated flex cursor-pointer items-center gap-1.5 select-none"
-            style={{
-              padding: "8px 10px",
-              fontSize: "11px",
-              fontWeight: 500,
-            }}
-          >
-            <svg
-              width="10"
-              height="10"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
-            </svg>
-            AI Summary
-          </div>
-        </div>
-      )}
+      <AiReviewSummary
+        prNumber={prNumber}
+        prTitle={pr.title}
+        prBody={pr.body}
+        author={pr.author.login}
+        files={pr.files}
+        diffSnippet={diffSnippet}
+        variant="card"
+      />
 
       {/* Auto-merge / Merge when ready indicator */}
       {pr.autoMergeRequest && (
@@ -1031,51 +1011,66 @@ function PanelChecksContent({ prNumber }: { prNumber: number }) {
         const runId = parseRunIdFromUrl(check.detailsUrl);
 
         return (
-          <button
+          <div
             key={check.name}
-            type="button"
-            onClick={() => {
-              if (runId) {
-                navigate({ view: "workflows", runId, fromPr: prNumber });
-              }
-            }}
-            className="hover:bg-bg-raised flex w-full cursor-pointer items-center gap-1.5 rounded-sm transition-colors"
             style={{
-              padding: "5px 4px",
               borderBottom: i < checks.length - 1 ? "1px solid var(--border-subtle)" : "none",
-              fontSize: "12px",
+              paddingBottom: failed && runId ? "6px" : 0,
             }}
           >
-            <span
-              className="shrink-0"
+            <button
+              type="button"
+              onClick={() => {
+                if (runId) {
+                  navigate({ view: "workflows", runId, fromPr: prNumber });
+                }
+              }}
+              className="hover:bg-bg-raised flex w-full cursor-pointer items-center gap-1.5 rounded-sm transition-colors"
               style={{
-                color: failed ? "var(--danger)" : pending ? "var(--warning)" : "var(--success)",
+                padding: "5px 4px",
+                fontSize: "12px",
               }}
             >
-              {failed ? (
-                <XCircle size={12} />
-              ) : pending ? (
-                <Loader2
-                  size={12}
-                  className="animate-spin"
+              <span
+                className="shrink-0"
+                style={{
+                  color: failed ? "var(--danger)" : pending ? "var(--warning)" : "var(--success)",
+                }}
+              >
+                {failed ? (
+                  <XCircle size={12} />
+                ) : pending ? (
+                  <Loader2
+                    size={12}
+                    className="animate-spin"
+                  />
+                ) : (
+                  <Check size={12} />
+                )}
+              </span>
+              <span
+                className="min-w-0 flex-1 truncate text-left"
+                style={{ color: "var(--text-secondary)" }}
+              >
+                {check.name}
+              </span>
+              <span
+                className="font-mono"
+                style={{ fontSize: "10px", color: "var(--text-tertiary)" }}
+              >
+                {duration}
+              </span>
+            </button>
+            {failed && runId && (
+              <div style={{ padding: "0 4px 0 22px" }}>
+                <AiFailureExplainer
+                  checkName={check.name}
+                  cwd={cwd}
+                  runId={runId}
                 />
-              ) : (
-                <Check size={12} />
-              )}
-            </span>
-            <span
-              className="min-w-0 flex-1 truncate text-left"
-              style={{ color: "var(--text-secondary)" }}
-            >
-              {check.name}
-            </span>
-            <span
-              className="font-mono"
-              style={{ fontSize: "10px", color: "var(--text-tertiary)" }}
-            >
-              {duration}
-            </span>
-          </button>
+              </div>
+            )}
+          </div>
         );
       })}
     </div>

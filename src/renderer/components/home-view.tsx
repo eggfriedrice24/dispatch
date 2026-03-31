@@ -1,4 +1,4 @@
-import type { GhPrEnrichment, GhPrListItemCore, Workspace } from "@/shared/ipc";
+import type { GhPrEnrichment, Workspace } from "@/shared/ipc";
 
 import { Kbd } from "@/components/ui/kbd";
 import { Spinner } from "@/components/ui/spinner";
@@ -12,6 +12,7 @@ import {
   Loader2,
   Pencil,
   Plus,
+  RefreshCw,
   Search,
   Star,
   XCircle,
@@ -20,6 +21,14 @@ import { useCallback, useMemo, useRef, useState } from "react";
 
 import { formatAuthorName, useDisplayNameFormat } from "../hooks/use-display-name";
 import { useKeyboardShortcuts } from "../hooks/use-keyboard-shortcuts";
+import {
+  categorizeHomePrs,
+  getDashboardPrKey,
+  type DashboardPr,
+  type EnrichedDashboardPr,
+  type PrSection,
+  type SectionId,
+} from "../lib/home-prs";
 import { ipc } from "../lib/ipc";
 import { useKeybindings } from "../lib/keybinding-context";
 import { getPrActivityKey, hasNewPrActivity, indexPrActivityStates } from "../lib/pr-activity";
@@ -27,26 +36,6 @@ import { summarizePrChecks, type PrCheckSummary } from "../lib/pr-check-status";
 import { queryClient } from "../lib/query-client";
 import { useRouter } from "../lib/router";
 import { useWorkspace } from "../lib/workspace-context";
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-interface EnrichedPr {
-  pr: GhPrListItemCore;
-  enrichment?: GhPrEnrichment;
-  checkSummary: PrCheckSummary;
-  hasNewActivity: boolean;
-}
-
-type SectionId = "attention" | "ship" | "progress" | "completed";
-
-interface PrSection {
-  id: SectionId;
-  title: string;
-  items: EnrichedPr[];
-  defaultCollapsed?: boolean;
-}
 
 // ---------------------------------------------------------------------------
 // Compact relative time ("38m", "2h", "1d")
@@ -62,7 +51,10 @@ function compactTime(dateStr: string): { short: string; full: string } {
     return { short: "now", full: "just now" };
   }
   if (mins < 60) {
-    return { short: `${mins}m`, full: `${mins} minute${mins === 1 ? "" : "s"} ago` };
+    return {
+      short: `${mins}m`,
+      full: `${mins} minute${mins === 1 ? "" : "s"} ago`,
+    };
   }
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) {
@@ -85,10 +77,18 @@ function prSizeLabel(
     return null;
   }
   if (total < 50) {
-    return { label: "S", fullLabel: "Small change", cls: "bg-success-muted text-success" };
+    return {
+      label: "S",
+      fullLabel: "Small change",
+      cls: "bg-success-muted text-success",
+    };
   }
   if (total < 200) {
-    return { label: "M", fullLabel: "Medium change", cls: "bg-warning-muted text-warning" };
+    return {
+      label: "M",
+      fullLabel: "Medium change",
+      cls: "bg-warning-muted text-warning",
+    };
   }
   if (total < 500) {
     return {
@@ -104,97 +104,6 @@ function prSizeLabel(
   };
 }
 
-// ---------------------------------------------------------------------------
-// Categorize PRs into sections
-// ---------------------------------------------------------------------------
-
-function categorizePrs(authored: EnrichedPr[], reviewRequested: EnrichedPr[]): PrSection[] {
-  const attention: EnrichedPr[] = [];
-  const ship: EnrichedPr[] = [];
-  const progress: EnrichedPr[] = [];
-  const completed: EnrichedPr[] = [];
-
-  // Deduplicate across authored + reviewRequested
-  const seen = new Set<number>();
-
-  // Review-requested PRs always go to attention (if open)
-  for (const item of reviewRequested) {
-    if (seen.has(item.pr.number)) {
-      continue;
-    }
-    seen.add(item.pr.number);
-    if (item.pr.state === "MERGED") {
-      completed.push(item);
-    } else if (item.pr.state === "CLOSED") {
-      completed.push(item);
-    } else {
-      attention.push(item);
-    }
-  }
-
-  // Authored PRs — categorize by status
-  for (const item of authored) {
-    if (seen.has(item.pr.number)) {
-      continue;
-    }
-    seen.add(item.pr.number);
-
-    if (item.pr.state === "MERGED" || item.pr.state === "CLOSED") {
-      completed.push(item);
-      continue;
-    }
-
-    // Needs attention: CI failing or changes requested on your PRs
-    if (
-      item.checkSummary.state === "failing" ||
-      item.pr.reviewDecision === "CHANGES_REQUESTED" ||
-      item.enrichment?.mergeable === "CONFLICTING"
-    ) {
-      attention.push(item);
-      continue;
-    }
-
-    // Ready to ship: approved + CI passing
-    if (
-      !item.pr.isDraft &&
-      item.pr.reviewDecision === "APPROVED" &&
-      item.checkSummary.state === "passing"
-    ) {
-      ship.push(item);
-      continue;
-    }
-
-    // Everything else is in progress
-    progress.push(item);
-  }
-
-  const sections: PrSection[] = [];
-
-  if (attention.length > 0) {
-    sections.push({ id: "attention", title: "Needs your attention", items: attention });
-  }
-  if (ship.length > 0) {
-    sections.push({ id: "ship", title: "Ready to ship", items: ship });
-  }
-  if (progress.length > 0) {
-    sections.push({ id: "progress", title: "In progress", items: progress });
-  }
-  if (completed.length > 0) {
-    sections.push({
-      id: "completed",
-      title: "Recently completed",
-      items: completed,
-      defaultCollapsed: true,
-    });
-  }
-
-  return sections;
-}
-
-// ---------------------------------------------------------------------------
-// Status tag resolver
-// ---------------------------------------------------------------------------
-
 interface StatusTag {
   label: string;
   colorClass: string;
@@ -202,18 +111,26 @@ interface StatusTag {
 }
 
 function resolveStatusTag(
-  pr: GhPrListItemCore,
+  pr: DashboardPr,
   checkSummary: PrCheckSummary,
   currentUser: string | null,
 ): StatusTag | null {
   if (pr.state === "MERGED") {
-    return { label: "Merged", colorClass: "text-purple opacity-60", icon: "merged" };
+    return {
+      label: "Merged",
+      colorClass: "text-purple opacity-60",
+      icon: "merged",
+    };
   }
   if (pr.isDraft) {
     return { label: "Draft", colorClass: "text-text-secondary", icon: "draft" };
   }
   if (pr.reviewDecision === "CHANGES_REQUESTED") {
-    return { label: "Changes requested", colorClass: "text-warning", icon: "changes" };
+    return {
+      label: "Changes requested",
+      colorClass: "text-warning",
+      icon: "changes",
+    };
   }
   if (pr.reviewDecision === "APPROVED") {
     return {
@@ -226,9 +143,17 @@ function resolveStatusTag(
   if (pr.reviewDecision === "REVIEW_REQUIRED" || pr.reviewDecision === "") {
     // If the current user is the author, show "Awaiting review"
     if (currentUser && pr.author.login === currentUser) {
-      return { label: "Awaiting review", colorClass: "text-text-secondary", icon: "waiting" };
+      return {
+        label: "Awaiting review",
+        colorClass: "text-text-secondary",
+        icon: "waiting",
+      };
     }
-    return { label: "Review requested", colorClass: "text-purple", icon: "review" };
+    return {
+      label: "Review requested",
+      colorClass: "text-purple",
+      icon: "review",
+    };
   }
   return null;
 }
@@ -238,7 +163,7 @@ function resolveStatusTag(
 // ---------------------------------------------------------------------------
 
 function resolveBarColor(
-  pr: GhPrListItemCore,
+  pr: DashboardPr,
   checkSummary: PrCheckSummary,
   currentUser: string | null,
 ): string {
@@ -280,6 +205,7 @@ export function HomeView() {
   const { cwd, switchWorkspace } = useWorkspace();
   const { navigate } = useRouter();
   const nameFormat = useDisplayNameFormat();
+  const repoName = cwd.split("/").pop() ?? "";
 
   const [searchQuery, setSearchQuery] = useState("");
   const [collapsedSections, setCollapsedSections] = useState<Set<SectionId>>(
@@ -298,29 +224,36 @@ export function HomeView() {
   });
   const currentUser = userQuery.data?.login ?? null;
 
-  // Authored PRs
-  const authoredQuery = useQuery({
-    queryKey: ["pr", "list", cwd, "authored"],
-    queryFn: () => ipc("pr.list", { cwd, filter: "authored" }),
+  const repoInfoQuery = useQuery({
+    queryKey: ["repo", "info", cwd],
+    queryFn: () => ipc("repo.info", { cwd }),
+    staleTime: 60_000,
+  });
+
+  // All PRs for the selected repository, including merged/closed.
+  const allQuery = useQuery({
+    queryKey: ["pr", "list", cwd, "all", "all"],
+    queryFn: () => ipc("pr.list", { cwd, filter: "all", state: "all" }),
     refetchInterval: 30_000,
   });
 
-  // Review-requested PRs
+  // Review-requested PRs for the selected repository.
   const reviewQuery = useQuery({
-    queryKey: ["pr", "list", cwd, "reviewRequested"],
+    queryKey: ["pr", "list", cwd, "reviewRequested", "open"],
     queryFn: () => ipc("pr.list", { cwd, filter: "reviewRequested" }),
     refetchInterval: 30_000,
   });
 
-  // Enrichment for both
-  const authoredEnrichmentQuery = useQuery({
-    queryKey: ["pr", "enrichment", cwd, "authored"],
-    queryFn: () => ipc("pr.listEnrichment", { cwd, filter: "authored" }),
+  // Enrichment for the selected repository.
+  const allEnrichmentQuery = useQuery({
+    queryKey: ["pr", "enrichment", cwd, "all", "all"],
+    queryFn: () => ipc("pr.listEnrichment", { cwd, filter: "all", state: "all" }),
     refetchInterval: 30_000,
   });
-  const reviewEnrichmentQuery = useQuery({
-    queryKey: ["pr", "enrichment", cwd, "reviewRequested"],
-    queryFn: () => ipc("pr.listEnrichment", { cwd, filter: "reviewRequested" }),
+
+  const workspaceCountsQuery = useQuery({
+    queryKey: ["pr", "listAll", "all", "all"],
+    queryFn: () => ipc("pr.listAll", { filter: "all", state: "all" }),
     refetchInterval: 30_000,
   });
 
@@ -343,56 +276,91 @@ export function HomeView() {
   });
 
   // Build enrichment indexes
-  const authoredEnrichmentIndex = useMemo(() => {
-    const map = new Map<number, GhPrEnrichment>();
-    for (const e of authoredEnrichmentQuery.data ?? []) {
-      map.set(e.number, e);
-    }
-    return map;
-  }, [authoredEnrichmentQuery.data]);
+  const repoIdentity = repoInfoQuery.data?.nameWithOwner ?? repoName;
+  const pullRequestRepository = repoInfoQuery.data?.parent ?? repoIdentity;
+  const isForkWorkspace = repoInfoQuery.data?.isFork ?? false;
 
-  const reviewEnrichmentIndex = useMemo(() => {
-    const map = new Map<number, GhPrEnrichment>();
-    for (const e of reviewEnrichmentQuery.data ?? []) {
-      map.set(e.number, e);
+  const allEnrichmentIndex = useMemo(() => {
+    const map = new Map<string, GhPrEnrichment>();
+    for (const e of allEnrichmentQuery.data ?? []) {
+      map.set(getDashboardPrKey(pullRequestRepository, e.number), e);
     }
     return map;
-  }, [reviewEnrichmentQuery.data]);
+  }, [allEnrichmentQuery.data, pullRequestRepository]);
 
   // Enrich PR lists
   const enrichPr = useCallback(
-    (pr: GhPrListItemCore, enrichmentIndex: Map<number, GhPrEnrichment>): EnrichedPr => {
-      const enrichment = enrichmentIndex.get(pr.number);
+    (pr: DashboardPr, enrichmentIndex: Map<string, GhPrEnrichment>): EnrichedDashboardPr => {
+      const enrichmentData = enrichmentIndex.get(
+        getDashboardPrKey(pr.pullRequestRepository, pr.number),
+      );
+      const enrichment = enrichmentData
+        ? {
+            ...enrichmentData,
+            workspacePath: pr.workspacePath,
+            repository: pr.repository,
+            pullRequestRepository: pr.pullRequestRepository,
+            isForkWorkspace: pr.isForkWorkspace,
+          }
+        : undefined;
       return {
         pr,
         enrichment,
-        checkSummary: summarizePrChecks(enrichment?.statusCheckRollup ?? []),
+        checkSummary: summarizePrChecks(enrichmentData?.statusCheckRollup ?? []),
         hasNewActivity: hasNewPrActivity(
           pr.updatedAt,
-          prActivityIndex.get(getPrActivityKey(cwd, pr.number)),
+          prActivityIndex.get(getPrActivityKey(pr.workspacePath, pr.number)),
         ),
       };
     },
-    [cwd, prActivityIndex],
+    [prActivityIndex],
   );
 
-  const authoredPrs = useMemo(
-    () => (authoredQuery.data ?? []).map((pr) => enrichPr(pr, authoredEnrichmentIndex)),
-    [authoredQuery.data, authoredEnrichmentIndex, enrichPr],
+  const allPrs = useMemo(
+    () =>
+      (allQuery.data ?? []).map((pr) =>
+        enrichPr(
+          {
+            ...pr,
+            workspace: repoName,
+            workspacePath: cwd,
+            repository: repoIdentity,
+            pullRequestRepository,
+            isForkWorkspace,
+          },
+          allEnrichmentIndex,
+        ),
+      ),
+    [
+      allEnrichmentIndex,
+      allQuery.data,
+      cwd,
+      enrichPr,
+      isForkWorkspace,
+      pullRequestRepository,
+      repoIdentity,
+      repoName,
+    ],
   );
 
-  const reviewPrs = useMemo(
-    () => (reviewQuery.data ?? []).map((pr) => enrichPr(pr, reviewEnrichmentIndex)),
-    [reviewQuery.data, reviewEnrichmentIndex, enrichPr],
+  const reviewRequestedKeys = useMemo(
+    () =>
+      new Set(
+        (reviewQuery.data ?? []).map((pr) => getDashboardPrKey(pullRequestRepository, pr.number)),
+      ),
+    [pullRequestRepository, reviewQuery.data],
   );
 
   // Categorize into sections
-  const sections = useMemo(() => categorizePrs(authoredPrs, reviewPrs), [authoredPrs, reviewPrs]);
+  const sections = useMemo(
+    () => categorizeHomePrs(allPrs, reviewRequestedKeys, currentUser),
+    [allPrs, currentUser, reviewRequestedKeys],
+  );
 
   // Search filter
   const filteredSections = useMemo(() => {
     if (!searchQuery.trim()) {
-      return sections;
+      return sections.filter((sec) => sec.items.length > 0);
     }
     const q = searchQuery.toLowerCase();
     return sections
@@ -426,7 +394,17 @@ export function HomeView() {
     [sections],
   );
 
-  const repoName = cwd.split("/").pop() ?? "";
+  const workspaceCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+
+    for (const pr of workspaceCountsQuery.data ?? []) {
+      counts.set(pr.workspacePath, (counts.get(pr.workspacePath) ?? 0) + 1);
+    }
+
+    return counts;
+  }, [workspaceCountsQuery.data]);
+
+  const activeWorkspaceCount = totalCount;
 
   const toggleSection = useCallback((id: SectionId) => {
     setCollapsedSections((prev) => {
@@ -441,17 +419,31 @@ export function HomeView() {
   }, []);
 
   const handleSelectPr = useCallback(
-    (pr: GhPrListItemCore) => {
+    (item: EnrichedDashboardPr) => {
+      const { pr } = item;
+
       void ipc("prActivity.markSeen", {
-        repo: cwd,
+        repo: pr.workspacePath,
         prNumber: pr.number,
         updatedAt: pr.updatedAt,
       })
         .then(() => queryClient.invalidateQueries({ queryKey: ["pr-activity"] }))
         .catch(() => {});
+
+      if (pr.workspacePath !== cwd) {
+        void ipc("workspace.setActive", { path: pr.workspacePath })
+          .then(() => {
+            switchWorkspace(pr.workspacePath);
+            queryClient.invalidateQueries({ queryKey: ["workspace"] });
+            navigate({ view: "review", prNumber: pr.number });
+          })
+          .catch(() => {});
+        return;
+      }
+
       navigate({ view: "review", prNumber: pr.number });
     },
-    [cwd, navigate],
+    [cwd, navigate, switchWorkspace],
   );
 
   // Keyboard navigation
@@ -471,7 +463,7 @@ export function HomeView() {
       handler: () => {
         const item = flatPrs[focusIndex];
         if (item) {
-          handleSelectPr(item.pr);
+          handleSelectPr(item);
         }
       },
     },
@@ -488,7 +480,55 @@ export function HomeView() {
     }
   }, []);
 
-  const isLoading = authoredQuery.isLoading || reviewQuery.isLoading;
+  const handleRefreshHome = useCallback(() => {
+    void Promise.allSettled([
+      userQuery.refetch(),
+      repoInfoQuery.refetch(),
+      allQuery.refetch(),
+      reviewQuery.refetch(),
+      allEnrichmentQuery.refetch(),
+      workspaceCountsQuery.refetch(),
+      prActivityQuery.refetch(),
+      workspacesQuery.refetch(),
+    ]).then((results) => {
+      const hasFailure = results.some(
+        (result) =>
+          result.status === "rejected" || result.value.isError || result.value.isRefetchError,
+      );
+
+      if (hasFailure) {
+        toastManager.add({
+          title: "Refresh failed",
+          description: "Some homepage data could not be updated.",
+          type: "error",
+        });
+      }
+    });
+  }, [
+    allEnrichmentQuery,
+    allQuery,
+    prActivityQuery,
+    repoInfoQuery,
+    reviewQuery,
+    userQuery,
+    workspaceCountsQuery,
+    workspacesQuery,
+  ]);
+
+  const isLoading =
+    allQuery.isLoading ||
+    allEnrichmentQuery.isLoading ||
+    reviewQuery.isLoading ||
+    repoInfoQuery.isLoading;
+  const isRefreshing =
+    userQuery.isFetching ||
+    repoInfoQuery.isFetching ||
+    allQuery.isFetching ||
+    reviewQuery.isFetching ||
+    allEnrichmentQuery.isFetching ||
+    workspaceCountsQuery.isFetching ||
+    prActivityQuery.isFetching ||
+    workspacesQuery.isFetching;
 
   return (
     <main
@@ -516,11 +556,20 @@ export function HomeView() {
                 <span className="text-text-secondary">Loading your queue...</span>
               ) : attentionCount > 0 ? (
                 <>
-                  <strong className="text-text-primary font-normal">
+                  <strong className="text-text-primary font-bold">
                     {attentionCount} {attentionCount === 1 ? "item" : "items"}
                   </strong>{" "}
                   <span className="text-text-secondary">
                     {attentionCount === 1 ? "needs" : "need"} your attention
+                    {totalCount > attentionCount ? (
+                      <>
+                        {" "}
+                        out of{" "}
+                        <strong className="text-text-primary font-normal">
+                          {totalCount} {totalCount === 1 ? "pull request" : "pull requests"}
+                        </strong>
+                      </>
+                    ) : null}
                   </span>
                 </>
               ) : totalCount > 0 ? (
@@ -542,8 +591,9 @@ export function HomeView() {
             <RepoSelector
               cwd={cwd}
               repoName={repoName}
-              totalCount={totalCount}
+              activeWorkspaceCount={activeWorkspaceCount}
               workspaces={workspacesQuery.data ?? []}
+              workspaceCounts={workspaceCounts}
               open={repoDropdownOpen}
               onToggle={() => setRepoDropdownOpen((v) => !v)}
               onSelect={(ws) => {
@@ -610,6 +660,21 @@ export function HomeView() {
               />
               <Kbd className="h-[18px] min-w-[18px] px-1 text-[9px]">/</Kbd>
             </div>
+
+            <button
+              type="button"
+              onClick={handleRefreshHome}
+              disabled={isRefreshing}
+              aria-label="Refresh homepage pull requests"
+              className="border-border bg-bg-surface text-text-secondary hover:border-border-strong hover:bg-bg-raised hover:text-text-primary inline-flex h-[31px] shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-md border px-3 text-[12px] font-medium transition-all disabled:cursor-default disabled:opacity-60"
+            >
+              <RefreshCw
+                size={13}
+                className={isRefreshing ? "animate-spin" : ""}
+                aria-hidden="true"
+              />
+              <span>{isRefreshing ? "Refreshing" : "Refresh"}</span>
+            </button>
           </div>
 
           {/* Loading */}
@@ -629,6 +694,7 @@ export function HomeView() {
 
           {/* Sections */}
           {!isLoading &&
+            totalCount > 0 &&
             filteredSections.map((section, sectionIndex) => (
               <PrSectionView
                 key={section.id}
@@ -637,7 +703,6 @@ export function HomeView() {
                 onToggle={() => toggleSection(section.id)}
                 currentUser={currentUser}
                 nameFormat={nameFormat}
-                cwd={cwd}
                 onSelectPr={handleSelectPr}
                 focusIndex={focusIndex}
                 flatPrs={flatPrs}
@@ -661,7 +726,7 @@ export function HomeView() {
           )}
 
           {/* Empty state — all caught up */}
-          {!isLoading && sections.length === 0 && !searchQuery.trim() && (
+          {!isLoading && totalCount === 0 && !searchQuery.trim() && (
             <div className="flex flex-col items-center gap-2 py-20">
               <p className="font-heading text-text-secondary text-xl italic">Nothing here yet</p>
               <p className="text-text-secondary text-[13px]">
@@ -671,7 +736,7 @@ export function HomeView() {
           )}
 
           {/* Footer keyboard hints */}
-          {!isLoading && filteredSections.length > 0 && (
+          {!isLoading && flatPrs.length > 0 && (
             <div className="border-border-subtle mt-2 flex items-center gap-4 border-t pt-4">
               <KbdHint
                 keys={["j", "k"]}
@@ -708,8 +773,9 @@ export function HomeView() {
 function RepoSelector({
   cwd,
   repoName,
-  totalCount,
+  activeWorkspaceCount,
   workspaces,
+  workspaceCounts,
   open,
   onToggle,
   onSelect,
@@ -719,8 +785,9 @@ function RepoSelector({
 }: {
   cwd: string;
   repoName: string;
-  totalCount: number;
+  activeWorkspaceCount: number;
   workspaces: Workspace[];
+  workspaceCounts: Map<string, number>;
   open: boolean;
   onToggle: () => void;
   onSelect: (ws: Workspace) => void;
@@ -756,7 +823,7 @@ function RepoSelector({
         }}
         aria-expanded={open}
         aria-haspopup="listbox"
-        aria-label={`Repository: ${repoName}. ${totalCount} pull requests`}
+        aria-label={`Active repository: ${repoName}. ${activeWorkspaceCount} pull requests in this repository`}
         className={`border-border bg-bg-surface hover:border-border-strong hover:bg-bg-raised flex cursor-pointer items-center gap-[7px] rounded-md border px-2.5 py-1.5 transition-all ${open ? "border-border-strong bg-bg-raised" : ""}`}
       >
         <svg
@@ -775,12 +842,12 @@ function RepoSelector({
           <path d="M9 18c-4.51 2-5-2-7-2" />
         </svg>
         <span className="text-[13px] font-semibold tracking-[-0.01em]">{repoName}</span>
-        {totalCount > 0 && (
+        {activeWorkspaceCount > 0 && (
           <span
             className="bg-accent-muted text-accent-text flex h-4 min-w-4 items-center justify-center rounded-full px-[5px] font-mono text-[9px] font-semibold"
             aria-hidden="true"
           >
-            {totalCount}
+            {activeWorkspaceCount}
           </span>
         )}
         <ChevronDown
@@ -824,6 +891,9 @@ function RepoSelector({
           <div className="max-h-[300px] overflow-y-auto p-1">
             {filtered.map((ws) => {
               const isActive = ws.path === cwd;
+              const workspaceCount = isActive
+                ? activeWorkspaceCount
+                : (workspaceCounts.get(ws.path) ?? 0);
               return (
                 <button
                   key={ws.id}
@@ -831,10 +901,10 @@ function RepoSelector({
                   role="option"
                   aria-selected={isActive}
                   onClick={() => {
-                    if (!isActive) {
-                      onSelect(ws);
-                    } else {
+                    if (isActive) {
                       onToggle();
+                    } else {
+                      onSelect(ws);
                     }
                   }}
                   className={`flex w-full cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-left text-xs transition-colors ${isActive ? "bg-accent-muted" : "hover:bg-bg-raised"}`}
@@ -871,6 +941,11 @@ function RepoSelector({
                       {ws.path}
                     </div>
                   </div>
+                  {workspaceCount > 0 && (
+                    <span className="text-text-secondary shrink-0 font-mono text-[10px]">
+                      {workspaceCount}
+                    </span>
+                  )}
                   {isActive && (
                     <Check
                       size={13}
@@ -910,7 +985,6 @@ function PrSectionView({
   onToggle,
   currentUser,
   nameFormat,
-  cwd,
   onSelectPr,
   focusIndex,
   flatPrs,
@@ -921,10 +995,9 @@ function PrSectionView({
   onToggle: () => void;
   currentUser: string | null;
   nameFormat: "login" | "name";
-  cwd: string;
-  onSelectPr: (pr: GhPrListItemCore) => void;
+  onSelectPr: (item: EnrichedDashboardPr) => void;
   focusIndex: number;
-  flatPrs: EnrichedPr[];
+  flatPrs: EnrichedDashboardPr[];
   animationDelay: number;
 }) {
   const sectionClass = section.id === "attention" ? "rounded-lg -mx-0.5 px-0.5" : "";
@@ -944,11 +1017,14 @@ function PrSectionView({
         animationDelay: `${animationDelay}s`,
       }}
     >
-      <div className="flex items-center gap-1.5 px-0.5 pt-2.5 pb-1.5">
-        <span
-          id={`section-label-${section.id}`}
-          className={`text-[11px] font-semibold tracking-[0.01em] ${titleClass}`}
-        >
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={!collapsed}
+        aria-label={`${section.title}, ${section.items.length} pull requests`}
+        className="flex w-full cursor-pointer items-center gap-1.5 px-0.5 pt-2.5 pb-1.5 text-left"
+      >
+        <span className={`text-[11px] font-semibold tracking-[0.01em] ${titleClass}`}>
           {section.title}
         </span>
         <span
@@ -958,33 +1034,28 @@ function PrSectionView({
           {section.items.length}
         </span>
         <div className="flex-1" />
-        <button
-          type="button"
-          onClick={onToggle}
-          aria-expanded={!collapsed}
-          aria-labelledby={`section-label-${section.id}`}
-          className="text-text-tertiary cursor-pointer p-0.5 transition-transform"
+        <span
+          className="text-text-tertiary p-0.5 transition-transform"
           style={{ transform: collapsed ? "rotate(-90deg)" : "none" }}
         >
           <ChevronDown
             size={13}
             aria-hidden="true"
           />
-        </button>
-      </div>
+        </span>
+      </button>
 
-      {!collapsed && (
+      {!collapsed && section.items.length > 0 && (
         <div className={bodyClass}>
           {section.items.map((item) => {
             const flatIdx = flatPrs.indexOf(item);
             return (
               <PrRow
-                key={item.pr.number}
+                key={getDashboardPrKey(item.pr.pullRequestRepository, item.pr.number)}
                 item={item}
                 currentUser={currentUser}
                 nameFormat={nameFormat}
-                cwd={cwd}
-                onClick={() => onSelectPr(item.pr)}
+                onClick={() => onSelectPr(item)}
                 isFocused={flatIdx === focusIndex}
                 isShipSection={section.id === "ship"}
               />
@@ -1004,15 +1075,13 @@ function PrRow({
   item,
   currentUser,
   nameFormat,
-  cwd,
   onClick,
   isFocused,
   isShipSection,
 }: {
-  item: EnrichedPr;
+  item: EnrichedDashboardPr;
   currentUser: string | null;
   nameFormat: "login" | "name";
-  cwd: string;
   onClick: () => void;
   isFocused: boolean;
   isShipSection: boolean;
@@ -1026,7 +1095,12 @@ function PrRow({
   const authorDisplay = isAuthor ? "you" : formatAuthorName(pr.author, nameFormat);
 
   const mergeMutation = useMutation({
-    mutationFn: () => ipc("pr.merge", { cwd, prNumber: pr.number, strategy: "squash" }),
+    mutationFn: () =>
+      ipc("pr.merge", {
+        cwd: pr.workspacePath,
+        prNumber: pr.number,
+        strategy: "squash",
+      }),
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["pr"] });
       toastManager.add({
@@ -1035,7 +1109,11 @@ function PrRow({
       });
     },
     onError: (err) => {
-      toastManager.add({ title: "Merge failed", description: String(err.message), type: "error" });
+      toastManager.add({
+        title: "Merge failed",
+        description: String(err.message),
+        type: "error",
+      });
     },
   });
 

@@ -1,6 +1,7 @@
-import type { ReactNode } from "react";
+import { createContext, type ReactNode, useCallback, useContext, useState } from "react";
 
-import { createContext, useCallback, useContext, useState } from "react";
+import { ipc } from "./ipc";
+import { queryClient } from "./query-client";
 
 interface WorkspaceContextValue {
   /** Absolute path to the active git repository */
@@ -20,9 +21,22 @@ export function WorkspaceProvider({
 }) {
   const [cwd, setCwd] = useState(initialCwd);
 
-  const switchWorkspace = useCallback((newCwd: string) => {
-    setCwd(newCwd);
-  }, []);
+  const switchWorkspace = useCallback(
+    (newCwd: string) => {
+      if (!newCwd || newCwd === cwd) {
+        return;
+      }
+
+      void ipc("workspace.setActive", { path: newCwd })
+        .then(() => {
+          setCwd(newCwd);
+        })
+        .catch(() => {
+          void queryClient.invalidateQueries({ queryKey: ["workspace"] });
+        });
+    },
+    [cwd],
+  );
 
   return (
     <WorkspaceContext.Provider value={{ cwd, switchWorkspace }}>

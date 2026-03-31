@@ -1,14 +1,13 @@
-import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { toastManager } from "@/components/ui/toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { CheckCircle2, Clock, Loader2, RotateCcw, Sparkles, XCircle } from "lucide-react";
+import { CheckCircle2, Clock, Loader2, RotateCcw, XCircle } from "lucide-react";
 import { useState } from "react";
 
 import { ipc } from "../lib/ipc";
 import { queryClient } from "../lib/query-client";
 import { useWorkspace } from "../lib/workspace-context";
-import { useAiConfig } from "./ai-explanation";
+import { AiFailureExplainer } from "./ai-failure-explainer";
 import { LogViewer } from "./log-viewer";
 
 /**
@@ -180,10 +179,9 @@ function RerunButton({ cwd, runId }: { cwd: string; runId: number }) {
   });
 
   return (
-    <Button
-      size="sm"
-      variant="ghost"
-      className="text-destructive hover:text-destructive h-6 gap-1 px-1.5"
+    <button
+      type="button"
+      className="text-destructive hover:text-destructive inline-flex h-6 cursor-pointer items-center gap-1 px-1.5"
       onClick={(e) => {
         e.stopPropagation();
         rerunMutation.mutate({ cwd, runId });
@@ -195,7 +193,7 @@ function RerunButton({ cwd, runId }: { cwd: string; runId: number }) {
         className={rerunMutation.isPending ? "animate-spin" : ""}
       />
       <span className="text-[10px]">Re-run</span>
-    </Button>
+    </button>
   );
 }
 
@@ -210,108 +208,4 @@ function formatDuration(startedAt: string, completedAt: string): string {
   const minutes = Math.floor(seconds / 60);
   const remainingSeconds = seconds % 60;
   return `${minutes}m ${remainingSeconds}s`;
-}
-
-// ---------------------------------------------------------------------------
-// AI failure explainer
-// ---------------------------------------------------------------------------
-
-function AiFailureExplainer({
-  checkName,
-  cwd,
-  runId,
-}: {
-  checkName: string;
-  cwd: string;
-  runId: number;
-}) {
-  const config = useAiConfig();
-  const [explanation, setExplanation] = useState<string | null>(null);
-  const [dismissed, setDismissed] = useState(false);
-
-  const logQuery = useQuery({
-    queryKey: ["checks", "logs", cwd, runId],
-    queryFn: () => ipc("checks.logs", { cwd, runId }),
-    staleTime: 60_000,
-    enabled: false, // Only fetch when user clicks
-  });
-
-  const explainMutation = useMutation({
-    mutationFn: async () => {
-      // Fetch logs first if not cached
-      const logResult = await logQuery.refetch();
-      const logText = logResult.data ?? "";
-      // Take the last 200 lines (where errors typically are)
-      const logTail = logText.split("\n").slice(-200).join("\n");
-
-      const prompt = `A CI/CD pipeline has failed. Explain the failure in plain English and suggest a fix. Be concise (3-4 sentences max).\n\nCheck name: ${checkName}\nStatus: Failed\n\nLog output (last 200 lines):\n${logTail}`;
-
-      // Try ACP first
-      try {
-        const acpResult = await ipc("acp.complete", { cwd, text: prompt });
-        return acpResult.text;
-      } catch {
-        // Fall back to direct API
-        return ipc("ai.complete", {
-          provider: config.provider ?? undefined,
-          model: config.model ?? undefined,
-          baseUrl: config.baseUrl ?? undefined,
-          messages: [
-            {
-              role: "system",
-              content:
-                "A CI/CD pipeline has failed. Explain the failure in plain English and suggest a fix. Be concise (3-4 sentences max).",
-            },
-            {
-              role: "user",
-              content: `Check name: ${checkName}\nStatus: Failed\n\nLog output (last 200 lines):\n${logTail}`,
-            },
-          ],
-          maxTokens: 512,
-        });
-      }
-    },
-    onSuccess: (text) => {
-      setExplanation(text);
-    },
-  });
-
-  if (!config.isConfigured || dismissed) {
-    return null;
-  }
-
-  if (explanation) {
-    return (
-      <div className="border-primary/30 bg-bg-surface mt-2 rounded-md border p-3">
-        <div className="flex items-center gap-1.5">
-          <Sparkles
-            size={12}
-            className="text-primary"
-          />
-          <span className="text-primary text-[10px] font-medium">AI Explanation</span>
-          <button
-            type="button"
-            onClick={() => setDismissed(true)}
-            className="text-text-ghost hover:text-text-primary ml-auto cursor-pointer"
-          >
-            <XCircle size={11} />
-          </button>
-        </div>
-        <p className="text-text-secondary mt-1.5 text-xs leading-relaxed">{explanation}</p>
-      </div>
-    );
-  }
-
-  return (
-    <Button
-      size="sm"
-      variant="ghost"
-      className="text-primary hover:text-accent-hover mt-1 gap-1 text-[10px]"
-      onClick={() => explainMutation.mutate()}
-      disabled={explainMutation.isPending}
-    >
-      {explainMutation.isPending ? <Spinner className="h-3 w-3" /> : <Sparkles size={11} />}
-      Explain failure with AI
-    </Button>
-  );
 }

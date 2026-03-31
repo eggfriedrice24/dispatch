@@ -34,18 +34,9 @@ index abc1234..def5678 100644
     expect(hunk.newStart).toBe(1);
     expect(hunk.newCount).toBe(6);
 
-    // Should have hunk-header + 2 context + 1 del + 2 add + 2 context = 8 lines
+    // Should have 2 context + 1 del + 2 add + 2 context = 7 lines
     const lineTypes = hunk.lines.map((l) => l.type);
-    expect(lineTypes).toEqual([
-      "hunk-header",
-      "context",
-      "context",
-      "del",
-      "add",
-      "add",
-      "context",
-      "context",
-    ]);
+    expect(lineTypes).toEqual(["context", "context", "del", "add", "add", "context", "context"]);
   });
 
   it("parses a new file", () => {
@@ -208,15 +199,8 @@ index abc1234..def5678 100644
     const files = parseDiff(raw);
     const { lines } = files[0]!.hunks[0]!;
 
-    // Hunk-header has no line numbers
-    expect(lines[0]).toMatchObject({
-      type: "hunk-header",
-      oldLineNumber: null,
-      newLineNumber: null,
-    });
-
     // First context line: old=3, new=3
-    expect(lines[1]).toMatchObject({
+    expect(lines[0]).toMatchObject({
       type: "context",
       content: "function add(a: number, b: number) {",
       oldLineNumber: 3,
@@ -224,14 +208,14 @@ index abc1234..def5678 100644
     });
 
     // Second context line: old=4, new=4
-    expect(lines[2]).toMatchObject({
+    expect(lines[1]).toMatchObject({
       type: "context",
       oldLineNumber: 4,
       newLineNumber: 4,
     });
 
     // Third context line: old=5, new=5
-    expect(lines[3]).toMatchObject({
+    expect(lines[2]).toMatchObject({
       type: "context",
       content: "}",
       oldLineNumber: 5,
@@ -239,7 +223,7 @@ index abc1234..def5678 100644
     });
 
     // First del: old=6, new=null
-    expect(lines[4]).toMatchObject({
+    expect(lines[3]).toMatchObject({
       type: "del",
       content: "function subtract(a: number, b: number) {",
       oldLineNumber: 6,
@@ -247,7 +231,7 @@ index abc1234..def5678 100644
     });
 
     // Second del: old=7, new=null
-    expect(lines[5]).toMatchObject({
+    expect(lines[4]).toMatchObject({
       type: "del",
       content: "  return a - b;",
       oldLineNumber: 7,
@@ -255,7 +239,7 @@ index abc1234..def5678 100644
     });
 
     // First add: old=null, new=6
-    expect(lines[6]).toMatchObject({
+    expect(lines[5]).toMatchObject({
       type: "add",
       content: "function sub(a: number, b: number) {",
       oldLineNumber: null,
@@ -263,7 +247,7 @@ index abc1234..def5678 100644
     });
 
     // Second add: old=null, new=7
-    expect(lines[7]).toMatchObject({
+    expect(lines[6]).toMatchObject({
       type: "add",
       content: "  const result = a - b;",
       oldLineNumber: null,
@@ -271,7 +255,7 @@ index abc1234..def5678 100644
     });
 
     // Third add: old=null, new=8
-    expect(lines[8]).toMatchObject({
+    expect(lines[7]).toMatchObject({
       type: "add",
       content: "  return result;",
       oldLineNumber: null,
@@ -279,7 +263,7 @@ index abc1234..def5678 100644
     });
 
     // Final context: old=8, new=9
-    expect(lines[9]).toMatchObject({
+    expect(lines[8]).toMatchObject({
       type: "context",
       content: "}",
       oldLineNumber: 8,

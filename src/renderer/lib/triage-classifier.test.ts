@@ -2,7 +2,11 @@ import type { DiffFile } from "./diff-parser";
 
 import { describe, expect, it } from "vitest";
 
-import { classifyFiles } from "./triage-classifier";
+import {
+  buildAiTriageSections,
+  buildHeuristicTriageSections,
+  classifyFiles,
+} from "./triage-classifier";
 
 function createDiffFile(overrides: Partial<DiffFile> = {}): DiffFile {
   return {
@@ -285,11 +289,11 @@ describe("classifyFiles", () => {
   describe("complex scenarios", () => {
     it("handles mixed file types correctly", () => {
       const files = [
-        createDiffFile({ newPath: "src/app.ts" }), // Changed
-        createDiffFile({ newPath: "src/utils.test.ts" }), // Low risk (test)
-        createDiffFile({ newPath: "src/config.ts" }), // Attention (has comment)
-        createDiffFile({ newPath: "package-lock.json" }), // Low risk (lockfile)
-        createDiffFile({ newPath: "src/types.d.ts" }), // Low risk (type def)
+        createDiffFile({ newPath: "src/app.ts" }),
+        createDiffFile({ newPath: "src/utils.test.ts" }),
+        createDiffFile({ newPath: "src/config.ts" }),
+        createDiffFile({ newPath: "package-lock.json" }),
+        createDiffFile({ newPath: "src/types.d.ts" }),
       ];
       const commentCounts = new Map([["src/config.ts", 2]]);
       const annotationPaths = new Set<string>();
@@ -360,5 +364,110 @@ describe("classifyFiles", () => {
 
       expect(result.changed[0]?.annotation).toBe("");
     });
+  });
+});
+
+describe("buildHeuristicTriageSections", () => {
+  it("builds ordered sections from heuristic groups", () => {
+    const groups = classifyFiles(
+      [createDiffFile({ newPath: "src/app.ts" }), createDiffFile({ newPath: "src/app.test.ts" })],
+      new Map([["src/app.ts", 1]]),
+      new Set<string>(),
+      new Set<string>(),
+    );
+
+    expect(buildHeuristicTriageSections(groups)).toEqual([
+      expect.objectContaining({ id: "attention", label: "Needs attention", tone: "attention" }),
+      expect.objectContaining({ id: "low-risk", label: "Low risk", tone: "lowRisk" }),
+    ]);
+  });
+});
+
+describe("buildAiTriageSections", () => {
+  it("maps changed files into fixed triage sections and preserves heuristics", () => {
+    const groups = classifyFiles(
+      [
+        createDiffFile({ newPath: "src/app.ts" }),
+        createDiffFile({ newPath: "src/utils.ts" }),
+        createDiffFile({ newPath: "src/api/schema.ts" }),
+        createDiffFile({ newPath: "src/app.test.ts" }),
+      ],
+      new Map([["src/app.ts", 1]]),
+      new Set<string>(),
+      new Set<string>(),
+    );
+
+    const sections = buildAiTriageSections(groups, {
+      sections: [
+        {
+          sectionId: "ui-ux",
+          paths: ["src/utils.ts"],
+        },
+        {
+          sectionId: "data-contracts",
+          paths: ["src/api/schema.ts"],
+        },
+      ],
+    });
+
+    expect(sections[0]).toEqual(
+      expect.objectContaining({
+        label: "Needs attention",
+        tone: "attention",
+      }),
+    );
+    expect(sections[0]?.files.map((entry) => entry.file.newPath)).toEqual(["src/app.ts"]);
+    expect(sections[1]).toEqual(
+      expect.objectContaining({
+        label: "UI & UX",
+        tone: "changed",
+      }),
+    );
+    expect(sections[1]?.files.map((entry) => entry.file.newPath)).toEqual(["src/utils.ts"]);
+    expect(sections[2]).toEqual(
+      expect.objectContaining({
+        label: "Data & contracts",
+        tone: "changed",
+      }),
+    );
+    expect(sections[2]?.files.map((entry) => entry.file.newPath)).toEqual(["src/api/schema.ts"]);
+    expect(sections[3]).toEqual(
+      expect.objectContaining({
+        label: "Low risk",
+        tone: "lowRisk",
+      }),
+    );
+    expect(sections[3]?.files.map((entry) => entry.file.newPath)).toEqual(["src/app.test.ts"]);
+  });
+
+  it("sends unassigned changed files to Other changes", () => {
+    const groups = classifyFiles(
+      [createDiffFile({ newPath: "src/app.ts" }), createDiffFile({ newPath: "src/utils.ts" })],
+      new Map<string, number>(),
+      new Set<string>(),
+      new Set<string>(),
+    );
+
+    const sections = buildAiTriageSections(groups, {
+      sections: [
+        {
+          sectionId: "core-logic",
+          paths: ["src/app.ts"],
+        },
+      ],
+    });
+
+    expect(sections[0]).toEqual(
+      expect.objectContaining({
+        label: "Core logic",
+      }),
+    );
+    expect(sections[0]?.files.map((entry) => entry.file.newPath)).toEqual(["src/app.ts"]);
+    expect(sections[1]).toEqual(
+      expect.objectContaining({
+        label: "Other changes",
+      }),
+    );
+    expect(sections[1]?.files.map((entry) => entry.file.newPath)).toEqual(["src/utils.ts"]);
   });
 });
