@@ -1,6 +1,9 @@
 import type { AiSuggestion } from "../lib/ai-suggestions";
+/* eslint-disable import/max-dependencies, max-depth, max-params -- Diff rendering is dense and performance-sensitive; targeted tests give better protection than these structural caps here. */
+import type { GhReactionGroup } from "@/shared/ipc";
 import type { Highlighter } from "shiki";
 
+import { cn } from "@/lib/utils";
 import { ChevronDown, ChevronUp, Plus, Search, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -13,7 +16,7 @@ import {
 } from "../lib/diff-parser";
 import { useTheme } from "../lib/theme-context";
 import { AiSuggestionGroup } from "./ai-suggestion-card";
-import { BlamePopover, useBlameHover } from "./blame-popover";
+import { BlameButton } from "./blame-popover";
 import { CiAnnotation, type Annotation } from "./ci-annotation";
 import { CommentComposer } from "./comment-composer";
 import { InlineComment, type ReviewComment } from "./inline-comment";
@@ -49,7 +52,7 @@ interface DiffViewerProps {
   /** Set of thread node IDs that are resolved (from reviewThreads) */
   resolvedThreadIds?: Set<string>;
   /** Reaction data for review comments, keyed by databaseId (as string) */
-  reviewCommentReactions?: Record<string, import("@/shared/ipc").GhReactionGroup[]>;
+  reviewCommentReactions?: Record<string, GhReactionGroup[]>;
   /** AI-generated suggestions, keyed by "path:line" */
   aiSuggestions?: Map<string, AiSuggestion[]>;
   onPostSuggestion?: (suggestion: AiSuggestion, body?: string) => Promise<void>;
@@ -94,7 +97,10 @@ function buildRows(
     });
 
     for (let i = 0; i < hunk.lines.length; i++) {
-      const line = hunk.lines[i]!;
+      const line = hunk.lines[i];
+      if (!line) {
+        break;
+      }
       const next = hunk.lines[i + 1];
       const prev = i > 0 ? hunk.lines[i - 1] : undefined;
 
@@ -192,7 +198,6 @@ export function DiffViewer({
   onDismissSuggestion,
 }: DiffViewerProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const { hoveredLine, anchorRect, onLineEnter, onLineLeave } = useBlameHover();
   const { codeTheme: shikiTheme } = useTheme();
 
   // --- Search state ---
@@ -491,8 +496,6 @@ export function DiffViewer({
           searchQuery={searchQuery}
           searchMatchIndex={clampedMatchIndex}
           activeSearchRef={activeSearchRef}
-          onLineEnter={onLineEnter}
-          onLineLeave={onLineLeave}
           onStartSelect={handleStartSelect}
           onLineHover={handleLineHover}
           onGutterClick={handleGutterClick}
@@ -503,13 +506,6 @@ export function DiffViewer({
           onDismissSuggestion={onDismissSuggestion}
         />
       )}
-
-      <BlamePopover
-        file={filePath}
-        line={hoveredLine}
-        gitRef="HEAD"
-        anchorRect={anchorRect}
-      />
     </div>
   );
 }
@@ -536,7 +532,12 @@ function SplitDiffView({
 
     let i = 0;
     while (i < lineRows.length) {
-      const { line } = lineRows[i]!;
+      const currentRow = lineRows[i];
+      if (!currentRow) {
+        break;
+      }
+
+      const { line } = currentRow;
       if (line.type === "hunk-header") {
         result.push({ left: line, right: null });
         i++;
@@ -696,8 +697,6 @@ function UnifiedDiffView({
   searchQuery,
   searchMatchIndex,
   activeSearchRef,
-  onLineEnter,
-  onLineLeave,
   onStartSelect,
   onLineHover,
   onGutterClick,
@@ -719,14 +718,12 @@ function UnifiedDiffView({
   searchQuery: string;
   searchMatchIndex: number;
   activeSearchRef: React.RefObject<HTMLSpanElement | null>;
-  onLineEnter: (lineNumber: number, rect: { top: number; left: number }) => void;
-  onLineLeave: () => void;
   onStartSelect: (lineNum: number) => void;
   onLineHover: (lineNum: number) => void;
   onGutterClick: (lineNum: number, shiftKey: boolean) => void;
   onCloseComposer?: () => void;
   resolvedThreadIds?: Set<string>;
-  reviewCommentReactions?: Record<string, import("@/shared/ipc").GhReactionGroup[]>;
+  reviewCommentReactions?: Record<string, GhReactionGroup[]>;
   onPostSuggestion?: (suggestion: AiSuggestion, body?: string) => Promise<void>;
   onDismissSuggestion?: (id: string) => void;
 }) {
@@ -772,8 +769,7 @@ function UnifiedDiffView({
               highlighter={highlighter}
               language={language}
               shikiTheme={shikiTheme}
-              onLineEnter={onLineEnter}
-              onLineLeave={onLineLeave}
+              filePath={filePath}
               onStartSelect={onStartSelect}
               onLineHover={onLineHover}
               onGutterClick={onGutterClick}
@@ -832,7 +828,7 @@ function UnifiedDiffView({
               prNumber={prNumber}
               filePath={filePath}
               line={row.endLine}
-              startLine={row.startLine !== row.endLine ? row.startLine : undefined}
+              startLine={row.startLine === row.endLine ? undefined : row.startLine}
               onClose={onCloseComposer}
             />
           );
@@ -850,8 +846,7 @@ function DiffLineRow({
   highlighter,
   language,
   shikiTheme,
-  onLineEnter,
-  onLineLeave,
+  filePath,
   onStartSelect,
   onLineHover,
   onGutterClick,
@@ -868,8 +863,7 @@ function DiffLineRow({
   highlighter: Highlighter | null;
   language: string;
   shikiTheme: string;
-  onLineEnter: (lineNumber: number, rect: { top: number; left: number }) => void;
-  onLineLeave: () => void;
+  filePath: string;
   onStartSelect: (lineNum: number) => void;
   onLineHover: (lineNum: number) => void;
   onGutterClick: (lineNum: number, shiftKey: boolean) => void;
@@ -936,16 +930,11 @@ function DiffLineRow({
       className={`group/line flex ${rowBg} transition-[filter] duration-75 ${
         !isSelected && !isDragging ? "hover:brightness-110" : ""
       }`}
-      onMouseEnter={(e) => {
+      onMouseEnter={() => {
         if (lineNum && isCommentable) {
           onLineHover(lineNum);
         }
-        if (line.newLineNumber && line.type !== "del") {
-          const rect = e.currentTarget.getBoundingClientRect();
-          onLineEnter(line.newLineNumber, { top: rect.top, left: rect.left });
-        }
       }}
-      onMouseLeave={onLineLeave}
     >
       {/* Color bar — subtle accent inset on hover */}
       <div
@@ -953,7 +942,7 @@ function DiffLineRow({
       />
       {/* Line number gutter */}
       <div
-        className={`sticky left-[3px] z-[1] w-10 shrink-0 border-r pr-2 text-right text-[11px] select-none ${
+        className={`sticky left-[3px] z-[1] w-14 shrink-0 border-r pr-2 text-right text-[11px] select-none ${
           isSelected
             ? "border-r-text-secondary/20 text-text-secondary bg-[rgba(155,149,144,0.04)]"
             : line.type === "add"
@@ -965,31 +954,42 @@ function DiffLineRow({
       >
         <div className="relative flex h-5 items-center justify-end">
           {isCommentable && !isComposerActive && (
-            <button
-              type="button"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                if (lineNum) {
-                  onStartSelect(lineNum);
-                }
-              }}
-              onClick={(e) => {
-                if (lineNum) {
-                  onGutterClick(lineNum, e.shiftKey);
-                }
-              }}
-              className="bg-primary text-bg-root absolute top-1/2 left-0.5 flex h-4 w-4 -translate-y-1/2 cursor-pointer items-center justify-center rounded-sm opacity-0 shadow-sm transition-opacity group-hover/line:opacity-100 hover:scale-110"
-              tabIndex={-1}
-              aria-label={`Comment on line ${lineNum}`}
-            >
-              <Plus
-                size={12}
-                strokeWidth={2.5}
-              />
-            </button>
+            <div className="pointer-events-none absolute top-1/2 left-1 flex -translate-y-1/2 items-center gap-1 opacity-0 transition-opacity group-focus-within/line:pointer-events-auto group-focus-within/line:opacity-100 group-hover/line:pointer-events-auto group-hover/line:opacity-100">
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  if (lineNum) {
+                    onStartSelect(lineNum);
+                  }
+                }}
+                onClick={(e) => {
+                  if (lineNum) {
+                    onGutterClick(lineNum, e.shiftKey);
+                  }
+                }}
+                className={lineActionButtonClassName}
+                tabIndex={-1}
+                aria-label={`Comment on line ${lineNum}`}
+              >
+                <Plus
+                  size={11}
+                  strokeWidth={2.5}
+                />
+              </button>
+
+              {line.newLineNumber && line.type !== "del" && (
+                <BlameButton
+                  className={lineActionButtonClassName}
+                  file={filePath}
+                  gitRef="HEAD"
+                  line={line.newLineNumber}
+                />
+              )}
+            </div>
           )}
           <span className="leading-5">
-            {line.type !== "del" ? line.newLineNumber : line.oldLineNumber}
+            {line.type === "del" ? line.oldLineNumber : line.newLineNumber}
           </span>
         </div>
       </div>
@@ -1034,6 +1034,12 @@ function DiffLineRow({
     </div>
   );
 }
+
+const lineActionButtonClassName = cn(
+  "border-border bg-bg-raised text-text-tertiary flex h-4 w-4 items-center justify-center rounded-sm border shadow-sm transition-colors",
+  "hover:border-border-strong hover:bg-bg-elevated hover:text-accent-text",
+  "focus-visible:border-border-accent focus-visible:bg-accent-muted focus-visible:text-accent-text focus-visible:outline-none",
+);
 
 // ---------------------------------------------------------------------------
 // Search-highlighted content (overlays on plain text or tokens)

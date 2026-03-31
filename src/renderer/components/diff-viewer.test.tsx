@@ -6,13 +6,9 @@ import { parseDiff } from "../lib/diff-parser";
 import { DiffViewer } from "./diff-viewer";
 
 vi.mock(import("./blame-popover"), () => ({
-  BlamePopover: () => null,
-  useBlameHover: () => ({
-    hoveredLine: null,
-    anchorRect: null,
-    onLineEnter: vi.fn(),
-    onLineLeave: vi.fn(),
-  }),
+  BlameButton: ({ line }: { line: number }) => (
+    <div data-testid={`blame-button-${line}`}>blame {line}</div>
+  ),
 }));
 
 const MULTI_HUNK_DIFF = `diff --git a/src/example.ts b/src/example.ts
@@ -54,5 +50,18 @@ describe("DiffViewer", () => {
     expect(
       consoleError.mock.calls.some(([message]) => String(message).includes("same key")),
     ).toBeFalsy();
+  });
+
+  it("renders blame actions for non-deleted diff lines", () => {
+    const file = parseDiff(MULTI_HUNK_DIFF)[0]!;
+
+    render(<DiffViewer file={file} />);
+
+    expect(screen.getByTestId("blame-button-1")).toBeInTheDocument();
+    expect(screen.getByTestId("blame-button-2")).toBeInTheDocument();
+    expect(screen.getByTestId("blame-button-3")).toBeInTheDocument();
+    expect(screen.getByTestId("blame-button-10")).toBeInTheDocument();
+    expect(screen.getByTestId("blame-button-11")).toBeInTheDocument();
+    expect(screen.getByTestId("blame-button-12")).toBeInTheDocument();
   });
 });
