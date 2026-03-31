@@ -172,6 +172,7 @@ export function listPrs(
 const PR_DETAIL_FIELDS = [
   "number",
   "title",
+  "state",
   "body",
   "author",
   "headRefName",
@@ -187,9 +188,12 @@ const PR_DETAIL_FIELDS = [
   "labels",
   "createdAt",
   "updatedAt",
+  "closedAt",
+  "mergedAt",
   "url",
   "isDraft",
   "additions",
+  "changedFiles",
   "deletions",
 ].join(",");
 
@@ -197,12 +201,44 @@ export async function getPrDetail(cwd: string, prNumber: number): Promise<GhPrDe
   const { stdout } = await ghExec(["pr", "view", String(prNumber), "--json", PR_DETAIL_FIELDS], {
     cwd,
   });
-  return parseJsonOutput<GhPrDetail>(stdout);
+  const detail = parseJsonOutput<
+    GhPrDetail & {
+      changedFiles: number;
+    }
+  >(stdout);
+  const { changedFiles, ...prDetail } = detail;
+
+  if (changedFiles <= prDetail.files.length) {
+    return prDetail;
+  }
+
+  try {
+    const files = await listPullRequestFiles(cwd, prNumber);
+    return {
+      ...prDetail,
+      files: files.map((file) => ({
+        path: file.filename,
+        additions: file.additions,
+        deletions: file.deletions,
+      })),
+    };
+  } catch {
+    return prDetail;
+  }
 }
 
 export async function getPrDiff(cwd: string, prNumber: number): Promise<string> {
-  const { stdout } = await ghExec(["pr", "diff", String(prNumber)], { cwd });
-  return stdout;
+  try {
+    const { stdout } = await ghExec(["pr", "diff", String(prNumber)], { cwd });
+    return stdout;
+  } catch (error) {
+    if (!shouldFallbackToPullRequestFilesApi(error)) {
+      throw error;
+    }
+
+    const files = await listPullRequestFiles(cwd, prNumber);
+    return buildUnifiedDiffFromPullRequestFiles(files);
+  }
 }
 
 export async function getFileAtRef(
@@ -224,6 +260,105 @@ export async function getFileAtRef(
   } catch {
     return null;
   }
+}
+
+interface PullRequestFileApiItem {
+  filename: string;
+  status: string;
+  additions: number;
+  deletions: number;
+  patch?: string;
+  previous_filename?: string;
+}
+
+const LARGE_PR_DIFF_ERROR_MARKERS = [
+  "exceeded the maximum number of files",
+  "list pull requests files",
+];
+const PULL_REQUEST_FILES_PAGE_SIZE = 100;
+const PULL_REQUEST_FILES_CACHE_TTL_MS = 60_000;
+const DIFF_NULL_PATH = "/dev/null";
+
+function shouldFallbackToPullRequestFilesApi(error: unknown): boolean {
+  const ghErrorText = [
+    (error as Error | undefined)?.message,
+    (error as { stderr?: string } | undefined)?.stderr,
+    (error as { stdout?: string } | undefined)?.stdout,
+  ]
+    .filter((value): value is string => typeof value === "string" && value.length > 0)
+    .join("\n")
+    .toLowerCase();
+
+  return LARGE_PR_DIFF_ERROR_MARKERS.some((marker) => ghErrorText.includes(marker));
+}
+
+function listPullRequestFiles(cwd: string, prNumber: number): Promise<PullRequestFileApiItem[]> {
+  const key = `prFiles::${cwd}::${prNumber}`;
+
+  return getOrLoadCached({
+    cache: genericCache,
+    key,
+    ttl: PULL_REQUEST_FILES_CACHE_TTL_MS,
+    loader: async () => {
+      const { owner, repo } = await getPullRequestRepo(cwd);
+      const files: PullRequestFileApiItem[] = [];
+
+      for (let page = 1; ; page++) {
+        const { stdout } = await ghExec(
+          [
+            "api",
+            `repos/${owner}/${repo}/pulls/${prNumber}/files?per_page=${PULL_REQUEST_FILES_PAGE_SIZE}&page=${page}`,
+          ],
+          { cwd, timeout: 30_000 },
+        );
+        const pageFiles = parseJsonOutput<PullRequestFileApiItem[]>(stdout);
+        files.push(...pageFiles);
+
+        if (pageFiles.length < PULL_REQUEST_FILES_PAGE_SIZE) {
+          break;
+        }
+      }
+
+      return files;
+    },
+  }) as Promise<PullRequestFileApiItem[]>;
+}
+
+function buildUnifiedDiffFromPullRequestFiles(
+  files: ReadonlyArray<PullRequestFileApiItem>,
+): string {
+  return files
+    .map((file) => buildUnifiedDiffSection(file))
+    .filter((section): section is string => section !== null)
+    .join("\n");
+}
+
+function buildUnifiedDiffSection(file: PullRequestFileApiItem): string | null {
+  const headerOldPath =
+    file.status === "renamed" ? (file.previous_filename ?? file.filename) : file.filename;
+  const headerNewPath = file.filename;
+  const oldMarker = file.status === "added" ? DIFF_NULL_PATH : `a/${headerOldPath}`;
+  const newMarker = file.status === "removed" ? DIFF_NULL_PATH : `b/${headerNewPath}`;
+  const lines = [`diff --git a/${headerOldPath} b/${headerNewPath}`];
+
+  if (
+    file.status === "renamed" &&
+    file.previous_filename &&
+    file.previous_filename !== file.filename
+  ) {
+    lines.push(`rename from ${file.previous_filename}`);
+    lines.push(`rename to ${file.filename}`);
+  }
+
+  lines.push(`--- ${oldMarker}`);
+  lines.push(`+++ ${newMarker}`);
+
+  if (file.patch?.trim()) {
+    lines.push(file.patch.trimEnd());
+  }
+
+  const section = lines.join("\n");
+  return section.length > 0 ? section : null;
 }
 
 export async function getPrCommits(

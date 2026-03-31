@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildAiTriageSnapshotKey, parseAiTriagePayload } from "./ai-triage";
+import { buildAiTriagePrompt, buildAiTriageSnapshotKey, parseAiTriagePayload } from "./ai-triage";
 
 const BASE_INPUT = {
   prNumber: 42,
@@ -106,5 +106,27 @@ describe("parseAiTriagePayload", () => {
         }),
       ),
     ).toBeNull();
+  });
+});
+
+describe("buildAiTriagePrompt", () => {
+  it("limits oversized candidate lists and marks the prompt as partial", () => {
+    const prompt = buildAiTriagePrompt({
+      ...BASE_INPUT,
+      files: Array.from({ length: 90 }, (_, index) => ({
+        path: `src/file-${index + 1}.ts`,
+        status: "modified" as const,
+        additions: index + 1,
+        deletions: 0,
+        commentCount: 0,
+        hasAnnotation: false,
+        fallbackBucket: "changed" as const,
+      })),
+    });
+
+    expect(prompt.userPrompt).toContain("Candidate files in prompt: 80/90");
+    expect(prompt.userPrompt).toContain(
+      '10 more changed files were omitted and will remain in "other-changes"',
+    );
   });
 });

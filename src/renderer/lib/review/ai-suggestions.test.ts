@@ -92,4 +92,21 @@ describe("buildSuggestionPrompt", () => {
     expect(prompt[1]?.content).toContain("Existing review comments on this file:");
     expect(prompt[1]?.content).toContain("line 22: We already asked for a null guard here.");
   });
+
+  it("caps oversized changed-file manifests", () => {
+    const prompt = buildSuggestionPrompt(
+      "Tighten auth checks",
+      "Prevents nil tokens from leaking through.",
+      "src/auth.ts",
+      "diff --git a/src/auth.ts b/src/auth.ts",
+      Array.from({ length: 28 }, (_, index) => ({
+        path: `src/file-${index + 1}.ts`,
+        additions: 2,
+        deletions: 1,
+      })),
+      [],
+    );
+
+    expect(prompt[1]?.content).toContain("… 3 more changed files");
+  });
 });

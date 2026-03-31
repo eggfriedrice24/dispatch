@@ -5,6 +5,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { getPreference } from "../db/repository";
 import {
+  getPrDetail,
+  getPrDiff,
   getPrReactions,
   invalidateAllCaches,
   listPrsCore,
@@ -21,6 +23,10 @@ vi.mock("electron", async () => {
   const actual = await vi.importActual<typeof Electron>("electron");
   return {
     ...actual,
+    BrowserWindow: {
+      ...actual.BrowserWindow,
+      getAllWindows: vi.fn(() => []),
+    },
     app: {
       ...actual.app,
       getPath: vi.fn(() => "/tmp/test-dispatch"),
@@ -117,6 +123,55 @@ function createWorkflowRunsStdout(attempt: number): string {
   ]);
 }
 
+function createPrDetailStdout({
+  changedFiles = 1,
+  files = [{ path: "src/a.ts", additions: 3, deletions: 1 }],
+}: {
+  changedFiles?: number;
+  files?: Array<{ path: string; additions: number; deletions: number }>;
+} = {}): string {
+  return JSON.stringify({
+    number: 42,
+    title: "Large review surface",
+    body: "Covers a wide set of changes.",
+    author: { login: "octocat" },
+    headRefName: "feature/huge-pr",
+    baseRefName: "main",
+    headRefOid: "abc123def456",
+    reviewDecision: "REVIEW_REQUIRED",
+    mergeable: "MERGEABLE",
+    mergeStateStatus: "CLEAN",
+    autoMergeRequest: null,
+    statusCheckRollup: [],
+    reviews: [],
+    files,
+    labels: [],
+    createdAt: "2026-03-20T00:00:00Z",
+    updatedAt: "2026-03-20T00:05:00Z",
+    url: "https://github.com/octo/dispatch/pull/42",
+    isDraft: false,
+    additions: 240,
+    changedFiles,
+    deletions: 120,
+  });
+}
+
+function createPullRequestFilesStdout(count: number, start = 1): string {
+  return JSON.stringify(
+    Array.from({ length: count }, (_, index) => {
+      const fileNumber = start + index;
+
+      return {
+        filename: `src/file-${fileNumber}.ts`,
+        status: "modified",
+        additions: 2,
+        deletions: 1,
+        patch: `@@ -1 +1 @@\n-old-${fileNumber}\n+new-${fileNumber}`,
+      };
+    }),
+  );
+}
+
 function resolvePendingRequest(
   resolve: (value: { stdout: string; stderr: string }) => void,
 ): (value: { stdout: string; stderr: string }) => void {
@@ -128,6 +183,8 @@ function noopResolveRequest(): void {}
 describe("gh-cli caching", () => {
   afterEach(() => {
     vi.clearAllMocks();
+    execFileMock.mockReset();
+    getPreferenceMock.mockReset();
     getPreferenceMock.mockReturnValue(null);
     invalidateAllCaches();
   });
@@ -295,6 +352,70 @@ describe("gh-cli caching", () => {
       { title: "After switch" },
     ]);
     expect(execFileMock).toHaveBeenCalledTimes(7);
+  });
+
+  it("falls back to the paginated PR files API when pr diff hits the file limit", async () => {
+    execFileMock
+      .mockRejectedValueOnce(
+        Object.assign(
+          new Error(
+            "Sorry, the diff exceeded the maximum number of files (300). Consider using 'List pull requests files' API.",
+          ),
+          { stderr: "", stdout: "" },
+        ),
+      )
+      .mockResolvedValueOnce({ stdout: createRepoInfoStdout(), stderr: "" })
+      .mockRejectedValueOnce(new Error("merge queue unavailable"))
+      .mockResolvedValueOnce({ stdout: createPullRequestFilesStdout(2), stderr: "" });
+
+    const diff = await getPrDiff("/repo-large-diff", 42);
+
+    expect(diff).toContain("diff --git a/src/file-1.ts b/src/file-1.ts");
+    expect(diff).toContain("@@ -1 +1 @@");
+    expect(execFileMock).toHaveBeenNthCalledWith(1, "gh", ["pr", "diff", "42"], expect.anything());
+    expect(execFileMock).toHaveBeenNthCalledWith(
+      4,
+      "gh",
+      ["api", "repos/octo/dispatch/pulls/42/files?per_page=100&page=1"],
+      expect.anything(),
+    );
+  });
+
+  it("backfills truncated PR file manifests from the paginated PR files API", async () => {
+    execFileMock
+      .mockResolvedValueOnce({
+        stdout: createPrDetailStdout({
+          changedFiles: 101,
+          files: [{ path: "src/file-1.ts", additions: 2, deletions: 1 }],
+        }),
+        stderr: "",
+      })
+      .mockResolvedValueOnce({ stdout: createRepoInfoStdout(), stderr: "" })
+      .mockRejectedValueOnce(new Error("merge queue unavailable"))
+      .mockResolvedValueOnce({ stdout: createPullRequestFilesStdout(100, 1), stderr: "" })
+      .mockResolvedValueOnce({ stdout: createPullRequestFilesStdout(1, 101), stderr: "" });
+
+    const detail = await getPrDetail("/repo-large-detail", 42);
+
+    expect(detail.files).toHaveLength(101);
+    expect(detail.files).toEqual(
+      expect.arrayContaining([
+        { path: "src/file-1.ts", additions: 2, deletions: 1 },
+        { path: "src/file-101.ts", additions: 2, deletions: 1 },
+      ]),
+    );
+    expect(execFileMock).toHaveBeenNthCalledWith(
+      4,
+      "gh",
+      ["api", "repos/octo/dispatch/pulls/42/files?per_page=100&page=1"],
+      expect.anything(),
+    );
+    expect(execFileMock).toHaveBeenNthCalledWith(
+      5,
+      "gh",
+      ["api", "repos/octo/dispatch/pulls/42/files?per_page=100&page=2"],
+      expect.anything(),
+    );
   });
 
   it("uses the upstream repo for PR reactions when the current clone is a fork", async () => {

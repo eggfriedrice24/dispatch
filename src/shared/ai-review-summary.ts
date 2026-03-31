@@ -32,6 +32,7 @@ const FNV_PRIME = 16_777_619;
 const AI_REVIEW_DIFF_BUDGET = 12_000;
 const AI_REVIEW_BASELINE_CHARS_PER_FILE = 320;
 const AI_REVIEW_MAX_CHARS_PER_FILE = 1600;
+const AI_REVIEW_MAX_FILE_LIST_ITEMS = 30;
 
 function hashString(value: string): string {
   let hash = FNV_OFFSET_BASIS;
@@ -79,6 +80,7 @@ export function buildAiReviewContext(
   diffBudget = AI_REVIEW_DIFF_BUDGET,
 ): AiReviewContext {
   const diffSections = splitDiffSections(input.diffSnippet);
+  const totalFiles = Math.max(input.files.length, diffSections.length);
   const totalDiffChars = input.diffSnippet.length;
   const includesPrDescription = input.prBody.trim().length > 0;
   const includesChangedFiles = input.files.length > 0;
@@ -87,7 +89,7 @@ export function buildAiReviewContext(
     return {
       diffExcerpt: input.diffSnippet.slice(0, diffBudget),
       coveredFiles: totalDiffChars > 0 ? 1 : 0,
-      totalFiles: input.files.length,
+      totalFiles,
       usedDiffChars: Math.min(totalDiffChars, diffBudget),
       totalDiffChars,
       truncated: totalDiffChars > diffBudget,
@@ -165,7 +167,7 @@ export function buildAiReviewContext(
   return {
     diffExcerpt: visibleSections.join("\n\n"),
     coveredFiles: excerptLengths.size,
-    totalFiles: diffSections.length,
+    totalFiles,
     usedDiffChars,
     totalDiffChars,
     truncated: usedDiffChars < totalDiffChars,
@@ -298,6 +300,8 @@ function buildPromptBody(
   fileList: string,
   reviewContext: AiReviewContext,
 ): string {
+  const visibleFileCount = Math.min(input.files.length, AI_REVIEW_MAX_FILE_LIST_ITEMS);
+
   return [
     `PR: ${input.prTitle} #${input.prNumber}`,
     `Author: ${input.author}`,
@@ -310,7 +314,7 @@ function buildPromptBody(
     "",
     "Review context available to you:",
     `- PR description: ${reviewContext.includesPrDescription ? "included" : "not provided"}`,
-    `- Changed-file manifest: ${reviewContext.includesChangedFiles ? "included" : "not provided"}`,
+    `- Changed-file manifest: ${reviewContext.includesChangedFiles ? `${visibleFileCount}/${input.files.length} files included` : "not provided"}`,
     `- Diff coverage: ${reviewContext.coveredFiles}/${reviewContext.totalFiles} changed files`,
     `- Diff bytes: ${reviewContext.usedDiffChars}/${reviewContext.totalDiffChars}`,
     `- Whole-codebase context: not included`,
@@ -330,8 +334,12 @@ function formatFileList(
     return "(none)";
   }
 
-  return files
-    .slice(0, 30)
-    .map((file) => `  ${file.path} (+${file.additions}, -${file.deletions})`)
-    .join("\n");
+  const visibleFiles = files
+    .slice(0, AI_REVIEW_MAX_FILE_LIST_ITEMS)
+    .map((file) => `  ${file.path} (+${file.additions}, -${file.deletions})`);
+  if (visibleFiles.length < files.length) {
+    visibleFiles.push(`  ... ${files.length - visibleFiles.length} more changed files omitted`);
+  }
+
+  return visibleFiles.join("\n");
 }

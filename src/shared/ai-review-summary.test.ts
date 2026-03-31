@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildAiReviewContext,
+  buildAiReviewSummaryPrompt,
   buildAiReviewSummarySnapshotKey,
   parseAiReviewConfidencePayload,
   parseAiReviewSummaryPayload,
@@ -83,6 +84,41 @@ describe("buildAiReviewContext", () => {
     expect(reviewContext.includesWholeCodebase).toBeFalsy();
     expect(reviewContext.diffExcerpt).toContain("diff --git a/src/a.ts b/src/a.ts");
     expect(reviewContext.diffExcerpt).toContain("diff --git a/src/b.ts b/src/b.ts");
+  });
+
+  it("uses the changed-file manifest count when the diff surface is partial", () => {
+    const reviewContext = buildAiReviewContext({
+      ...BASE_INPUT,
+      files: [...BASE_INPUT.files, { path: "src/c.ts", additions: 2, deletions: 0 }],
+      diffSnippet: [
+        "diff --git a/src/a.ts b/src/a.ts",
+        "--- a/src/a.ts",
+        "+++ b/src/a.ts",
+        "@@ -1 +1 @@",
+        "-const oldValue = 1;",
+        "+const newValue = 2;",
+      ].join("\n"),
+    });
+
+    expect(reviewContext.coveredFiles).toBe(1);
+    expect(reviewContext.totalFiles).toBe(3);
+    expect(reviewContext.truncated).toBeFalsy();
+  });
+});
+
+describe("buildAiReviewSummaryPrompt", () => {
+  it("marks oversized file manifests as partial", () => {
+    const prompt = buildAiReviewSummaryPrompt({
+      ...BASE_INPUT,
+      files: Array.from({ length: 35 }, (_, index) => ({
+        path: `src/file-${index + 1}.ts`,
+        additions: 2,
+        deletions: 1,
+      })),
+    });
+
+    expect(prompt.userPrompt).toContain("Changed-file manifest: 30/35 files included");
+    expect(prompt.userPrompt).toContain("... 5 more changed files omitted");
   });
 });
 

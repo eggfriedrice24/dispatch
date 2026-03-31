@@ -45,6 +45,7 @@ export interface AiTriageSelectionDefinition {
 const FNV_OFFSET_BASIS = 2_166_136_261;
 const FNV_PRIME = 16_777_619;
 const MAX_SECTION_COUNT = 6;
+const AI_TRIAGE_PROMPT_FILE_LIMIT = 80;
 
 export const AI_TRIAGE_SELECTION_DEFINITIONS: readonly AiTriageSelectionDefinition[] = [
   {
@@ -149,7 +150,26 @@ export function buildAiTriagePrompt(input: AiTriageSnapshotInput): {
   userPrompt: string;
 } {
   const candidateFiles = input.files.filter((file) => file.fallbackBucket === "changed");
-  const fileList = candidateFiles
+  const visibleCandidateFiles = candidateFiles
+    .toSorted((left, right) => {
+      const changeDifference =
+        right.additions + right.deletions - (left.additions + left.deletions);
+      if (changeDifference !== 0) {
+        return changeDifference;
+      }
+
+      if (left.note && !right.note) {
+        return -1;
+      }
+      if (!left.note && right.note) {
+        return 1;
+      }
+
+      return left.path.localeCompare(right.path);
+    })
+    .slice(0, AI_TRIAGE_PROMPT_FILE_LIMIT);
+  const hiddenCandidateCount = candidateFiles.length - visibleCandidateFiles.length;
+  const fileList = visibleCandidateFiles
     .map((file) =>
       [
         `- ${file.path}`,
@@ -168,8 +188,27 @@ export function buildAiTriagePrompt(input: AiTriageSnapshotInput): {
 
   return {
     systemPrompt:
-      'You organize pull request files for a reviewer. Return strict JSON only with the schema {"sections":[{"sectionId":"core-logic|ui-ux|data-contracts|tests-validation|tooling-config|other-changes","paths":["exact/path.ts"]}]}. Use only the allowed sectionIds. Assign every candidate file to exactly one sectionId. Do not invent labels, descriptions, or extra keys. Prefer "other-changes" only when none of the stronger buckets fit. Files already marked as needs-attention or low-risk are handled separately, so classify only the candidate files provided.',
-    userPrompt: `PR: ${input.prTitle} #${input.prNumber}\nAuthor: ${input.author}\n\nDescription:\n${input.prBody}\n\nAvailable sections:\n${AI_TRIAGE_SELECTION_DEFINITIONS.map((section) => `- ${section.id}: ${section.label} — ${section.description}`).join("\n")}\n\nCandidate files to classify:\n${fileList}`,
+      'You organize pull request files for a reviewer. Return strict JSON only with the schema {"sections":[{"sectionId":"core-logic|ui-ux|data-contracts|tests-validation|tooling-config|other-changes","paths":["exact/path.ts"]}]}. Use only the allowed sectionIds. Assign every listed candidate file to exactly one sectionId. Do not invent labels, descriptions, or extra keys. Prefer "other-changes" only when none of the stronger buckets fit. Files already marked as needs-attention or low-risk are handled separately, and any changed files omitted from the prompt will remain in "other-changes" automatically.',
+    userPrompt: [
+      `PR: ${input.prTitle} #${input.prNumber}`,
+      `Author: ${input.author}`,
+      "",
+      "Description:",
+      input.prBody,
+      "",
+      "Available sections:",
+      AI_TRIAGE_SELECTION_DEFINITIONS.map(
+        (section) => `- ${section.id}: ${section.label} — ${section.description}`,
+      ).join("\n"),
+      "",
+      `Candidate files in prompt: ${visibleCandidateFiles.length}/${candidateFiles.length}`,
+      hiddenCandidateCount > 0
+        ? `Only the listed files need classification. ${hiddenCandidateCount} more changed files were omitted and will remain in "other-changes" unless heuristics surface them elsewhere.`
+        : "All candidate files are included below.",
+      "",
+      "Candidate files to classify:",
+      fileList || "(none)",
+    ].join("\n"),
   };
 }
 
