@@ -36,6 +36,7 @@ export function getViewedFiles(repo: string, prNumber: number): string[] {
   return rows.map((r) => r.file_path);
 }
 
+/* eslint-disable-next-line max-params -- These sqlite helpers mirror the table key shape directly. */
 export function setFileViewed(
   repo: string,
   prNumber: number,
@@ -382,6 +383,7 @@ export function getMinimizedComments(repo: string, prNumber: number): string[] {
   return rows.map((r) => r.comment_id);
 }
 
+/* eslint-disable-next-line max-params -- These sqlite helpers mirror the table key shape directly. */
 export function setCommentMinimized(
   repo: string,
   prNumber: number,

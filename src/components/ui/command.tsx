@@ -144,17 +144,17 @@ export function parseCommandQuery(raw: string): ParsedCommandQuery {
 
   // Walk all structured tokens and strip them from the text
   for (const m of raw.matchAll(FILTER_RE)) {
-    const full = m[0];
+    const [full, hashPr, atAuthor, qualifier, value] = m;
 
-    if (m[1]) {
+    if (hashPr) {
       // #1234
-      result.pr = Number.parseInt(m[1], 10);
-    } else if (m[2]) {
+      result.pr = Number.parseInt(hashPr, 10);
+    } else if (atAuthor) {
       // @author
-      result.author = m[2];
-    } else if (m[3] && m[4]) {
-      const key = m[3].toLowerCase();
-      const val = m[4];
+      result.author = atAuthor;
+    } else if (qualifier && value) {
+      const key = qualifier.toLowerCase();
+      const val = value;
       switch (key) {
         case "pr": {
           result.pr = Number.parseInt(val, 10);
@@ -333,7 +333,7 @@ export function CommandCollection({
 function extractText(node: React.ReactNode): string {
   if (node == null || typeof node === "boolean") return "";
   if (typeof node === "string" || typeof node === "number") return String(node);
-  if (Array.isArray(node)) return node.map(extractText).join("");
+  if (Array.isArray(node)) return node.map((child) => extractText(child)).join("");
   if (typeof node === "object" && "props" in node) {
     return extractText((node as React.ReactElement<{ children?: React.ReactNode }>).props.children);
   }

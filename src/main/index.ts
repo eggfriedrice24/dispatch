@@ -1,3 +1,4 @@
+/* eslint-disable no-console -- The Electron main process logs startup and integration failures for local debugging. */
 import { join } from "node:path";
 
 import {
@@ -89,7 +90,8 @@ function configureExternalNavigation(win: BrowserWindow): void {
 
 /** Cache of hostname → token so we don't shell out on every image. */
 const tokenCache = new Map<string, { token: string | null; fetchedAt: number }>();
-const TOKEN_TTL = 300_000; // 5 min
+// 5 minutes.
+const TOKEN_TTL = 300_000;
 
 /**
  * Map CDN / auxiliary GitHub domains to the GitHub host that `gh auth token`
@@ -256,18 +258,17 @@ function updateTrayMenu(win: BrowserWindow, state: TrayState): void {
   }
   trayMenuSignature = nextSignature;
 
-  const menuItems: Electron.MenuItemConstructorOptions[] = [];
-
-  // Header
-  menuItems.push({ label: "Dispatch", enabled: false });
-  menuItems.push({
-    label:
-      reviewCount > 0
-        ? `${reviewCount} PR${reviewCount === 1 ? "" : "s"} need${reviewCount === 1 ? "s" : ""} your review`
-        : "No pending reviews",
-    enabled: false,
-  });
-  menuItems.push({ type: "separator" });
+  const menuItems: Electron.MenuItemConstructorOptions[] = [
+    { label: "Dispatch", enabled: false },
+    {
+      label:
+        reviewCount > 0
+          ? `${reviewCount} PR${reviewCount === 1 ? "" : "s"} need${reviewCount === 1 ? "s" : ""} your review`
+          : "No pending reviews",
+      enabled: false,
+    },
+    { type: "separator" },
+  ];
 
   // Needs Review section
   if (reviewPrs.length > 0) {
@@ -454,7 +455,7 @@ app.whenReady().then(() => {
 
   // Global shortcut: Cmd+Shift+D to open/focus Dispatch from anywhere
   globalShortcut.register("CommandOrControl+Shift+D", () => {
-    const activeWin = BrowserWindow.getAllWindows()[0];
+    const [activeWin] = BrowserWindow.getAllWindows();
     if (activeWin) {
       showAndFocusWindow(activeWin);
     }
@@ -465,7 +466,7 @@ app.whenReady().then(() => {
       createWindow();
     } else {
       // MacOS: clicking dock icon shows the hidden window
-      const activeWin = BrowserWindow.getAllWindows()[0];
+      const [activeWin] = BrowserWindow.getAllWindows();
       if (activeWin) {
         showAndFocusWindow(activeWin);
       }

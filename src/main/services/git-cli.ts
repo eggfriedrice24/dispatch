@@ -26,7 +26,7 @@ export async function blame(args: {
   line: number;
   ref: string;
 }): Promise<BlameLine> {
-  let stdout: string;
+  let stdout = "";
   try {
     const result = await execFile(
       "git",

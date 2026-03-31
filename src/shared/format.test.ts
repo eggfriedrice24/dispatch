@@ -193,14 +193,16 @@ describe("relativeTime", () => {
     });
 
     it("handles dates with milliseconds", () => {
-      const date = new Date(now.getTime() - 90 * 1000 - 500); // 90.5 seconds ago
+      // 90.5 seconds ago.
+      const date = new Date(now.getTime() - 90 * 1000 - 500);
       expect(relativeTime(date, now)).toBe("1 minute ago");
     });
   });
 
   describe("uses current time when now not provided", () => {
     it("calculates relative to Date.now()", () => {
-      const recent = new Date(Date.now() - 30 * 1000); // 30 seconds ago
+      // 30 seconds ago.
+      const recent = new Date(Date.now() - 30 * 1000);
       expect(relativeTime(recent)).toBe("just now");
     });
   });
@@ -239,14 +241,12 @@ describe("relativeTime", () => {
 
     for (const { offset, unit, expected } of testCases) {
       it(`correctly pluralizes ${offset} ${unit}`, () => {
-        let date: Date;
-        if (unit === "minute") {
-          date = new Date(now.getTime() - offset * 60 * 1000);
-        } else if (unit === "hour") {
-          date = new Date(now.getTime() - offset * 60 * 60 * 1000);
-        } else {
-          date = new Date(now.getTime() - offset * 24 * 60 * 60 * 1000);
-        }
+        const date =
+          unit === "minute"
+            ? new Date(now.getTime() - offset * 60 * 1000)
+            : unit === "hour"
+              ? new Date(now.getTime() - offset * 60 * 60 * 1000)
+              : new Date(now.getTime() - offset * 24 * 60 * 60 * 1000);
         expect(relativeTime(date, now)).toBe(expected);
       });
     }

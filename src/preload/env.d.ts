@@ -24,3 +24,5 @@ declare global {
     api: ElectronApi;
   }
 }
+
+export type PreloadApi = ElectronApi;

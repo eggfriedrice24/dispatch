@@ -1,3 +1,4 @@
+/* eslint-disable no-await-in-loop -- Executable fallbacks must be tried sequentially so we can stop on the first working candidate. */
 import { execFile as execFileCb } from "node:child_process";
 import { accessSync, constants, statSync } from "node:fs";
 import { join } from "node:path";
@@ -69,7 +70,7 @@ export async function execFile(
 
   const commandsToTry = getCommandsToTry(command);
 
-  let lastError: unknown;
+  let lastError: unknown = null;
   for (const candidate of commandsToTry) {
     try {
       const { stdout, stderr } = await shellRuntime.execFile(candidate, args, {
@@ -93,7 +94,7 @@ export async function execFile(
     }
   }
 
-  throw lastError;
+  throw lastError instanceof Error ? lastError : new Error(String(lastError));
 }
 
 /**

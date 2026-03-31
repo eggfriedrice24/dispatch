@@ -1,4 +1,4 @@
-import type { AiModelSlot, AiProvider, AiTaskId } from "./ipc";
+import type { AiModelSlot, AiProvider, AiTaskId } from "@/shared/ipc";
 
 export interface AiProviderModelOption {
   label: string;

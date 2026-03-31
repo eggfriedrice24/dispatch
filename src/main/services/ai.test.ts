@@ -1,7 +1,8 @@
+/* eslint-disable import/first -- Vitest mocks must be registered before the module under test is imported. */
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock(import("./shell"), async (importOriginal) => {
-  const actual = await importOriginal<typeof import("./shell")>();
+  const actual = await importOriginal();
   return {
     ...actual,
     resolveExecutablePath: vi.fn(actual.resolveExecutablePath),

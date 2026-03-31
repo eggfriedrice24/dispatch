@@ -6,7 +6,7 @@ exports.default = async function notarizing(context) {
   }
   await notarize({
     appBundleId: "dev.dispatch.app",
-    appPath: context.appOutDir + "/" + context.packager.appInfo.productFilename + ".app",
+    appPath: `${context.appOutDir}/${context.packager.appInfo.productFilename}.app`,
     appleId: process.env.APPLE_ID,
     appleIdPassword: process.env.APPLE_APP_SPECIFIC_PASSWORD,
     teamId: process.env.APPLE_TEAM_ID,

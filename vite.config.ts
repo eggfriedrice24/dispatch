@@ -49,5 +49,7 @@ export default defineConfig({
     exclude: ["node_modules", "dist", "dist-electron"],
     passWithNoTests: true,
     environment: "happy-dom",
+    globals: true,
+    setupFiles: ["./src/test-setup.ts"],
   },
 });

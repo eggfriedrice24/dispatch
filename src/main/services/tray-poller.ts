@@ -1,3 +1,4 @@
+/* eslint-disable no-console -- Background tray polling failures should remain visible during local debugging. */
 import type { GhPrListItem } from "../../shared/ipc";
 
 import { getActiveWorkspace, getWorkspaces } from "../db/repository";
@@ -28,14 +29,15 @@ export function getTrayState(): TrayState {
   return state;
 }
 
-export async function pollOnce(): Promise<TrayState> {
+export function pollOnce(): Promise<TrayState> {
   const activePath = getActiveWorkspace();
   if (!activePath) {
     const workspaces = getWorkspaces();
-    if (workspaces.length === 0) {
-      return state;
+    const [firstWorkspace] = workspaces;
+    if (!firstWorkspace) {
+      return Promise.resolve(state);
     }
-    return pollForCwd(workspaces[0]!.path);
+    return pollForCwd(firstWorkspace.path);
   }
   return pollForCwd(activePath);
 }

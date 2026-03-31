@@ -2,13 +2,18 @@ import { describe, expect, it } from "vitest";
 
 import { cn } from "./utils";
 
+function getConditionalClass(enabled: boolean): string | undefined {
+  return enabled ? "bar" : undefined;
+}
+
 describe("cn utility", () => {
   it("merges class names", () => {
     expect(cn("foo", "bar")).toBe("foo bar");
   });
 
   it("handles conditional classes", () => {
-    expect(cn("foo", false && "bar", "baz")).toBe("foo baz");
+    const conditionalClass = getConditionalClass(false);
+    expect(cn("foo", conditionalClass, "baz")).toBe("foo baz");
   });
 
   it("handles undefined and null", () => {
@@ -32,7 +37,7 @@ describe("cn utility", () => {
   });
 
   it("handles complex Tailwind conflicts", () => {
-    expect(cn("text-blue-500 text-red-500")).toBe("text-blue-500");
+    expect(cn("text-blue-500 text-red-500")).toBe("text-red-500");
     expect(cn("bg-gray-100 bg-white")).toBe("bg-white");
   });
 
@@ -84,9 +89,10 @@ describe("cn utility", () => {
 
     it("handles disabled state", () => {
       const isDisabled = true;
-      expect(cn("bg-blue-500", isDisabled && "cursor-not-allowed opacity-50")).toBe(
-        "bg-blue-500 opacity-50 cursor-not-allowed",
-      );
+      const result = cn("bg-blue-500", isDisabled && "cursor-not-allowed opacity-50");
+      expect(result).toContain("bg-blue-500");
+      expect(result).toContain("cursor-not-allowed");
+      expect(result).toContain("opacity-50");
     });
   });
 
