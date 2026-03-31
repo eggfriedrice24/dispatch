@@ -13,6 +13,8 @@ takes precedence for repo-specific decisions.
 
 **Before writing any UI code, you MUST read `DISPATCH-DESIGN-SYSTEM.md` in the project root.** It is the authoritative specification for every color, font, spacing value, radius, shadow, animation, and component pattern used in this application. Do not improvise or use generic defaults. Every visual decision must trace back to that document.
 
+**Before doing a large refactor or deciding where new files should live, read `ARCHITECTURE.md` in the project root.** It is the authoritative map for current module boundaries, feature folders, IPC contracts, and main-process service splits.
+
 Key things defined there that you must follow:
 
 - **Color system**: Warm undertones only. Background is `#08080a`, not neutral gray. Accent is copper `#d4883a`, not blue.
@@ -46,14 +48,26 @@ Also see `dispatch-design-reference.html` for a living visual reference.
 
 ```
 src/
-  main/            Electron main process (Node.js context)
-  preload/         Preload scripts (contextBridge)
-  renderer/        Vite-served renderer (browser context)
-  shared/          Pure utilities shared across processes
-  components/ui/   coss ui components (owned source, not node_modules)
-  hooks/           Custom React hooks
-  lib/             Shared utilities (cn, etc.)
+  main/                  Electron main process (Node.js context)
+    ipc-handlers/        Domain IPC handler modules
+    services/            Main-process services; `gh-cli/` is split by domain
+  preload/               Preload scripts (contextBridge)
+  renderer/              Vite-served renderer (browser context)
+    components/          Feature-grouped UI (`shell`, `setup`, `settings`, `inbox`, `review`, `workflows`, `shared`)
+    hooks/               Renderer hooks grouped by domain (`ai`, `app`, `preferences`, `review`)
+    lib/                 Renderer utilities grouped by responsibility (`app`, `inbox`, `keyboard`, `review`, `shared`)
+  shared/                Pure utilities shared across processes
+    ipc/contracts/       Typed IPC contracts grouped by domain
+  components/ui/         coss ui components (owned source, not node_modules)
+  hooks/                 Shared hooks outside renderer feature folders
+  lib/                   Shared utilities (cn, etc.)
 ```
+
+Placement rules:
+
+- Put new renderer code in the narrowest feature folder that matches the product area. Do not add new flat catch-all files back under `src/renderer/components`, `src/renderer/hooks`, or `src/renderer/lib`.
+- When a screen grows too large, split it into a composition file plus sibling part files instead of keeping rows, tabs, dialogs, and helpers inline.
+- Add new IPC methods in this order: `src/shared/ipc/contracts/*`, then `src/main/ipc-handlers/*`, then preload exposure, then renderer usage.
 
 ## Commands
 
