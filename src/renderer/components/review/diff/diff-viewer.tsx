@@ -31,9 +31,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
  * - Split/side-by-side diff mode
  */
 
+type CommentSide = "LEFT" | "RIGHT";
+
+interface CommentTarget {
+  line: number;
+  side: CommentSide;
+}
+
 export interface CommentRange {
   startLine: number;
   endLine: number;
+  side: CommentSide;
 }
 
 export type DiffMode = "unified" | "split" | "full-file";
@@ -71,8 +79,20 @@ type FlatRow =
   | { kind: "line"; key: string; line: FlatLine }
   | { kind: "comment"; key: string; comments: ReviewComment[] }
   | { kind: "annotation"; key: string; annotations: Annotation[] }
-  | { kind: "composer"; key: string; startLine: number; endLine: number }
+  | { kind: "composer"; key: string; startLine: number; endLine: number; side: CommentSide }
   | { kind: "ai-suggestion"; key: string; suggestions: AiSuggestion[] };
+
+function getCommentTarget(line: DiffLine): CommentTarget | null {
+  if (line.type === "del" && line.oldLineNumber !== null) {
+    return { line: line.oldLineNumber, side: "LEFT" };
+  }
+
+  if (line.type !== "hunk-header" && line.newLineNumber !== null) {
+    return { line: line.newLineNumber, side: "RIGHT" };
+  }
+
+  return null;
+}
 
 function buildRows(
   file: DiffFile,
@@ -116,7 +136,8 @@ function buildRows(
           pairKey = `line-${hunkIndex}-${i - 1}-${prev.type}-${prev.oldLineNumber ?? "x"}-${prev.newLineNumber ?? "x"}`;
         }
 
-        const lineNum = line.newLineNumber ?? line.oldLineNumber;
+        const commentTarget = getCommentTarget(line);
+        const lineNum = commentTarget?.line;
         rows.push({ kind: "line", key: lineKey, line: { ...line, pairKey } });
 
         if (lineNum) {
@@ -142,12 +163,18 @@ function buildRows(
           }
         }
 
-        if (composerRange && lineNum === composerRange.endLine) {
+        if (
+          composerRange &&
+          commentTarget &&
+          commentTarget.side === composerRange.side &&
+          commentTarget.line === composerRange.endLine
+        ) {
           rows.push({
             kind: "composer",
             key: `composer-${composerRange.startLine}-${composerRange.endLine}`,
             startLine: composerRange.startLine,
             endLine: composerRange.endLine,
+            side: composerRange.side,
           });
         }
       }
@@ -210,20 +237,25 @@ export function DiffViewer({
   const activeSearchRef = useRef<HTMLSpanElement>(null);
 
   // --- Drag-to-select state ---
-  const selectingFromRef = useRef<number | null>(null);
-  const hoverLineRef = useRef<number | null>(null);
-  const [selectingFrom, setSelectingFrom] = useState<number | null>(null);
-  const [hoverLine, setHoverLine] = useState<number | null>(null);
+  const selectingFromRef = useRef<CommentTarget | null>(null);
+  const hoverLineRef = useRef<CommentTarget | null>(null);
+  const [selectingFrom, setSelectingFrom] = useState<CommentTarget | null>(null);
+  const [hoverLine, setHoverLine] = useState<CommentTarget | null>(null);
 
-  const selectionRange = useMemo(() => {
-    if (selectingFrom !== null && hoverLine !== null) {
+  const selectionRange = useMemo<{ side: CommentSide; start: number; end: number } | null>(() => {
+    if (selectingFrom !== null && hoverLine !== null && selectingFrom.side === hoverLine.side) {
       return {
-        start: Math.min(selectingFrom, hoverLine),
-        end: Math.max(selectingFrom, hoverLine),
+        side: selectingFrom.side,
+        start: Math.min(selectingFrom.line, hoverLine.line),
+        end: Math.max(selectingFrom.line, hoverLine.line),
       };
     }
     if (activeComposer) {
-      return { start: activeComposer.startLine, end: activeComposer.endLine };
+      return {
+        side: activeComposer.side,
+        start: activeComposer.startLine,
+        end: activeComposer.endLine,
+      };
     }
     return null;
   }, [selectingFrom, hoverLine, activeComposer]);
@@ -238,10 +270,13 @@ export function DiffViewer({
         hoverLineRef.current = null;
         setSelectingFrom(null);
         setHoverLine(null);
-        onCommentRange?.({
-          startLine: Math.min(from, to),
-          endLine: Math.max(from, to),
-        });
+        if (from.side === to.side) {
+          onCommentRange?.({
+            startLine: Math.min(from.line, to.line),
+            endLine: Math.max(from.line, to.line),
+            side: from.side,
+          });
+        }
       }
     }
     document.addEventListener("mouseup", handleMouseUp);
@@ -250,31 +285,32 @@ export function DiffViewer({
     };
   }, [onCommentRange]);
 
-  const handleStartSelect = useCallback((lineNum: number) => {
-    selectingFromRef.current = lineNum;
-    hoverLineRef.current = lineNum;
-    setSelectingFrom(lineNum);
-    setHoverLine(lineNum);
+  const handleStartSelect = useCallback((target: CommentTarget) => {
+    selectingFromRef.current = target;
+    hoverLineRef.current = target;
+    setSelectingFrom(target);
+    setHoverLine(target);
   }, []);
 
-  const handleLineHover = useCallback((lineNum: number) => {
-    if (selectingFromRef.current !== null) {
-      hoverLineRef.current = lineNum;
-      setHoverLine(lineNum);
+  const handleLineHover = useCallback((target: CommentTarget) => {
+    if (selectingFromRef.current !== null && selectingFromRef.current.side === target.side) {
+      hoverLineRef.current = target;
+      setHoverLine(target);
     }
   }, []);
 
   const handleGutterClick = useCallback(
-    (lineNum: number, shiftKey: boolean) => {
-      if (shiftKey && activeComposer) {
-        const allLines = [activeComposer.startLine, activeComposer.endLine, lineNum];
+    (target: CommentTarget, shiftKey: boolean) => {
+      if (shiftKey && activeComposer && activeComposer.side === target.side) {
+        const allLines = [activeComposer.startLine, activeComposer.endLine, target.line];
         onCommentRange?.({
           startLine: Math.min(...allLines),
           endLine: Math.max(...allLines),
+          side: target.side,
         });
         return;
       }
-      onCommentRange?.({ startLine: lineNum, endLine: lineNum });
+      onCommentRange?.({ startLine: target.line, endLine: target.line, side: target.side });
     },
     [activeComposer, onCommentRange],
   );
@@ -714,15 +750,15 @@ function UnifiedDiffView({
   shikiTheme: string;
   filePath: string;
   prNumber?: number;
-  selectionRange: { start: number; end: number } | null;
+  selectionRange: { side: CommentSide; start: number; end: number } | null;
   activeComposer: CommentRange | null;
   isDragging: boolean;
   searchQuery: string;
   searchMatchIndex: number;
   activeSearchRef: React.RefObject<HTMLSpanElement | null>;
-  onStartSelect: (lineNum: number) => void;
-  onLineHover: (lineNum: number) => void;
-  onGutterClick: (lineNum: number, shiftKey: boolean) => void;
+  onStartSelect: (target: CommentTarget) => void;
+  onLineHover: (target: CommentTarget) => void;
+  onGutterClick: (target: CommentTarget, shiftKey: boolean) => void;
   onCloseComposer?: () => void;
   resolvedThreadIds?: Set<string>;
   reviewCommentReactions?: Record<string, GhReactionGroup[]>;
@@ -756,10 +792,12 @@ function UnifiedDiffView({
     <div className="w-full font-mono text-[12.5px] leading-5">
       {rows.map((row, index) => {
         if (row.kind === "line") {
-          const lineNum = row.line.newLineNumber ?? row.line.oldLineNumber;
+          const commentTarget = getCommentTarget(row.line);
+          const lineNum = commentTarget?.line ?? null;
           const isSelected =
             selectionRange !== null &&
             lineNum !== null &&
+            commentTarget?.side === selectionRange.side &&
             lineNum >= selectionRange.start &&
             lineNum <= selectionRange.end;
 
@@ -780,6 +818,7 @@ function UnifiedDiffView({
               isComposerActive={
                 activeComposer !== null &&
                 lineNum !== null &&
+                commentTarget?.side === activeComposer.side &&
                 lineNum >= activeComposer.startLine &&
                 lineNum <= activeComposer.endLine
               }
@@ -830,6 +869,7 @@ function UnifiedDiffView({
               prNumber={prNumber}
               filePath={filePath}
               line={row.endLine}
+              side={row.side}
               startLine={row.startLine === row.endLine ? undefined : row.startLine}
               onClose={onCloseComposer}
             />
@@ -866,9 +906,9 @@ function DiffLineRow({
   language: string;
   shikiTheme: string;
   filePath: string;
-  onStartSelect: (lineNum: number) => void;
-  onLineHover: (lineNum: number) => void;
-  onGutterClick: (lineNum: number, shiftKey: boolean) => void;
+  onStartSelect: (target: CommentTarget) => void;
+  onLineHover: (target: CommentTarget) => void;
+  onGutterClick: (target: CommentTarget, shiftKey: boolean) => void;
   isSelected: boolean;
   isDragging: boolean;
   isComposerActive?: boolean;
@@ -908,8 +948,9 @@ function DiffLineRow({
       ? safeTokenize(highlighter, line.content, language, shikiTheme)
       : null;
 
-  const lineNum = line.newLineNumber ?? line.oldLineNumber;
-  const isCommentable = Boolean(line.newLineNumber);
+  const commentTarget = getCommentTarget(line);
+  const lineNum = commentTarget?.line ?? null;
+  const isCommentable = commentTarget !== null;
 
   const rowBg = isSelected
     ? "!bg-[rgba(155,149,144,0.08)]"
@@ -933,8 +974,8 @@ function DiffLineRow({
         !isSelected && !isDragging ? "hover:brightness-110" : ""
       }`}
       onMouseEnter={() => {
-        if (lineNum && isCommentable) {
-          onLineHover(lineNum);
+        if (commentTarget) {
+          onLineHover(commentTarget);
         }
       }}
     >
@@ -961,13 +1002,13 @@ function DiffLineRow({
                 type="button"
                 onMouseDown={(e) => {
                   e.preventDefault();
-                  if (lineNum) {
-                    onStartSelect(lineNum);
+                  if (commentTarget) {
+                    onStartSelect(commentTarget);
                   }
                 }}
                 onClick={(e) => {
-                  if (lineNum) {
-                    onGutterClick(lineNum, e.shiftKey);
+                  if (commentTarget) {
+                    onGutterClick(commentTarget, e.shiftKey);
                   }
                 }}
                 className={lineActionButtonClassName}

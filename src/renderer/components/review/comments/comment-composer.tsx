@@ -20,6 +20,7 @@ interface CommentComposerProps {
   prNumber: number;
   filePath: string;
   line: number;
+  side: "LEFT" | "RIGHT";
   startLine?: number;
   onClose: () => void;
 }
@@ -28,6 +29,7 @@ export function CommentComposer({
   prNumber,
   filePath,
   line,
+  side,
   startLine,
   onClose,
 }: CommentComposerProps) {
@@ -41,6 +43,9 @@ export function CommentComposer({
       body: string;
       path: string;
       line: number;
+      side: "LEFT" | "RIGHT";
+      startLine?: number;
+      startSide?: "LEFT" | "RIGHT";
     }) => ipc("pr.createComment", args),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pr", "comments"] });
@@ -60,7 +65,16 @@ export function CommentComposer({
     if (!body.trim()) {
       return;
     }
-    createMutation.mutate({ cwd, prNumber, body: body.trim(), path: filePath, line });
+    createMutation.mutate({
+      cwd,
+      prNumber,
+      body: body.trim(),
+      path: filePath,
+      line,
+      side,
+      startLine,
+      startSide: startLine && startLine !== line ? side : undefined,
+    });
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {

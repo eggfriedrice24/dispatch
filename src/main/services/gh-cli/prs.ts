@@ -857,31 +857,38 @@ export async function createReviewComment(args: {
   body: string;
   path: string;
   line: number;
+  side?: "LEFT" | "RIGHT";
+  startLine?: number;
+  startSide?: "LEFT" | "RIGHT";
 }): Promise<void> {
   const { stdout: commitSha } = await ghExec(
     ["pr", "view", String(args.prNumber), "--json", "headRefOid", "--jq", ".headRefOid"],
     { cwd: args.cwd },
   );
 
-  await ghExec(
-    [
-      "api",
-      `repos/{owner}/{repo}/pulls/${args.prNumber}/comments`,
-      "-X",
-      "POST",
-      "-f",
-      `body=${args.body}`,
-      "-f",
-      `path=${args.path}`,
-      "-F",
-      `line=${args.line}`,
-      "-f",
-      "side=RIGHT",
-      "-f",
-      `commit_id=${commitSha.trim()}`,
-    ],
-    { cwd: args.cwd, timeout: 15_000 },
-  );
+  const side = args.side ?? "RIGHT";
+  const ghArgs = [
+    "api",
+    `repos/{owner}/{repo}/pulls/${args.prNumber}/comments`,
+    "-X",
+    "POST",
+    "-f",
+    `body=${args.body}`,
+    "-f",
+    `path=${args.path}`,
+    "-F",
+    `line=${args.line}`,
+    "-f",
+    `side=${side}`,
+    "-f",
+    `commit_id=${commitSha.trim()}`,
+  ];
+
+  if (args.startLine && args.startLine !== args.line) {
+    ghArgs.push("-F", `start_line=${args.startLine}`, "-f", `start_side=${args.startSide ?? side}`);
+  }
+
+  await ghExec(ghArgs, { cwd: args.cwd, timeout: 15_000 });
   invalidatePrListCaches(args.cwd);
 }
 

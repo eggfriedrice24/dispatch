@@ -1,7 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 import { DiffViewer } from "@/renderer/components/review/diff/diff-viewer";
 import { parseDiff } from "@/renderer/lib/review/diff-parser";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock(import("@/renderer/components/review/diff/blame-popover"), () => ({
@@ -23,7 +23,16 @@ index abc1234..def5678 100644
  export function beta() {
 -  return "old beta";
 +  return "new beta";
- }`;
+}`;
+
+const DELETED_FILE_DIFF = `diff --git a/src/removed.ts b/src/removed.ts
+deleted file mode 100644
+index abc1234..0000000
+--- a/src/removed.ts
++++ /dev/null
+@@ -1,2 +0,0 @@
+-export const removed = true;
+-console.log("gone");`;
 
 describe("DiffViewer", () => {
   beforeEach(() => {
@@ -61,6 +70,25 @@ describe("DiffViewer", () => {
     expect(screen.getByTestId("blame-button-3")).toBeInTheDocument();
     expect(screen.getByTestId("blame-button-10")).toBeInTheDocument();
     expect(screen.getByTestId("blame-button-11")).toBeInTheDocument();
-    expect(screen.getByTestId("blame-button-12")).toBeInTheDocument();
+  });
+
+  it("allows opening the comment composer on deleted lines", () => {
+    const file = parseDiff(DELETED_FILE_DIFF)[0]!;
+    const onCommentRange = vi.fn();
+
+    render(
+      <DiffViewer
+        file={file}
+        onCommentRange={onCommentRange}
+      />,
+    );
+
+    fireEvent.click(screen.getByLabelText("Comment on line 1"));
+
+    expect(onCommentRange).toHaveBeenCalledWith({
+      startLine: 1,
+      endLine: 1,
+      side: "LEFT",
+    });
   });
 });

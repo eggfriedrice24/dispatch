@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { getPreference } from "../db/repository";
 import {
+  createReviewComment,
   getPrDetail,
   getPrDiff,
   getPrReactions,
@@ -254,6 +255,41 @@ describe("gh-cli caching", () => {
       3,
       "gh",
       expect.arrayContaining(["pr", "list", "--limit", "50"]),
+      expect.anything(),
+    );
+  });
+
+  it("creates left-side review comments for deleted lines", async () => {
+    execFileMock
+      .mockResolvedValueOnce({ stdout: "abc123def456\n", stderr: "" })
+      .mockResolvedValueOnce({ stdout: "", stderr: "" });
+
+    await createReviewComment({
+      cwd: "/repo-comments",
+      prNumber: 42,
+      body: "Comment on removed code",
+      path: "src/removed.ts",
+      line: 18,
+      side: "LEFT",
+    });
+
+    expect(execFileMock).toHaveBeenNthCalledWith(
+      2,
+      "gh",
+      expect.arrayContaining([
+        "api",
+        "repos/{owner}/{repo}/pulls/42/comments",
+        "-X",
+        "POST",
+        "-f",
+        "body=Comment on removed code",
+        "-f",
+        "path=src/removed.ts",
+        "-F",
+        "line=18",
+        "-f",
+        "side=LEFT",
+      ]),
       expect.anything(),
     );
   });

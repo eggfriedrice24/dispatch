@@ -86,7 +86,16 @@ export interface PullRequestIpcApi {
   };
   "pr.comments": { args: { cwd: string; prNumber: number }; result: GhReviewComment[] };
   "pr.createComment": {
-    args: { cwd: string; prNumber: number; body: string; path: string; line: number };
+    args: {
+      cwd: string;
+      prNumber: number;
+      body: string;
+      path: string;
+      line: number;
+      side?: "LEFT" | "RIGHT";
+      startLine?: number;
+      startSide?: "LEFT" | "RIGHT";
+    };
     result: void;
   };
   "pr.comment": { args: { cwd: string; prNumber: number; body: string }; result: void };
