@@ -47,6 +47,7 @@ export function WorkflowsDashboard() {
   const [selectedRun, setSelectedRun] = useState<number | null>(initialRunId);
   const [compareRun, setCompareRun] = useState<number | null>(null);
   const [workflowMenuOpen, setWorkflowMenuOpen] = useState(false);
+  const [workflowSearch, setWorkflowSearch] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
 
   /** Shift+click selects a second run for comparison */
@@ -102,6 +103,22 @@ export function WorkflowsDashboard() {
     return workflows.find((w) => w.id === selectedWorkflow)?.name ?? "Unknown";
   }, [selectedWorkflow, workflows]);
 
+  function closeWorkflowMenu() {
+    setWorkflowMenuOpen(false);
+    setWorkflowSearch("");
+  }
+
+  const filteredWorkflows = useMemo(() => {
+    if (!workflowSearch) {
+      return workflows;
+    }
+    const q = workflowSearch.toLowerCase();
+    return workflows.filter((wf) => wf.name.toLowerCase().includes(q));
+  }, [workflows, workflowSearch]);
+
+  const showAllWorkflowsOption =
+    !workflowSearch || "all workflows".includes(workflowSearch.toLowerCase());
+
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       {/* Back to PR header */}
@@ -126,7 +143,13 @@ export function WorkflowsDashboard() {
         <div className="relative">
           <button
             type="button"
-            onClick={() => setWorkflowMenuOpen(!workflowMenuOpen)}
+            onClick={() => {
+              if (workflowMenuOpen) {
+                closeWorkflowMenu();
+              } else {
+                setWorkflowMenuOpen(true);
+              }
+            }}
             className="border-border bg-bg-raised text-text-primary hover:bg-bg-elevated flex cursor-pointer items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs"
           >
             {selectedWorkflowName}
@@ -136,44 +159,90 @@ export function WorkflowsDashboard() {
             />
           </button>
           {workflowMenuOpen && (
-            <div className="border-border bg-bg-elevated absolute top-full left-0 z-20 mt-1 max-h-64 w-56 overflow-y-auto rounded-md border p-1 shadow-lg">
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedWorkflow(null);
-                  setWorkflowMenuOpen(false);
-                }}
-                className={`flex w-full cursor-pointer rounded-sm px-3 py-1.5 text-left text-xs transition-colors ${
-                  selectedWorkflow
-                    ? "text-text-secondary hover:bg-bg-raised"
-                    : "bg-accent-muted text-accent-text"
-                }`}
-              >
-                All workflows
-              </button>
-              {workflows.map((wf) => (
-                <button
-                  key={wf.id}
-                  type="button"
-                  onClick={() => {
-                    setSelectedWorkflow(wf.id);
-                    setWorkflowMenuOpen(false);
-                  }}
-                  className={`flex w-full cursor-pointer items-center gap-2 rounded-sm px-3 py-1.5 text-left text-xs transition-colors ${
-                    selectedWorkflow === wf.id
-                      ? "bg-accent-muted text-accent-text"
-                      : "text-text-secondary hover:bg-bg-raised"
-                  }`}
-                >
-                  <div
-                    className={`h-1.5 w-1.5 rounded-full ${
-                      wf.state === "active" ? "bg-success" : "bg-text-ghost"
-                    }`}
-                  />
-                  {wf.name}
-                </button>
-              ))}
-            </div>
+            <>
+              {/* Click-outside backdrop */}
+              <div
+                className="fixed inset-0 z-10"
+                onClick={closeWorkflowMenu}
+                onKeyDown={() => {}}
+                role="presentation"
+              />
+              <div className="border-border bg-bg-elevated absolute top-full left-0 z-20 mt-1 w-56 rounded-md border shadow-lg">
+                {/* Search input */}
+                <div className="border-border border-b p-1.5">
+                  <div className="bg-bg-raised flex items-center gap-1.5 rounded-sm px-2 py-1">
+                    <Search
+                      size={11}
+                      className="text-text-tertiary shrink-0"
+                    />
+                    <input
+                      ref={(node) => {
+                        if (node) {
+                          node.focus();
+                        }
+                      }}
+                      type="text"
+                      value={workflowSearch}
+                      onChange={(e) => setWorkflowSearch(e.target.value)}
+                      placeholder="Search workflows…"
+                      className="text-text-primary placeholder:text-text-tertiary min-w-0 flex-1 bg-transparent text-xs focus:outline-none"
+                      onKeyDown={(e) => {
+                        e.stopPropagation();
+                        if (e.key === "Escape") {
+                          closeWorkflowMenu();
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+                {/* Workflow list */}
+                <div className="max-h-64 overflow-y-auto p-1">
+                  {showAllWorkflowsOption && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedWorkflow(null);
+                        closeWorkflowMenu();
+                      }}
+                      className={`flex w-full cursor-pointer rounded-sm px-3 py-1.5 text-left text-xs transition-colors ${
+                        selectedWorkflow
+                          ? "text-text-secondary hover:bg-bg-raised"
+                          : "bg-accent-muted text-accent-text"
+                      }`}
+                    >
+                      All workflows
+                    </button>
+                  )}
+                  {filteredWorkflows.map((wf) => (
+                    <button
+                      key={wf.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedWorkflow(wf.id);
+                        closeWorkflowMenu();
+                      }}
+                      className={`flex w-full cursor-pointer items-center gap-2 rounded-sm px-3 py-1.5 text-left text-xs transition-colors ${
+                        selectedWorkflow === wf.id
+                          ? "bg-accent-muted text-accent-text"
+                          : "text-text-secondary hover:bg-bg-raised"
+                      }`}
+                    >
+                      <div
+                        className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                          wf.state === "active" ? "bg-success" : "bg-text-ghost"
+                        }`}
+                      />
+                      {wf.name}
+                    </button>
+                  ))}
+                  {filteredWorkflows.length === 0 && !showAllWorkflowsOption && (
+                    <p className="text-text-tertiary px-3 py-2 text-center text-xs">
+                      No workflows found
+                    </p>
+                  )}
+                </div>
+              </div>
+            </>
           )}
         </div>
 
