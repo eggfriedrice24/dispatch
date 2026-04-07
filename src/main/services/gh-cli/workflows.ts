@@ -3,6 +3,7 @@ import type {
   GhAnnotation,
   GhCheckRun,
   GhWorkflow,
+  GhWorkflowJobGraph,
   GhWorkflowRun,
   GhWorkflowRunDetail,
 } from "../../../shared/ipc";
@@ -220,4 +221,40 @@ export async function getWorkflowYaml(cwd: string, workflowId: string): Promise<
     cwd,
   });
   return stdout;
+}
+
+export function getWorkflowJobGraph(
+  cwd: string,
+  workflowId: string,
+): Promise<GhWorkflowJobGraph> {
+  const key = `workflowJobGraph::${cwd}::${workflowId}`;
+  return getOrLoadCached({
+    cache: genericCache,
+    key,
+    loader: async () => {
+      const yamlContent = await getWorkflowYaml(cwd, workflowId);
+
+      // Dynamic import so the yaml package is only loaded when needed
+      const { parse } = await import("yaml");
+      const parsed = parse(yamlContent) as {
+        jobs?: Record<string, { needs?: string | string[] }>;
+      } | null;
+
+      if (!parsed?.jobs) {
+        return { jobs: [] };
+      }
+
+      const jobs = Object.entries(parsed.jobs).map(([id, definition]) => {
+        const rawNeeds = definition?.needs;
+        const needs: string[] = Array.isArray(rawNeeds)
+          ? rawNeeds
+          : typeof rawNeeds === "string"
+            ? [rawNeeds]
+            : [];
+        return { id, needs };
+      });
+
+      return { jobs };
+    },
+  }) as Promise<GhWorkflowJobGraph>;
 }

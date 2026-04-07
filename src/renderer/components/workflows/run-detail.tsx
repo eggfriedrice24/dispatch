@@ -13,6 +13,8 @@ import {
   ChevronDown,
   ChevronRight,
   ChevronUp,
+  GitBranch,
+  List,
   Loader2,
   RotateCcw,
   Search,
@@ -21,10 +23,14 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { LogViewer } from "./log-viewer";
+import { WorkflowFlowchart } from "./workflow-flowchart";
 
 /**
  * Run detail panel — Gantt-style job timeline + step viewer + log search.
+ * Supports two view modes: "timeline" (default Gantt + logs) and "flowchart" (DAG graph).
  */
+
+type DetailViewMode = "timeline" | "flowchart";
 
 interface RunDetailProps {
   cwd: string;
@@ -32,6 +38,7 @@ interface RunDetailProps {
 }
 
 export function RunDetail({ cwd, runId }: RunDetailProps) {
+  const [viewMode, setViewMode] = useState<DetailViewMode>("timeline");
   const [logSearch, setLogSearch] = useState("");
   const [matchIndex, setMatchIndex] = useState(0);
   const [matchCount, setMatchCount] = useState(0);
@@ -51,6 +58,23 @@ export function RunDetail({ cwd, runId }: RunDetailProps) {
     queryFn: () => ipc("workflows.runDetail", { cwd, runId }),
     refetchInterval: 10_000,
   });
+
+  // Resolve workflow name → workflow ID for the flowchart view
+  const workflowsQuery = useQuery({
+    queryKey: ["workflows", "list", cwd],
+    queryFn: () => ipc("workflows.list", { cwd }),
+    enabled: viewMode === "flowchart",
+    staleTime: 60_000,
+  });
+
+  const resolvedWorkflowId = useMemo(() => {
+    const workflowName = detailQuery.data?.workflowName;
+    if (!workflowName || !workflowsQuery.data) {
+      return null;
+    }
+    const match = workflowsQuery.data.find((wf) => wf.name === workflowName);
+    return match ? String(match.id) : null;
+  }, [detailQuery.data?.workflowName, workflowsQuery.data]);
 
   const rerunMutation = useMutation({
     mutationFn: () => ipc("workflows.rerunAll", { cwd, runId }),
@@ -110,10 +134,19 @@ export function RunDetail({ cwd, runId }: RunDetailProps) {
     <div className="flex flex-col">
       {/* Header */}
       <div className="border-border border-b px-4 py-3">
-        <h3 className="text-text-primary text-sm font-semibold">{run.displayTitle}</h3>
-        <p className="text-text-tertiary mt-0.5 font-mono text-[11px]">
-          {run.workflowName} · {run.headBranch} · {run.headSha.slice(0, 8)}
-        </p>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <h3 className="text-text-primary text-sm font-semibold">{run.displayTitle}</h3>
+            <p className="text-text-tertiary mt-0.5 font-mono text-[11px]">
+              {run.workflowName} · {run.headBranch} · {run.headSha.slice(0, 8)}
+            </p>
+          </div>
+          {/* View mode toggle */}
+          <ViewModeToggle
+            value={viewMode}
+            onChange={setViewMode}
+          />
+        </div>
         <div className="mt-2 flex items-center gap-1.5">
           <Button
             size="sm"
@@ -153,78 +186,131 @@ export function RunDetail({ cwd, runId }: RunDetailProps) {
         )}
       </div>
 
-      {/* Log search bar */}
-      <div className="border-border flex items-center gap-2 border-b px-4 py-2">
-        <Search
-          size={13}
-          className="text-text-tertiary shrink-0"
-        />
-        <input
-          ref={searchInputRef}
-          type="text"
-          value={logSearch}
-          onChange={(e) => setLogSearch(e.target.value)}
-          placeholder="Search logs..."
-          className="text-text-primary placeholder:text-text-tertiary min-w-0 flex-1 bg-transparent text-xs focus:outline-none"
-          onKeyDown={(e) => {
-            if (e.key === "Escape") {
-              setLogSearch("");
-              (e.target as HTMLElement).blur();
-            }
-            if (e.key === "Enter") {
-              if (e.shiftKey) {
-                setMatchIndex((i) => (i > 0 ? i - 1 : matchCount - 1));
-              } else {
-                setMatchIndex((i) => (i < matchCount - 1 ? i + 1 : 0));
-              }
-            }
-          }}
-        />
-        {logSearch && matchCount > 0 && (
-          <div className="flex items-center gap-1">
-            <span className="text-text-tertiary font-mono text-[10px]">
-              {matchIndex + 1}/{matchCount}
-            </span>
-            <button
-              type="button"
-              onClick={() => setMatchIndex((i) => (i > 0 ? i - 1 : matchCount - 1))}
-              className="text-text-tertiary hover:text-text-primary cursor-pointer rounded-sm p-0.5"
-            >
-              <ChevronUp size={12} />
-            </button>
-            <button
-              type="button"
-              onClick={() => setMatchIndex((i) => (i < matchCount - 1 ? i + 1 : 0))}
-              className="text-text-tertiary hover:text-text-primary cursor-pointer rounded-sm p-0.5"
-            >
-              <ChevronDown size={12} />
-            </button>
+      {viewMode === "flowchart" ? (
+        workflowsQuery.isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Spinner className="text-primary h-5 w-5" />
           </div>
-        )}
-        {logSearch && matchCount === 0 && (
-          <span className="text-text-ghost text-[10px]">No matches</span>
-        )}
-      </div>
-
-      {/* Gantt timeline */}
-      <div className="border-border border-b px-4 py-3">
-        <GanttTimeline jobs={run.jobs} />
-      </div>
-
-      {/* Job list */}
-      <div className="flex-1">
-        {run.jobs.map((job) => (
-          <JobRow
-            key={job.name}
-            job={job}
+        ) : (
+          <WorkflowFlowchart
             cwd={cwd}
-            runId={runId}
-            searchQuery={logSearch}
-            activeMatchIndex={matchIndex}
-            onMatchCountChange={handleMatchCountChange}
+            workflowId={resolvedWorkflowId}
+            jobs={run.jobs}
           />
-        ))}
-      </div>
+        )
+      ) : (
+        <>
+          {/* Log search bar */}
+          <div className="border-border flex items-center gap-2 border-b px-4 py-2">
+            <Search
+              size={13}
+              className="text-text-tertiary shrink-0"
+            />
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={logSearch}
+              onChange={(e) => setLogSearch(e.target.value)}
+              placeholder="Search logs..."
+              className="text-text-primary placeholder:text-text-tertiary min-w-0 flex-1 bg-transparent text-xs focus:outline-none"
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  setLogSearch("");
+                  (e.target as HTMLElement).blur();
+                }
+                if (e.key === "Enter") {
+                  if (e.shiftKey) {
+                    setMatchIndex((i) => (i > 0 ? i - 1 : matchCount - 1));
+                  } else {
+                    setMatchIndex((i) => (i < matchCount - 1 ? i + 1 : 0));
+                  }
+                }
+              }}
+            />
+            {logSearch && matchCount > 0 && (
+              <div className="flex items-center gap-1">
+                <span className="text-text-tertiary font-mono text-[10px]">
+                  {matchIndex + 1}/{matchCount}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setMatchIndex((i) => (i > 0 ? i - 1 : matchCount - 1))}
+                  className="text-text-tertiary hover:text-text-primary cursor-pointer rounded-sm p-0.5"
+                >
+                  <ChevronUp size={12} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMatchIndex((i) => (i < matchCount - 1 ? i + 1 : 0))}
+                  className="text-text-tertiary hover:text-text-primary cursor-pointer rounded-sm p-0.5"
+                >
+                  <ChevronDown size={12} />
+                </button>
+              </div>
+            )}
+            {logSearch && matchCount === 0 && (
+              <span className="text-text-ghost text-[10px]">No matches</span>
+            )}
+          </div>
+
+          {/* Gantt timeline */}
+          <div className="border-border border-b px-4 py-3">
+            <GanttTimeline jobs={run.jobs} />
+          </div>
+
+          {/* Job list */}
+          <div className="flex-1">
+            {run.jobs.map((job) => (
+              <JobRow
+                key={job.name}
+                job={job}
+                cwd={cwd}
+                runId={runId}
+                searchQuery={logSearch}
+                activeMatchIndex={matchIndex}
+                onMatchCountChange={handleMatchCountChange}
+              />
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// View mode toggle (design system §8.11 toggle groups)
+// ---------------------------------------------------------------------------
+
+function ViewModeToggle({
+  value,
+  onChange,
+}: {
+  value: DetailViewMode;
+  onChange: (mode: DetailViewMode) => void;
+}) {
+  const options: Array<{ mode: DetailViewMode; icon: typeof List; label: string }> = [
+    { mode: "timeline", icon: List, label: "Timeline" },
+    { mode: "flowchart", icon: GitBranch, label: "Graph" },
+  ];
+
+  return (
+    <div className="border-border bg-bg-raised flex shrink-0 items-center gap-0 rounded-md border p-0.5">
+      {options.map(({ mode, icon: Icon, label }) => (
+        <button
+          key={mode}
+          type="button"
+          onClick={() => onChange(mode)}
+          className={`flex cursor-pointer items-center gap-1.5 rounded px-2.5 py-1 text-[11px] transition-all ${
+            value === mode
+              ? "bg-bg-elevated text-text-primary shadow-sm"
+              : "text-text-tertiary hover:text-text-secondary"
+          }`}
+        >
+          <Icon size={12} />
+          {label}
+        </button>
+      ))}
     </div>
   );
 }

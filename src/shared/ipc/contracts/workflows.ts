@@ -1,4 +1,4 @@
-import type { GhWorkflow, GhWorkflowRun, GhWorkflowRunDetail } from "../../ipc";
+import type { GhWorkflow, GhWorkflowJobGraph, GhWorkflowRun, GhWorkflowRunDetail } from "../../ipc";
 
 export interface WorkflowIpcApi {
   "workflows.list": { args: { cwd: string }; result: GhWorkflow[] };
@@ -14,4 +14,8 @@ export interface WorkflowIpcApi {
   "workflows.cancel": { args: { cwd: string; runId: number }; result: void };
   "workflows.rerunAll": { args: { cwd: string; runId: number }; result: void };
   "workflows.yaml": { args: { cwd: string; workflowId: string }; result: string };
+  "workflows.jobGraph": {
+    args: { cwd: string; workflowId: string };
+    result: GhWorkflowJobGraph;
+  };
 }
