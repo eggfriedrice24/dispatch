@@ -26,6 +26,7 @@ import {
 } from "../../shared/ai-provider-settings";
 import * as repo from "../db/repository";
 import { resolveClaudeSuggestedModels } from "./claude-models";
+import { resolveOpencodeSuggestedModels } from "./opencode-models";
 
 const AI_PREFERENCE_KEYS = [
   LEGACY_AI_PREFERENCE_KEYS.provider,
@@ -106,6 +107,7 @@ interface AiProviderStatusConfig {
 
 interface ResolveAiConfigFromSourcesOptions {
   claudeSuggestedModels?: string[];
+  opencodeSuggestedModels?: string[];
 }
 
 const GENERIC_ENV_KEYS = {
@@ -576,6 +578,7 @@ export function resolveAiConfigFromSources(
       env,
       provider: "opencode",
       activeProviderForLegacy,
+      suggestedModels: options.opencodeSuggestedModels ?? [],
     }),
   } as const satisfies Record<AiProvider, AiProviderResolvedConfig>;
 
@@ -627,6 +630,7 @@ export function resolveAiConfigFromSources(
 export function getAiConfig(): AiResolvedConfig {
   return resolveAiConfigFromSources(readAiPreferences(), process.env, {
     claudeSuggestedModels: resolveClaudeSuggestedModels(process.env),
+    opencodeSuggestedModels: resolveOpencodeSuggestedModels(),
   });
 }
 
@@ -650,7 +654,12 @@ export function getAiProviderConfigWithSecrets(
     provider,
     activeProviderForLegacy: legacyProviderSelection.provider,
     overrides,
-    suggestedModels: provider === "claude" ? resolveClaudeSuggestedModels(process.env) : [],
+    suggestedModels:
+      provider === "claude"
+        ? resolveClaudeSuggestedModels(process.env)
+        : provider === "opencode"
+          ? resolveOpencodeSuggestedModels()
+          : [],
   });
 
   return {

@@ -12,6 +12,7 @@ import {
   getAiSlotConfigWithSecrets,
   getAiTaskConfigWithSecrets,
 } from "./ai-config";
+import { refreshOpencodeModelsCache } from "./opencode-models";
 import { execFile, resolveExecutablePath, whichVersion } from "./shell";
 
 interface AiMessage {
@@ -590,6 +591,10 @@ async function probeOpencodeStatus(): Promise<AiProviderStatus> {
       statusText: "Not installed",
     };
   }
+
+  // Refresh the available-models cache while we know the binary is reachable.
+  // The result is used synchronously by getAiConfig().
+  await refreshOpencodeModelsCache();
 
   // opencode doesn't have a dedicated auth status command; if the binary
   // exists we report it as available. Authentication is handled per-provider
