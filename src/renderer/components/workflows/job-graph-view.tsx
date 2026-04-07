@@ -198,7 +198,7 @@ function resolveNodeStatus(conclusion: string | null, status: string) {
       spin: false,
     };
   }
-  if (status === "in_progress" || status === "queued") {
+  if (status === "in_progress") {
     return {
       icon: Loader2,
       color: "text-warning",
@@ -207,6 +207,16 @@ function resolveNodeStatus(conclusion: string | null, status: string) {
       spin: true,
     };
   }
+  if (status === "completed") {
+    return {
+      icon: CheckCircle2,
+      color: "text-text-tertiary",
+      borderColor: "border-border",
+      bgColor: "bg-bg-raised",
+      spin: false,
+    };
+  }
+  // Queued or unknown
   return {
     icon: Loader2,
     color: "text-text-ghost",
