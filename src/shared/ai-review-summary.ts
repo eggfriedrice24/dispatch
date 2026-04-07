@@ -58,6 +58,168 @@ function extractJsonObject(raw: string): string | null {
   return candidate.slice(startIndex, endIndex + 1);
 }
 
+function consumeLooseJsonEscape(
+  value: string,
+  index: number,
+): {
+  decoded: string;
+  nextIndex: number;
+} {
+  const nextCharacter = value[index + 1];
+
+  if (nextCharacter === undefined) {
+    return {
+      decoded: "\\",
+      nextIndex: index,
+    };
+  }
+
+  if (nextCharacter === '"' || nextCharacter === "\\" || nextCharacter === "/") {
+    return {
+      decoded: nextCharacter,
+      nextIndex: index + 1,
+    };
+  }
+
+  if (nextCharacter === "b") {
+    return {
+      decoded: "\b",
+      nextIndex: index + 1,
+    };
+  }
+
+  if (nextCharacter === "f") {
+    return {
+      decoded: "\f",
+      nextIndex: index + 1,
+    };
+  }
+
+  if (nextCharacter === "n") {
+    return {
+      decoded: "\n",
+      nextIndex: index + 1,
+    };
+  }
+
+  if (nextCharacter === "r") {
+    return {
+      decoded: "\r",
+      nextIndex: index + 1,
+    };
+  }
+
+  if (nextCharacter === "t") {
+    return {
+      decoded: "\t",
+      nextIndex: index + 1,
+    };
+  }
+
+  if (nextCharacter === "u") {
+    const codePoint = value.slice(index + 2, index + 6);
+    if (/^[\da-fA-F]{4}$/u.test(codePoint)) {
+      return {
+        decoded: String.fromCodePoint(Number.parseInt(codePoint, 16)),
+        nextIndex: index + 5,
+      };
+    }
+
+    return {
+      decoded: "u",
+      nextIndex: index + 1,
+    };
+  }
+
+  return {
+    decoded: nextCharacter,
+    nextIndex: index + 1,
+  };
+}
+
+function decodeLooseJsonString(value: string): string {
+  let decoded = "";
+
+  for (let index = 0; index < value.length; index += 1) {
+    const character = value[index];
+
+    if (character === "\\") {
+      const escape = consumeLooseJsonEscape(value, index);
+      decoded += escape.decoded;
+      index = escape.nextIndex;
+    } else {
+      decoded += character;
+    }
+  }
+
+  return decoded;
+}
+
+function extractLooseJsonStringField(raw: string, key: string): string | null {
+  const keyPattern = new RegExp(`"${key}"\\s*:\\s*"`, "u");
+  const match = keyPattern.exec(raw);
+
+  if (!match) {
+    return null;
+  }
+
+  let value = "";
+  let index = match.index + match[0].length;
+
+  while (index < raw.length) {
+    const character = raw[index];
+
+    if (character === "\\") {
+      value += character;
+      index += 1;
+      if (index < raw.length) {
+        value += raw[index];
+        index += 1;
+      }
+      continue;
+    }
+
+    if (character === '"') {
+      const remainder = raw.slice(index + 1).trimStart();
+      if (remainder.startsWith("}") || remainder.startsWith(",")) {
+        return decodeLooseJsonString(value).trim();
+      }
+    }
+
+    value += character;
+    index += 1;
+  }
+
+  return null;
+}
+
+function extractLooseJsonIntegerField(raw: string, key: string): number | null {
+  const match = raw.match(new RegExp(`"${key}"\\s*:\\s*(-?\\d+)`, "u"));
+  if (!match) {
+    return null;
+  }
+
+  const parsed = Number.parseInt(match[1] ?? "", 10);
+  return Number.isInteger(parsed) ? parsed : null;
+}
+
+function extractFallbackSummary(raw: string): string | null {
+  const fencedMatch = raw.match(/```(?:markdown|md|text)?\s*([\s\S]*?)```/iu);
+  const candidate = (fencedMatch?.[1] ?? raw).trim();
+  const markdownListPattern = /^(?:[-*]\s.+|\d+\.\s.+)(?:\n(?:[-*]\s.+|\d+\.\s.+))*$/u;
+
+  if (
+    !candidate ||
+    candidate.includes("{") ||
+    candidate.includes('"summary"') ||
+    !markdownListPattern.test(candidate)
+  ) {
+    return null;
+  }
+
+  return candidate;
+}
+
 export function buildAiReviewSummarySnapshotKey(input: AiReviewSummarySnapshotInput): string {
   const normalizedFiles = input.files
     .toSorted((left, right) => left.path.localeCompare(right.path))
@@ -186,7 +348,7 @@ export function buildAiReviewSummaryPrompt(input: AiReviewSummarySnapshotInput):
 
   return {
     systemPrompt:
-      'You write pull request sidebar summaries for a busy reviewer. Return strict JSON only in the shape {"summary":"markdown"}. The summary must be markdown with at most 3 bullets and under 90 words. Do not restate the PR title, author, or description. Focus on the code changes and the one or two areas that deserve review attention. If there is no notable risk, omit the risk bullet. Do not claim repository-wide understanding beyond the supplied review context.',
+      'You write pull request sidebar summaries for a busy reviewer. Return strict JSON only in the shape {"summary":"markdown"}. Escape line breaks inside JSON strings as \\n, never as literal newlines. The summary must be markdown with at most 3 bullets and under 90 words. Do not restate the PR title, author, or description. Focus on the code changes and the one or two areas that deserve review attention. If there is no notable risk, omit the risk bullet. Do not claim repository-wide understanding beyond the supplied review context.',
     userPrompt: buildPromptBody(input, fileList, reviewContext),
   };
 }
@@ -207,26 +369,26 @@ export function buildAiReviewConfidencePrompt(input: AiReviewSummarySnapshotInpu
 
 export function parseAiReviewSummaryPayload(raw: string): AiReviewSummaryPayload | null {
   const json = extractJsonObject(raw);
-  if (!json) {
-    return null;
-  }
-
-  const parsed: unknown = (() => {
-    try {
-      return JSON.parse(json);
-    } catch {
-      return null;
-    }
-  })();
-
-  if (!parsed || typeof parsed !== "object") {
-    return null;
-  }
-
-  const candidate = parsed as {
-    summary?: unknown;
-  };
-  const summary = typeof candidate.summary === "string" ? candidate.summary.trim() : "";
+  const parsed: unknown = json
+    ? (() => {
+        try {
+          return JSON.parse(json);
+        } catch {
+          return null;
+        }
+      })()
+    : null;
+  const candidate =
+    parsed && typeof parsed === "object"
+      ? (parsed as {
+          summary?: unknown;
+        })
+      : null;
+  const summary =
+    (typeof candidate?.summary === "string" ? candidate.summary.trim() : "") ||
+    (json ? extractLooseJsonStringField(json, "summary") : null) ||
+    extractFallbackSummary(raw) ||
+    "";
 
   if (!summary) {
     return null;
@@ -239,26 +401,24 @@ export function parseAiReviewSummaryPayload(raw: string): AiReviewSummaryPayload
 
 export function parseAiReviewConfidencePayload(raw: string): AiReviewConfidencePayload | null {
   const json = extractJsonObject(raw);
-  if (!json) {
-    return null;
-  }
-
-  const parsed: unknown = (() => {
-    try {
-      return JSON.parse(json);
-    } catch {
-      return null;
-    }
-  })();
-
-  if (!parsed || typeof parsed !== "object") {
-    return null;
-  }
-
-  const candidate = parsed as {
-    confidenceScore?: unknown;
-  };
-  const confidenceValue = candidate.confidenceScore;
+  const parsed: unknown = json
+    ? (() => {
+        try {
+          return JSON.parse(json);
+        } catch {
+          return null;
+        }
+      })()
+    : null;
+  const candidate =
+    parsed && typeof parsed === "object"
+      ? (parsed as {
+          confidenceScore?: unknown;
+        })
+      : null;
+  const confidenceValue =
+    candidate?.confidenceScore ??
+    (json ? extractLooseJsonIntegerField(json, "confidenceScore") : null);
   const confidenceScore =
     typeof confidenceValue === "number" && Number.isInteger(confidenceValue)
       ? confidenceValue

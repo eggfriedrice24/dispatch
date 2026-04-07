@@ -147,6 +147,28 @@ describe("parseAiReviewSummaryPayload", () => {
     });
   });
 
+  it("recovers summary text from malformed JSON strings with literal newlines", () => {
+    expect(
+      parseAiReviewSummaryPayload(`{
+  "summary": "- Focus on the cache invalidation path.
+- Verify the stale snapshot refresh flow."
+}`),
+    ).toEqual({
+      summary: "- Focus on the cache invalidation path.\n- Verify the stale snapshot refresh flow.",
+    });
+  });
+
+  it("accepts direct markdown responses when the model skips the JSON wrapper", () => {
+    expect(
+      parseAiReviewSummaryPayload(
+        "- Focus on the cached summary invalidation path.\n- Review the stale snapshot refresh handling.",
+      ),
+    ).toEqual({
+      summary:
+        "- Focus on the cached summary invalidation path.\n- Review the stale snapshot refresh handling.",
+    });
+  });
+
   it("rejects invalid payloads", () => {
     expect(parseAiReviewSummaryPayload("not json")).toBeNull();
     expect(
@@ -181,5 +203,11 @@ describe("parseAiReviewConfidencePayload", () => {
         }),
       ),
     ).toBeNull();
+  });
+
+  it("recovers confidence scores from malformed JSON", () => {
+    expect(parseAiReviewConfidencePayload('{"confidenceScore": 72,}')).toEqual({
+      confidenceScore: 72,
+    });
   });
 });
