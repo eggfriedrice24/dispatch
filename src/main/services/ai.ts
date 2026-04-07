@@ -330,7 +330,10 @@ export function resolveCopilotCommandSpec(binaryPath: string | null): ResolvedCo
   );
 }
 
-function createCliError(provider: "codex" | "claude" | "copilot" | "opencode", detail: string): Error {
+function createCliError(
+  provider: "codex" | "claude" | "copilot" | "opencode",
+  detail: string,
+): Error {
   const providerName =
     provider === "codex"
       ? "Codex"

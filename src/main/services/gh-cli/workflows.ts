@@ -223,10 +223,7 @@ export async function getWorkflowYaml(cwd: string, workflowId: string): Promise<
   return stdout;
 }
 
-export function getWorkflowJobGraph(
-  cwd: string,
-  workflowId: string,
-): Promise<GhWorkflowJobGraph> {
+export function getWorkflowJobGraph(cwd: string, workflowId: string): Promise<GhWorkflowJobGraph> {
   const key = `workflowJobGraph::${cwd}::${workflowId}`;
   return getOrLoadCached({
     cache: genericCache,

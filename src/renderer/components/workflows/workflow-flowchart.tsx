@@ -47,7 +47,6 @@ interface WorkflowFlowchartProps {
 }
 
 export function WorkflowFlowchart({ cwd, workflowId, jobs }: WorkflowFlowchartProps) {
-
   const graphQuery = useQuery({
     queryKey: ["workflows", "jobGraph", cwd, workflowId],
     queryFn: () => {

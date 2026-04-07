@@ -31,6 +31,8 @@ fixPath();
 // Window configuration
 // ---------------------------------------------------------------------------
 
+const APP_DISPLAY_NAME = "Dispatch";
+
 const WINDOW_CONFIG: BrowserWindowConstructorOptions = {
   width: 1400,
   height: 900,
@@ -53,7 +55,48 @@ const WINDOW_CONFIG: BrowserWindowConstructorOptions = {
 // App lifecycle
 // ---------------------------------------------------------------------------
 
-app.name = "Dispatch";
+app.setName(APP_DISPLAY_NAME);
+
+function configureApplicationMenu(): void {
+  if (process.platform !== "darwin") {
+    return;
+  }
+
+  const applicationMenu = Menu.buildFromTemplate([
+    {
+      label: APP_DISPLAY_NAME,
+      submenu: [
+        {
+          label: `About ${APP_DISPLAY_NAME}`,
+          role: "about",
+        },
+        { type: "separator" },
+        { role: "services" },
+        { type: "separator" },
+        {
+          label: `Hide ${APP_DISPLAY_NAME}`,
+          role: "hide",
+        },
+        { role: "hideOthers" },
+        { role: "unhide" },
+        { type: "separator" },
+        {
+          accelerator: "Command+Q",
+          label: `Quit ${APP_DISPLAY_NAME}`,
+          click: () => {
+            app.quit();
+          },
+        },
+      ],
+    },
+    { role: "fileMenu" },
+    { role: "editMenu" },
+    { role: "viewMenu" },
+    { role: "windowMenu" },
+  ]);
+
+  Menu.setApplicationMenu(applicationMenu);
+}
 
 let isQuitting = false;
 
@@ -417,6 +460,8 @@ function prSize(lines: number): string {
 // ---------------------------------------------------------------------------
 
 app.whenReady().then(() => {
+  configureApplicationMenu();
+
   // Dock icon (macOS, dev mode)
   if (process.platform === "darwin") {
     const dockIcon = nativeImage.createFromPath(join(__dirname, "../resources/dock-icon.png"));
