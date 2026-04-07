@@ -202,6 +202,15 @@ export function SettingsView() {
     () => new Map((aiProvidersQuery.data ?? []).map((status) => [status.provider, status])),
     [aiProvidersQuery.data],
   );
+  const availableProviders = useMemo<Set<AiProvider> | undefined>(() => {
+    if (!aiProvidersQuery.data) {
+      return undefined;
+    }
+
+    return new Set(
+      aiProvidersQuery.data.filter((status) => status.available).map((status) => status.provider),
+    );
+  }, [aiProvidersQuery.data]);
   const [expandedAiProvider, setExpandedAiProvider] = useState<AiProvider | null>(null);
   const [providerTestState, setProviderTestState] = useState<
     Partial<Record<AiProvider, AiProviderTestState>>
@@ -845,6 +854,7 @@ export function SettingsView() {
                         helperText={slotHelperText}
                         usageText={`Used by ${formatTaskList(slotTaskLabels)}.`}
                         providerModelOptions={[...providerModelOptions]}
+                        availableProviders={availableProviders}
                         onSelectProvider={(provider) =>
                           savePref(providerPreferenceKey, provider ?? "none")
                         }

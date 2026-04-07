@@ -310,6 +310,7 @@ export function AiModelSlotCard({
   helperText,
   usageText,
   providerModelOptions,
+  availableProviders,
   onSelectProvider,
   onChangeModel,
   onSelectModel,
@@ -320,10 +321,14 @@ export function AiModelSlotCard({
   helperText: string;
   usageText: string;
   providerModelOptions: Array<{ label: string; value: string }>;
+  availableProviders?: ReadonlySet<AiProvider>;
   onSelectProvider: (provider: AiProvider | null) => void;
   onChangeModel: (value: string) => void;
   onSelectModel: (value: string) => void;
 }) {
+  const visibleProviders = availableProviders
+    ? AI_PROVIDER_LIST.filter((entry) => availableProviders.has(entry.id) || entry.id === provider)
+    : AI_PROVIDER_LIST;
   return (
     <div className="border-border overflow-hidden rounded-xl border bg-[linear-gradient(180deg,rgba(255,255,255,0.015),rgba(255,255,255,0)),radial-gradient(circle_at_top_left,rgba(212,136,58,0.06),transparent_44%)] shadow-sm">
       <div className="border-border-subtle border-b px-4 py-3">
@@ -355,7 +360,7 @@ export function AiModelSlotCard({
             >
               Off
             </button>
-            {AI_PROVIDER_LIST.map((providerOption) => (
+            {visibleProviders.map((providerOption) => (
               <button
                 key={providerOption.id}
                 type="button"
