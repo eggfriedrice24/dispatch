@@ -101,6 +101,7 @@ const PREF_KEYS = [
   ...AI_TASK_SLOT_SCOPED_PREFERENCE_KEYS,
   "botTitleTags",
   "botUsernames",
+  "autoCollapseBotUsernames",
   "defaultDiffView",
   "defaultFileNav",
   "displayNameFormat",

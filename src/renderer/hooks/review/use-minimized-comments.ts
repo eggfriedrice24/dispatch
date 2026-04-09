@@ -19,21 +19,40 @@ export function useMinimizedComments(repo: string, prNumber: number) {
 
   const minimizedSet = new Set(minimizedIds);
 
+  const isCommentMinimized = useCallback(
+    (commentId: string, autoMinimized = false) => {
+      const hasExplicitOverride = minimizedSet.has(commentId);
+      return autoMinimized ? !hasExplicitOverride : hasExplicitOverride;
+    },
+    [minimizedSet],
+  );
+
   const toggleMinimized = useCallback(
-    (commentId: string) => {
-      const isCurrentlyMinimized = minimizedSet.has(commentId);
+    (commentId: string, autoMinimized = false) => {
+      const isCurrentlyMinimized = isCommentMinimized(commentId, autoMinimized);
       const newMinimized = !isCurrentlyMinimized;
+
+      const shouldPersistExplicitMinimized = autoMinimized ? !newMinimized : newMinimized;
 
       // Optimistic update
       queryClient.setQueryData<string[]>(queryKey, (old = []) =>
-        newMinimized ? [...old, commentId] : old.filter((id) => id !== commentId),
+        shouldPersistExplicitMinimized
+          ? old.includes(commentId)
+            ? old
+            : [...old, commentId]
+          : old.filter((id) => id !== commentId),
       );
 
       // Persist
-      ipc("comment.setMinimized", { repo, prNumber, commentId, minimized: newMinimized });
+      ipc("comment.setMinimized", {
+        repo,
+        prNumber,
+        commentId,
+        minimized: shouldPersistExplicitMinimized,
+      });
     },
-    [repo, prNumber, minimizedSet, queryClient, queryKey],
+    [isCommentMinimized, prNumber, queryClient, queryKey, repo],
   );
 
-  return { minimizedSet, toggleMinimized };
+  return { isCommentMinimized, toggleMinimized };
 }

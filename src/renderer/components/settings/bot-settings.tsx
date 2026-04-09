@@ -1,4 +1,5 @@
 import {
+  BOT_AUTO_COLLAPSE_PREFERENCE_KEY,
   DEFAULT_BOT_USERNAMES,
   parseJsonArray,
 } from "@/renderer/hooks/preferences/use-bot-settings";
@@ -19,6 +20,10 @@ export function BotSettings({
   const botUsernames = useMemo(
     () => parseJsonArray(prefs.botUsernames ?? null),
     [prefs.botUsernames],
+  );
+  const autoCollapseBotUsernames = useMemo(
+    () => parseJsonArray(prefs[BOT_AUTO_COLLAPSE_PREFERENCE_KEY] ?? null),
+    [prefs[BOT_AUTO_COLLAPSE_PREFERENCE_KEY]],
   );
 
   return (
@@ -61,6 +66,22 @@ export function BotSettings({
             </span>
           ))}
         </div>
+      </section>
+
+      <section className="mt-8">
+        <h3 className="text-text-primary text-sm font-medium">Auto-Collapse Comment Bots</h3>
+        <p className="text-text-tertiary mt-0.5 text-xs">
+          Comments from these bots start collapsed in review threads and the conversation timeline.
+        </p>
+        <TagInput
+          tags={autoCollapseBotUsernames}
+          onChange={(tags) => savePref(BOT_AUTO_COLLAPSE_PREFERENCE_KEY, JSON.stringify(tags))}
+          placeholder="e.g. coderabbit, my-org-review-bot"
+        />
+        <p className="text-text-ghost mt-2 text-[10px] leading-[1.5]">
+          Add exact usernames for bots you want to keep out of the way by default. You can still
+          expand individual comments when needed.
+        </p>
       </section>
     </>
   );

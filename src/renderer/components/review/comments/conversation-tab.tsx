@@ -45,8 +45,8 @@ export function ConversationTab({
   onReviewClick,
   issueCommentReactions,
 }: ConversationTabProps) {
-  const { isBot } = useBotSettings();
-  const { minimizedSet, toggleMinimized } = useMinimizedComments(repo, prNumber);
+  const { isBot, shouldAutoCollapseBot } = useBotSettings();
+  const { isCommentMinimized, toggleMinimized } = useMinimizedComments(repo, prNumber);
 
   // Build a unified timeline from reviews (status events) and issue comments (content events)
   const timeline = buildTimeline({
@@ -120,10 +120,13 @@ export function ConversationTab({
               filePath={event.filePath}
               repo={repo}
               isBot={event.isBot}
+              autoCollapse={shouldAutoCollapseBot(event.login)}
               prNumber={prNumber}
               onClick={() => onReviewClick(event.login)}
-              minimized={minimizedSet.has(event.commentId)}
-              onToggleMinimized={() => toggleMinimized(event.commentId)}
+              minimized={isCommentMinimized(event.commentId, shouldAutoCollapseBot(event.login))}
+              onToggleMinimized={() =>
+                toggleMinimized(event.commentId, shouldAutoCollapseBot(event.login))
+              }
               reactions={event.reactions}
             />
           );
@@ -334,6 +337,7 @@ export function ContentEvent({
   filePath,
   repo,
   isBot: isBotUser,
+  autoCollapse,
   prNumber,
   onClick,
   minimized,
@@ -348,6 +352,7 @@ export function ContentEvent({
   filePath?: string;
   repo: string;
   isBot: boolean;
+  autoCollapse: boolean;
   prNumber: number;
   onClick: () => void;
   minimized: boolean;
@@ -471,6 +476,9 @@ export function ContentEvent({
             />
           </div>
         </>
+      )}
+      {autoCollapse && minimized && (
+        <div className="text-text-ghost pl-6 text-[10px]">Auto-collapsed for this bot</div>
       )}
 
       {/* Context menu */}

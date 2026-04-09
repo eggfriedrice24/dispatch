@@ -2,7 +2,9 @@ import { ipc } from "@/renderer/lib/app/ipc";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 
-const BOT_PREF_KEYS = ["botTitleTags", "botUsernames"];
+export const BOT_AUTO_COLLAPSE_PREFERENCE_KEY = "autoCollapseBotUsernames";
+
+const BOT_PREF_KEYS = ["botTitleTags", "botUsernames", BOT_AUTO_COLLAPSE_PREFERENCE_KEY];
 
 /** Regex patterns that always match bot usernames (not configurable). */
 const DEFAULT_BOT_PATTERNS = [/\[bot\]$/i, /-bot$/i];
@@ -40,6 +42,10 @@ export function useBotSettings() {
   const prefs = prefsQuery.data ?? {};
   const customUsernames = useMemo(() => parseJsonArray(prefs.botUsernames), [prefs.botUsernames]);
   const titleTags = useMemo(() => parseJsonArray(prefs.botTitleTags), [prefs.botTitleTags]);
+  const autoCollapseUsernames = useMemo(
+    () => parseJsonArray(prefs[BOT_AUTO_COLLAPSE_PREFERENCE_KEY]),
+    [prefs[BOT_AUTO_COLLAPSE_PREFERENCE_KEY]],
+  );
 
   const isBot = useMemo(() => {
     const allUsernames = [...DEFAULT_BOT_USERNAMES, ...customUsernames];
@@ -66,5 +72,20 @@ export function useBotSettings() {
     [titleTags],
   );
 
-  return { isBot, isBotPr, titleTags, customUsernames };
+  const shouldAutoCollapseBot = useMemo(() => {
+    const autoCollapseSet = new Set(
+      autoCollapseUsernames.map((username) => username.toLowerCase()),
+    );
+
+    return (login: string): boolean => autoCollapseSet.has(login.toLowerCase());
+  }, [autoCollapseUsernames]);
+
+  return {
+    isBot,
+    isBotPr,
+    titleTags,
+    customUsernames,
+    autoCollapseUsernames,
+    shouldAutoCollapseBot,
+  };
 }

@@ -74,9 +74,9 @@ export function InlineComment({
   reviewCommentReactions,
 }: InlineCommentProps) {
   const { cwd } = useWorkspace();
-  const { isBot } = useBotSettings();
+  const { isBot, shouldAutoCollapseBot } = useBotSettings();
   const repoKey = repo || cwd;
-  const { minimizedSet, toggleMinimized } = useMinimizedComments(repoKey, prNumber ?? 0);
+  const { isCommentMinimized, toggleMinimized } = useMinimizedComments(repoKey, prNumber ?? 0);
 
   const roots = comments.filter((c) => !c.in_reply_to_id);
   const replies = comments.filter((c) => Boolean(c.in_reply_to_id));
@@ -95,10 +95,11 @@ export function InlineComment({
             replies={threadReplies}
             prNumber={prNumber}
             showBorder={i > 0}
-            minimizedSet={minimizedSet}
             toggleMinimized={toggleMinimized}
             resolvedThreadIds={resolvedThreadIds}
             isBot={isBot}
+            shouldAutoCollapseBot={shouldAutoCollapseBot}
+            isCommentMinimized={isCommentMinimized}
             reviewCommentReactions={reviewCommentReactions}
           />
         );
@@ -108,10 +109,16 @@ export function InlineComment({
         <>
           {humanRoots.length > 0 && <div className="border-border border-t" />}
           <BotCommentGroup
+            key={botRoots
+              .map(
+                (comment) => `${comment.user.login}:${shouldAutoCollapseBot(comment.user.login)}`,
+              )
+              .join("|")}
             comments={botRoots}
-            minimizedSet={minimizedSet}
             toggleMinimized={toggleMinimized}
             isBot={isBot}
+            shouldAutoCollapseBot={shouldAutoCollapseBot}
+            isCommentMinimized={isCommentMinimized}
             reviewCommentReactions={reviewCommentReactions}
           />
         </>
@@ -129,20 +136,22 @@ function CommentThread({
   replies,
   prNumber,
   showBorder,
-  minimizedSet,
   toggleMinimized,
   resolvedThreadIds,
   isBot,
+  shouldAutoCollapseBot,
+  isCommentMinimized,
   reviewCommentReactions,
 }: {
   root: ReviewComment;
   replies: ReviewComment[];
   prNumber?: number;
   showBorder: boolean;
-  minimizedSet: Set<string>;
-  toggleMinimized: (commentId: string) => void;
+  toggleMinimized: (commentId: string, autoMinimized?: boolean) => void;
   resolvedThreadIds?: Set<string>;
   isBot: (login: string) => boolean;
+  shouldAutoCollapseBot: (login: string) => boolean;
+  isCommentMinimized: (commentId: string, autoMinimized?: boolean) => boolean;
   reviewCommentReactions?: Record<string, GhReactionGroup[]>;
 }) {
   const [collapsed, setCollapsed] = useState(false);
@@ -172,8 +181,10 @@ function CommentThread({
             isRoot
             onReply={() => setShowReply(true)}
             prNumber={prNumber}
-            minimized={minimizedSet.has(String(root.id))}
-            onToggleMinimized={() => toggleMinimized(String(root.id))}
+            minimized={isCommentMinimized(String(root.id), shouldAutoCollapseBot(root.user.login))}
+            onToggleMinimized={() =>
+              toggleMinimized(String(root.id), shouldAutoCollapseBot(root.user.login))
+            }
             resolvedThreadIds={resolvedThreadIds}
             isBot={isBot}
             reactions={reviewCommentReactions?.[String(root.id)]}
@@ -187,8 +198,13 @@ function CommentThread({
                 comment={reply}
                 onReply={() => setShowReply(true)}
                 prNumber={prNumber}
-                minimized={minimizedSet.has(String(reply.id))}
-                onToggleMinimized={() => toggleMinimized(String(reply.id))}
+                minimized={isCommentMinimized(
+                  String(reply.id),
+                  shouldAutoCollapseBot(reply.user.login),
+                )}
+                onToggleMinimized={() =>
+                  toggleMinimized(String(reply.id), shouldAutoCollapseBot(reply.user.login))
+                }
                 isBot={isBot}
                 reactions={reviewCommentReactions?.[String(reply.id)]}
               />
@@ -299,18 +315,23 @@ function ReplyComposer({
 
 function BotCommentGroup({
   comments,
-  minimizedSet,
   toggleMinimized,
   isBot,
+  shouldAutoCollapseBot,
+  isCommentMinimized,
   reviewCommentReactions,
 }: {
   comments: ReviewComment[];
-  minimizedSet: Set<string>;
-  toggleMinimized: (commentId: string) => void;
+  toggleMinimized: (commentId: string, autoMinimized?: boolean) => void;
   isBot: (login: string) => boolean;
+  shouldAutoCollapseBot: (login: string) => boolean;
+  isCommentMinimized: (commentId: string, autoMinimized?: boolean) => boolean;
   reviewCommentReactions?: Record<string, GhReactionGroup[]>;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const allCommentsAutoCollapsed = comments.every((comment) =>
+    shouldAutoCollapseBot(comment.user.login),
+  );
+  const [expanded, setExpanded] = useState(() => !allCommentsAutoCollapsed);
   const botNames = [...new Set(comments.map((c) => c.user.login))];
 
   return (
@@ -332,7 +353,16 @@ function BotCommentGroup({
           className="bg-accent-muted border-border-accent flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[8px]"
           style={{ color: "var(--accent-text)" }}
         >
-          ✦
+          <svg
+            width="8"
+            height="8"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
+            <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
+          </svg>
         </span>
         <span className="text-accent-text font-medium">{botNames.join(", ")}</span>
         <span className="bg-accent-muted text-accent-text border-border-accent rounded-xs border px-1 text-[9px] font-semibold tracking-[0.04em] uppercase">
@@ -341,6 +371,9 @@ function BotCommentGroup({
         <span className="text-text-tertiary">
           {comments.length} comment{comments.length > 1 ? "s" : ""}
         </span>
+        {allCommentsAutoCollapsed && (
+          <span className="text-text-ghost font-mono text-[10px]">Auto-collapsed</span>
+        )}
         <span className="ml-auto">
           {expanded ? (
             <ChevronDown
@@ -363,8 +396,13 @@ function BotCommentGroup({
           >
             <CommentBody
               comment={comment}
-              minimized={minimizedSet.has(String(comment.id))}
-              onToggleMinimized={() => toggleMinimized(String(comment.id))}
+              minimized={isCommentMinimized(
+                String(comment.id),
+                shouldAutoCollapseBot(comment.user.login),
+              )}
+              onToggleMinimized={() =>
+                toggleMinimized(String(comment.id), shouldAutoCollapseBot(comment.user.login))
+              }
               isBot={isBot}
               reactions={reviewCommentReactions?.[String(comment.id)]}
             />
@@ -639,8 +677,8 @@ function CommentBody({
             }}
           >
             <svg
-              width="13"
-              height="13"
+              width="8"
+              height="8"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
