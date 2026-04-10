@@ -8,6 +8,10 @@ export interface ReviewStateIpcApi {
     args: { repo: string; prNumber: number; filePath: string; viewed: boolean };
     result: void;
   };
+  "review.setFilesViewed": {
+    args: { repo: string; prNumber: number; filePaths: string[]; viewed: boolean };
+    result: void;
+  };
   "prActivity.list": { args: void; result: PrActivityState[] };
   "prActivity.markSeen": {
     args: { repo: string; prNumber: number; updatedAt: string };

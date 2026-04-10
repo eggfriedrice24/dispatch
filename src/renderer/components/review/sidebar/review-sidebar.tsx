@@ -15,7 +15,7 @@ import { summarizePrChecks } from "@/renderer/lib/review/pr-check-status";
 import { classifyFiles } from "@/renderer/lib/review/triage-classifier";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Search } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 /**
  * Review sidebar — PR-REVIEW-REDESIGN.md § Sidebar — Review (260px)
@@ -85,6 +85,7 @@ export function ReviewSidebar({ prNumber, onBack, onSelectPr }: ReviewSidebarPro
     queryFn: () => ipc("review.viewedFiles", { repo: repoName, prNumber }),
   });
   const viewedFiles = useMemo(() => new Set(viewedQuery.data), [viewedQuery.data]);
+  const refetchViewedFiles = viewedQuery.refetch;
 
   // Comments for file badges
   const commentsQuery = useQuery({
@@ -165,6 +166,27 @@ export function ReviewSidebar({ prNumber, onBack, onSelectPr }: ReviewSidebarPro
   // File search
   const [fileSearch, setFileSearch] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
+
+  const handleSetFilesViewed = useCallback(
+    (filePaths: string[], viewed: boolean) => {
+      void ipc("review.setFilesViewed", {
+        repo: repoName,
+        prNumber,
+        filePaths,
+        viewed,
+      }).then(() => {
+        void refetchViewedFiles();
+      });
+    },
+    [repoName, prNumber, refetchViewedFiles],
+  );
+
+  const handleToggleViewed = useCallback(
+    (filePath: string, viewed: boolean) => {
+      handleSetFilesViewed([filePath], viewed);
+    },
+    [handleSetFilesViewed],
+  );
 
   return (
     <div className="bg-bg-surface flex h-full flex-col">
@@ -278,20 +300,8 @@ export function ReviewSidebar({ prNumber, onBack, onSelectPr }: ReviewSidebarPro
                 commentCounts={selectedCommit ? new Map() : fileCommentCounts}
                 cwd={cwd}
                 prNumber={prNumber}
-                onToggleViewed={
-                  selectedCommit
-                    ? undefined
-                    : (filePath, viewed) => {
-                        ipc("review.setFileViewed", {
-                          repo: repoName,
-                          prNumber,
-                          filePath,
-                          viewed,
-                        }).then(() => {
-                          viewedQuery.refetch();
-                        });
-                      }
-                }
+                onToggleViewed={selectedCommit ? undefined : handleToggleViewed}
+                onSetFilesViewed={selectedCommit ? undefined : handleSetFilesViewed}
               />
             </div>
           )}

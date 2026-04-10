@@ -8,6 +8,7 @@ export const reviewHandlers: Pick<
   | "review.saveSha"
   | "review.viewedFiles"
   | "review.setFileViewed"
+  | "review.setFilesViewed"
   | "prActivity.list"
   | "prActivity.markSeen"
   | "comment.getMinimized"
@@ -20,6 +21,9 @@ export const reviewHandlers: Pick<
   "review.viewedFiles": (args) => repo.getViewedFiles(args.repo, args.prNumber),
   "review.setFileViewed": (args) => {
     repo.setFileViewed(args.repo, args.prNumber, args.filePath, args.viewed);
+  },
+  "review.setFilesViewed": (args) => {
+    repo.setFilesViewed(args);
   },
   "prActivity.list": () => Promise.resolve(repo.getPrActivityStates()),
   "prActivity.markSeen": (args) =>

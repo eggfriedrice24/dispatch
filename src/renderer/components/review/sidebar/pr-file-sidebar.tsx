@@ -6,7 +6,7 @@ import { parseDiff, type DiffFile } from "@/renderer/lib/review/diff-parser";
 import { useFileNav } from "@/renderer/lib/review/file-nav-context";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft } from "lucide-react";
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 
 /**
  * PR file sidebar — replaces the PR inbox when a PR is selected.
@@ -46,6 +46,7 @@ export function PrFileSidebar({ prNumber, onBack }: PrFileSidebarProps) {
     queryFn: () => ipc("review.viewedFiles", { repo: repoName, prNumber }),
   });
   const viewedFiles = useMemo(() => new Set(viewedQuery.data), [viewedQuery.data]);
+  const refetchViewedFiles = viewedQuery.refetch;
 
   // Comments for file badges
   const commentsQuery = useQuery({
@@ -63,6 +64,27 @@ export function PrFileSidebar({ prNumber, onBack }: PrFileSidebarProps) {
     }
     return counts;
   }, [commentsQuery.data]);
+
+  const handleSetFilesViewed = useCallback(
+    (filePaths: string[], viewed: boolean) => {
+      void ipc("review.setFilesViewed", {
+        repo: repoName,
+        prNumber,
+        filePaths,
+        viewed,
+      }).then(() => {
+        void refetchViewedFiles();
+      });
+    },
+    [repoName, prNumber, refetchViewedFiles],
+  );
+
+  const handleToggleViewed = useCallback(
+    (filePath: string, viewed: boolean) => {
+      handleSetFilesViewed([filePath], viewed);
+    },
+    [handleSetFilesViewed],
+  );
 
   return (
     <div className="bg-bg-surface flex h-full flex-col">
@@ -91,16 +113,8 @@ export function PrFileSidebar({ prNumber, onBack }: PrFileSidebarProps) {
             commentCounts={fileCommentCounts}
             cwd={cwd}
             prNumber={prNumber}
-            onToggleViewed={(filePath, viewed) => {
-              ipc("review.setFileViewed", {
-                repo: repoName,
-                prNumber,
-                filePath,
-                viewed,
-              }).then(() => {
-                viewedQuery.refetch();
-              });
-            }}
+            onToggleViewed={handleToggleViewed}
+            onSetFilesViewed={handleSetFilesViewed}
           />
         </div>
       )}

@@ -14,7 +14,6 @@ import {
   FileText,
   FileX2,
   MessageCircle,
-  Square,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -231,6 +230,7 @@ interface FileTreeProps {
   onSelectFile: (index: number) => void;
   viewedFiles: Set<string>;
   onToggleViewed?: (filePath: string, viewed: boolean) => void;
+  onSetFilesViewed?: (filePaths: string[], viewed: boolean) => void;
   commentCounts?: Map<string, number>;
   cwd: string;
   prNumber: number;
@@ -242,6 +242,7 @@ export function FileTree({
   onSelectFile,
   viewedFiles,
   onToggleViewed,
+  onSetFilesViewed,
   commentCounts = new Map(),
   cwd,
   prNumber,
@@ -250,6 +251,7 @@ export function FileTree({
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const initializedRef = useRef(false);
+  const canToggleViewed = Boolean(onToggleViewed || onSetFilesViewed);
 
   // Expand all directories on first render (render-time state adjustment)
   if (!initializedRef.current && tree.length > 0) {
@@ -295,12 +297,42 @@ export function FileTree({
     setContextMenu({ x: e.clientX, y: e.clientY, node });
   }, []);
 
+  const setFilesViewed = useCallback(
+    (filePaths: string[], viewed: boolean) => {
+      if (filePaths.length === 0) {
+        return;
+      }
+
+      if (onSetFilesViewed) {
+        onSetFilesViewed(filePaths, viewed);
+        return;
+      }
+
+      for (const filePath of filePaths) {
+        onToggleViewed?.(filePath, viewed);
+      }
+    },
+    [onSetFilesViewed, onToggleViewed],
+  );
+
+  const setFileViewed = useCallback(
+    (filePath: string, viewed: boolean) => {
+      if (onToggleViewed) {
+        onToggleViewed(filePath, viewed);
+        return;
+      }
+
+      setFilesViewed([filePath], viewed);
+    },
+    [onToggleViewed, setFilesViewed],
+  );
+
   const repoSlug = cwd.split("/").slice(-2).join("/");
 
   return (
     <div className="flex flex-col">
       {/* Progress bar — hidden when viewed tracking is disabled */}
-      {onToggleViewed && (
+      {canToggleViewed && (
         <div className="flex items-center gap-2 px-3 pt-1 pb-2">
           <div className="bg-border h-[3px] flex-1 overflow-hidden rounded-full">
             <div
@@ -326,7 +358,8 @@ export function FileTree({
             onSelectFile={selectFile}
             currentFileIndex={currentFileIndex}
             viewedFiles={viewedFiles}
-            onToggleViewed={onToggleViewed}
+            onToggleViewed={setFileViewed}
+            onSetFilesViewed={setFilesViewed}
             commentCounts={commentCounts}
             onContextMenu={handleContextMenu}
           />
@@ -339,7 +372,8 @@ export function FileTree({
           position={{ x: contextMenu.x, y: contextMenu.y }}
           onClose={() => setContextMenu(null)}
           viewedFiles={viewedFiles}
-          onToggleViewed={onToggleViewed}
+          onToggleViewed={setFileViewed}
+          onSetFilesViewed={setFilesViewed}
           repoSlug={repoSlug}
           prNumber={prNumber}
         />
@@ -361,6 +395,7 @@ function TreeNodeRow({
   currentFileIndex,
   viewedFiles,
   onToggleViewed,
+  onSetFilesViewed,
   commentCounts,
   onContextMenu,
 }: {
@@ -372,20 +407,29 @@ function TreeNodeRow({
   currentFileIndex: number;
   viewedFiles: Set<string>;
   onToggleViewed?: (filePath: string, viewed: boolean) => void;
+  onSetFilesViewed?: (filePaths: string[], viewed: boolean) => void;
   commentCounts: Map<string, number>;
   onContextMenu: (e: React.MouseEvent, node: TreeNode) => void;
 }) {
   const isExpanded = expandedPaths.has(node.path);
   const paddingLeft = depth * 16 + 8;
+  const canToggleViewed = Boolean(onToggleViewed || onSetFilesViewed);
 
   if (node.type === "dir") {
+    const filePaths = getAllFilePaths(node);
+    const viewedCount = filePaths.filter((filePath) => viewedFiles.has(filePath)).length;
+    const allViewed = filePaths.length > 0 && viewedCount === filePaths.length;
+    const partiallyViewed = viewedCount > 0 && viewedCount < filePaths.length;
+
     return (
       <div>
         <button
           type="button"
           onClick={() => onToggle(node.path)}
           onContextMenu={(e) => onContextMenu(e, node)}
-          className="group hover:bg-bg-raised relative flex w-full cursor-pointer items-center gap-1 py-1 pr-2 text-left transition-colors"
+          className={`group hover:bg-bg-raised relative flex w-full cursor-pointer items-center gap-1 py-1 pr-2 text-left transition-colors ${
+            allViewed ? "opacity-70" : ""
+          }`}
           style={{ paddingLeft }}
         >
           {/* Indent guides */}
@@ -407,10 +451,42 @@ function TreeNodeRow({
             {node.name}
           </span>
           {node.additions > 0 && (
-            <span className="text-success font-mono text-[9px]">+{node.additions}</span>
+            <span
+              className={`text-success font-mono text-[9px] ${canToggleViewed ? "group-hover:hidden" : ""}`}
+            >
+              +{node.additions}
+            </span>
           )}
           {node.deletions > 0 && (
-            <span className="text-destructive font-mono text-[9px]">-{node.deletions}</span>
+            <span
+              className={`text-destructive font-mono text-[9px] ${
+                canToggleViewed ? "group-hover:hidden" : ""
+              }`}
+            >
+              -{node.deletions}
+            </span>
+          )}
+          {canToggleViewed && (
+            <ViewedCheckbox
+              checkedState={allViewed ? "checked" : partiallyViewed ? "mixed" : "unchecked"}
+              ariaLabel={`Mark folder ${node.path} as ${allViewed ? "unviewed" : "viewed"}`}
+              title={allViewed ? "Mark all as unviewed" : "Mark all as viewed"}
+              className="hidden group-hover:flex"
+              onToggle={() => {
+                if (filePaths.length === 0) {
+                  return;
+                }
+
+                if (onSetFilesViewed) {
+                  onSetFilesViewed(filePaths, !allViewed);
+                  return;
+                }
+
+                for (const filePath of filePaths) {
+                  onToggleViewed?.(filePath, !allViewed);
+                }
+              }}
+            />
           )}
         </button>
         {/* Animated collapse container */}
@@ -430,6 +506,7 @@ function TreeNodeRow({
                 currentFileIndex={currentFileIndex}
                 viewedFiles={viewedFiles}
                 onToggleViewed={onToggleViewed}
+                onSetFilesViewed={onSetFilesViewed}
                 commentCounts={commentCounts}
                 onContextMenu={onContextMenu}
               />
@@ -494,7 +571,7 @@ function TreeNodeRow({
         )}
 
         {/* Stats (hidden on hover, replaced by viewed checkbox) */}
-        <span className="flex items-center gap-1 group-hover:hidden">
+        <span className={`flex items-center gap-1 ${canToggleViewed ? "group-hover:hidden" : ""}`}>
           {node.additions > 0 && (
             <span className="text-success font-mono text-[9px]">+{node.additions}</span>
           )}
@@ -505,36 +582,15 @@ function TreeNodeRow({
 
         {/* Viewed checkbox — appears on hover (only when onToggleViewed is provided) */}
         {onToggleViewed && (
-          <span
-            role="checkbox"
-            aria-checked={isViewed}
-            tabIndex={0}
-            onClick={(e) => {
-              e.stopPropagation();
+          <ViewedCheckbox
+            checkedState={isViewed ? "checked" : "unchecked"}
+            ariaLabel={`Mark file ${node.path} as ${isViewed ? "unviewed" : "viewed"}`}
+            title={isViewed ? "Mark as unviewed" : "Mark as viewed"}
+            className="hidden group-hover:flex"
+            onToggle={() => {
               onToggleViewed(node.path, !isViewed);
             }}
-            onKeyDown={(e) => {
-              if (e.key === " " || e.key === "Enter") {
-                e.stopPropagation();
-                e.preventDefault();
-                onToggleViewed(node.path, !isViewed);
-              }
-            }}
-            className={`hidden h-[13px] w-[13px] shrink-0 cursor-pointer items-center justify-center rounded-xs border group-hover:flex ${
-              isViewed
-                ? "border-success bg-success text-bg-root"
-                : "border-border-strong hover:border-text-tertiary text-transparent"
-            }`}
-          >
-            {isViewed ? (
-              <Check size={9} />
-            ) : (
-              <Square
-                size={9}
-                className="opacity-0"
-              />
-            )}
-          </span>
+          />
         )}
       </button>
     </div>
@@ -551,6 +607,7 @@ function FileTreeContextMenu({
   onClose,
   viewedFiles,
   onToggleViewed,
+  onSetFilesViewed,
   repoSlug,
   prNumber,
 }: {
@@ -559,6 +616,7 @@ function FileTreeContextMenu({
   onClose: () => void;
   viewedFiles: Set<string>;
   onToggleViewed?: (filePath: string, viewed: boolean) => void;
+  onSetFilesViewed?: (filePaths: string[], viewed: boolean) => void;
   repoSlug: string;
   prNumber: number;
 }) {
@@ -607,8 +665,12 @@ function FileTreeContextMenu({
               icon={<EyeOff size={12} />}
               label="Mark all as unviewed"
               onClick={() => {
-                for (const p of filePaths) {
-                  onToggleViewed(p, false);
+                if (onSetFilesViewed) {
+                  onSetFilesViewed(filePaths, false);
+                } else {
+                  for (const p of filePaths) {
+                    onToggleViewed(p, false);
+                  }
                 }
                 onClose();
               }}
@@ -618,8 +680,12 @@ function FileTreeContextMenu({
               icon={<CheckCheck size={12} />}
               label="Mark all as viewed"
               onClick={() => {
-                for (const p of filePaths) {
-                  onToggleViewed(p, true);
+                if (onSetFilesViewed) {
+                  onSetFilesViewed(filePaths, true);
+                } else {
+                  for (const p of filePaths) {
+                    onToggleViewed(p, true);
+                  }
                 }
                 onClose();
               }}
@@ -686,6 +752,61 @@ function FileTreeContextMenu({
         }}
       />
     </div>
+  );
+}
+
+function ViewedCheckbox({
+  checkedState,
+  ariaLabel,
+  title,
+  className,
+  onToggle,
+}: {
+  checkedState: "checked" | "mixed" | "unchecked";
+  ariaLabel: string;
+  title: string;
+  className?: string;
+  onToggle: () => void;
+}) {
+  const isChecked = checkedState === "checked";
+  const isMixed = checkedState === "mixed";
+
+  return (
+    <span
+      role="checkbox"
+      aria-checked={isMixed ? "mixed" : isChecked}
+      aria-label={ariaLabel}
+      title={title}
+      tabIndex={0}
+      onClick={(e) => {
+        e.stopPropagation();
+        onToggle();
+      }}
+      onKeyDown={(e) => {
+        if (e.key === " " || e.key === "Enter") {
+          e.stopPropagation();
+          e.preventDefault();
+          onToggle();
+        }
+      }}
+      className={`h-[13px] w-[13px] shrink-0 cursor-pointer items-center justify-center rounded-xs border ${
+        className ?? ""
+      } ${
+        isChecked
+          ? "border-success bg-success text-bg-root"
+          : isMixed
+            ? "border-success bg-success/15 text-success"
+            : "border-border-strong hover:border-text-tertiary text-transparent"
+      }`}
+    >
+      {isChecked ? (
+        <Check size={9} />
+      ) : isMixed ? (
+        <span className="h-[5px] w-[5px] rounded-[1px] bg-current" />
+      ) : (
+        <span className="h-[5px] w-[5px] opacity-0" />
+      )}
+    </span>
   );
 }
 

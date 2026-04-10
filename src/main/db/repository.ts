@@ -36,6 +36,32 @@ export function getViewedFiles(repo: string, prNumber: number): string[] {
   return rows.map((r) => r.file_path);
 }
 
+function persistViewedFiles(args: {
+  repo: string;
+  prNumber: number;
+  filePaths: string[];
+  viewed: boolean;
+}): void {
+  if (args.filePaths.length === 0) {
+    return;
+  }
+
+  const db = getDatabase();
+  const writeViewedFile = db.prepare(`
+    INSERT INTO viewed_files (repo, pr_number, file_path, viewed)
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT(repo, pr_number, file_path) DO UPDATE SET viewed = excluded.viewed
+  `);
+
+  const writeViewedFiles = db.transaction((filePaths: string[]) => {
+    for (const filePath of filePaths) {
+      writeViewedFile.run(args.repo, args.prNumber, filePath, args.viewed ? 1 : 0);
+    }
+  });
+
+  writeViewedFiles(args.filePaths);
+}
+
 /* eslint-disable-next-line max-params -- These sqlite helpers mirror the table key shape directly. */
 export function setFileViewed(
   repo: string,
@@ -43,12 +69,16 @@ export function setFileViewed(
   filePath: string,
   viewed: boolean,
 ): void {
-  const db = getDatabase();
-  db.prepare(`
-    INSERT INTO viewed_files (repo, pr_number, file_path, viewed)
-    VALUES (?, ?, ?, ?)
-    ON CONFLICT(repo, pr_number, file_path) DO UPDATE SET viewed = excluded.viewed
-  `).run(repo, prNumber, filePath, viewed ? 1 : 0);
+  persistViewedFiles({ repo, prNumber, filePaths: [filePath], viewed });
+}
+
+export function setFilesViewed(args: {
+  repo: string;
+  prNumber: number;
+  filePaths: string[];
+  viewed: boolean;
+}): void {
+  persistViewedFiles(args);
 }
 
 // ---------------------------------------------------------------------------
