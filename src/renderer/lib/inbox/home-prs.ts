@@ -30,6 +30,7 @@ export function categorizeHomePrs(
   prs: EnrichedDashboardPr[],
   reviewRequestedKeys: Set<string>,
   currentUser: string | null,
+  currentUserCanMerge = true,
 ): PrSection[] {
   const attention: EnrichedDashboardPr[] = [];
   const ship: EnrichedDashboardPr[] = [];
@@ -49,7 +50,11 @@ export function categorizeHomePrs(
       item.pr.reviewDecision === "CHANGES_REQUESTED"
     ) {
       attention.push(item);
-    } else if (!item.pr.isDraft && item.pr.reviewDecision === "APPROVED") {
+    } else if (
+      currentUserCanMerge &&
+      !item.pr.isDraft &&
+      item.pr.reviewDecision === "APPROVED"
+    ) {
       ship.push(item);
     } else {
       progress.push(item);

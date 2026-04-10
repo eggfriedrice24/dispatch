@@ -33,10 +33,10 @@ import { KbdHint, PrSectionView, RepoSelector } from "./home-view-parts";
 // ---------------------------------------------------------------------------
 
 export function HomeView() {
-  const { cwd, switchWorkspace } = useWorkspace();
+  const { cwd, nwo, repoTarget, repo, switchWorkspace } = useWorkspace();
   const { navigate } = useRouter();
   const nameFormat = useDisplayNameFormat();
-  const repoName = cwd.split("/").pop() ?? "";
+  const repoName = repo;
 
   const [searchQuery, setSearchQuery] = useState("");
   const [collapsedSections, setCollapsedSections] = useState<Set<SectionId>>(
@@ -45,6 +45,7 @@ export function HomeView() {
   const [focusIndex, setFocusIndex] = useState(-1);
   const searchRef = useRef<HTMLInputElement>(null);
   const [repoDropdownOpen, setRepoDropdownOpen] = useState(false);
+  const [addRepoOpen, setAddRepoOpen] = useState(false);
   const repoRef = useRef<HTMLDivElement>(null);
 
   // Current user
@@ -56,22 +57,22 @@ export function HomeView() {
   const currentUser = userQuery.data?.login ?? null;
 
   const repoInfoQuery = useQuery({
-    queryKey: ["repo", "info", cwd],
-    queryFn: () => ipc("repo.info", { cwd }),
+    queryKey: ["repo", "info", nwo],
+    queryFn: () => ipc("repo.info", { ...repoTarget }),
     staleTime: 60_000,
   });
 
   // All PRs for the selected repository, including merged/closed.
   const allQuery = useQuery({
-    queryKey: ["pr", "list", cwd, "all", "all"],
-    queryFn: () => ipc("pr.list", { cwd, filter: "all", state: "all" }),
+    queryKey: ["pr", "list", nwo, "all", "all"],
+    queryFn: () => ipc("pr.list", { ...repoTarget, filter: "all", state: "all" }),
     refetchInterval: 30_000,
   });
 
   // Review-requested PRs for the selected repository.
   const reviewQuery = useQuery({
-    queryKey: ["pr", "list", cwd, "reviewRequested", "open"],
-    queryFn: () => ipc("pr.list", { cwd, filter: "reviewRequested" }),
+    queryKey: ["pr", "list", nwo, "reviewRequested", "open"],
+    queryFn: () => ipc("pr.list", { ...repoTarget, filter: "reviewRequested" }),
     refetchInterval: 30_000,
   });
 
@@ -102,6 +103,23 @@ export function HomeView() {
   const repoIdentity = repoInfoQuery.data?.nameWithOwner ?? repoName;
   const pullRequestRepository = repoInfoQuery.data?.parent ?? repoIdentity;
   const isForkWorkspace = repoInfoQuery.data?.isFork ?? false;
+  const [targetRepoOwner, targetRepoName] = pullRequestRepository.split("/");
+
+  const targetRepoQuery = useQuery({
+    queryKey: ["repo", "info", "target", pullRequestRepository],
+    queryFn: () =>
+      ipc("repo.info", {
+        owner: targetRepoOwner,
+        repo: targetRepoName,
+        cwd: null,
+      }),
+    enabled: isForkWorkspace && targetRepoOwner !== "" && targetRepoName !== "",
+  });
+
+  const canMergeTargetRepo =
+    isForkWorkspace
+      ? targetRepoQuery.data?.canPush ?? repoInfoQuery.data?.canPush ?? true
+      : repoInfoQuery.data?.canPush ?? true;
 
   const decoratePr = useCallback(
     (pr: DashboardPr): EnrichedDashboardPr => ({
@@ -120,7 +138,7 @@ export function HomeView() {
         decoratePr({
           ...pr,
           workspace: repoName,
-          workspacePath: cwd,
+          workspacePath: cwd ?? nwo,
           repository: repoIdentity,
           pullRequestRepository,
           isForkWorkspace,
@@ -147,8 +165,8 @@ export function HomeView() {
 
   // Categorize into sections
   const sections = useMemo(
-    () => categorizeHomePrs(allPrs, reviewRequestedKeys, currentUser),
-    [allPrs, currentUser, reviewRequestedKeys],
+    () => categorizeHomePrs(allPrs, reviewRequestedKeys, currentUser, canMergeTargetRepo),
+    [allPrs, canMergeTargetRepo, currentUser, reviewRequestedKeys],
   );
 
   // Search filter
@@ -178,20 +196,20 @@ export function HomeView() {
     () => [
       {
         method: "pr.list" as const,
-        args: { cwd, filter: "all" as const, state: "all" as const },
-        queryKey: ["pr", "list", cwd, "all", "all"],
+        args: { ...repoTarget, filter: "all" as const, state: "all" as const },
+        queryKey: ["pr", "list", nwo, "all", "all"],
       },
       {
         method: "pr.list" as const,
-        args: { cwd, filter: "reviewRequested" as const },
-        queryKey: ["pr", "list", cwd, "reviewRequested", "open"],
+        args: { ...repoTarget, filter: "reviewRequested" as const },
+        queryKey: ["pr", "list", nwo, "reviewRequested", "open"],
       },
     ],
-    [cwd],
+    [nwo, repoTarget],
   );
 
   usePrSearchRefreshOnMiss({
-    scope: `home:${cwd}`,
+    scope: `home:${nwo}`,
     searchQuery,
     resultCount: filteredCount,
     requests: searchRefreshRequests,
@@ -218,7 +236,8 @@ export function HomeView() {
     const counts = new Map<string, number>();
 
     for (const pr of workspaceCountsQuery.data ?? []) {
-      counts.set(pr.workspacePath, (counts.get(pr.workspacePath) ?? 0) + 1);
+      const wsKey = pr.workspacePath ?? "";
+      counts.set(wsKey, (counts.get(wsKey) ?? 0) + 1);
     }
 
     return counts;
@@ -250,14 +269,27 @@ export function HomeView() {
         .then(() => queryClient.invalidateQueries({ queryKey: ["pr-activity"] }))
         .catch(() => {});
 
-      if (pr.workspacePath !== cwd) {
-        void ipc("workspace.setActive", { path: pr.workspacePath })
-          .then(() => {
-            switchWorkspace(pr.workspacePath);
-            queryClient.invalidateQueries({ queryKey: ["workspace"] });
-            navigate({ view: "review", prNumber: pr.number });
-          })
-          .catch(() => {});
+      const prRepo = pr.repository ?? pr.pullRequestRepository;
+      const prNwo = `${prRepo.split("/")[0]}/${prRepo.split("/")[1]}`;
+      if (prNwo !== nwo) {
+        const targetWs = (workspacesQuery.data ?? []).find(
+          (ws: { owner: string; repo: string; path: string | null }) =>
+            `${ws.owner}/${ws.repo}` === prNwo || ws.path === pr.workspacePath,
+        );
+        if (targetWs) {
+          void ipc("workspace.setActive", { id: targetWs.id })
+            .then(() => {
+              switchWorkspace({
+                id: targetWs.id,
+                owner: targetWs.owner,
+                repo: targetWs.repo,
+                path: targetWs.path,
+              });
+              queryClient.invalidateQueries({ queryKey: ["workspace"] });
+              navigate({ view: "review", prNumber: pr.number });
+            })
+            .catch(() => {});
+        }
         return;
       }
 
@@ -413,7 +445,7 @@ export function HomeView() {
           <div className="mb-4 flex items-center gap-2.5">
             {/* Repo selector */}
             <RepoSelector
-              cwd={cwd}
+              cwd={cwd ?? nwo}
               repoName={repoName}
               activeWorkspaceCount={activeWorkspaceCount}
               workspaces={workspacesQuery.data ?? []}
@@ -421,30 +453,14 @@ export function HomeView() {
               open={repoDropdownOpen}
               onToggle={() => setRepoDropdownOpen((v) => !v)}
               onSelect={(ws) => {
-                ipc("workspace.setActive", { path: ws.path })
-                  .then(() => {
-                    switchWorkspace(ws.path);
-                    queryClient.invalidateQueries();
-                    navigate({ view: "review", prNumber: null });
-                  })
-                  .catch(() => {});
+                switchWorkspace({ id: ws.id, owner: ws.owner, repo: ws.repo, path: ws.path });
+                queryClient.invalidateQueries();
+                navigate({ view: "review", prNumber: null });
                 setRepoDropdownOpen(false);
               }}
               onAddRepo={() => {
-                ipc("workspace.pickFolder")
-                  .then((result) => {
-                    if (result) {
-                      return ipc("workspace.add", { path: result }).then(() =>
-                        ipc("workspace.setActive", { path: result }).then(() => {
-                          switchWorkspace(result);
-                          queryClient.invalidateQueries();
-                          navigate({ view: "review", prNumber: null });
-                        }),
-                      );
-                    }
-                  })
-                  .catch(() => {});
                 setRepoDropdownOpen(false);
+                setAddRepoOpen(true);
               }}
               containerRef={repoRef}
               onBlur={handleRepoDropdownBlur}

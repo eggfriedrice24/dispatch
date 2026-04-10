@@ -124,6 +124,18 @@ describe("categorizeHomePrs", () => {
 
     expect(getSection(sections, "completed")?.items).toHaveLength(1);
   });
+
+  it("keeps approved pull requests out of the ship section without merge permission", () => {
+    const approvedPr = createDashboardItem({
+      number: 777,
+      reviewDecision: "APPROVED",
+    });
+
+    const sections = categorizeHomePrs([approvedPr], new Set(), "brayden", false);
+
+    expect(getSection(sections, "ship")?.items).toHaveLength(0);
+    expect(getSection(sections, "progress")?.items).toHaveLength(1);
+  });
 });
 
 describe("preferWorkspacePrs", () => {
