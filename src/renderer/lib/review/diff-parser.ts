@@ -26,6 +26,7 @@ export interface DiffLine {
   content: string;
   oldLineNumber: number | null;
   newLineNumber: number | null;
+  segments?: Segment[];
 }
 
 export interface Segment {
@@ -201,6 +202,49 @@ function parseFileSection(section: string): DiffFile | null {
         case "hunk-header": {
           break;
         }
+      }
+    }
+  }
+
+  // Pair remove/add runs and precompute word-diff segments for inline word highlighting.
+  // This keeps rendering fast by avoiding repeated computeWordDiff calls on every repaint.
+  for (const hunk of hunks) {
+    let i = 0;
+    while (i < hunk.lines.length) {
+      const current = hunk.lines[i];
+      if (!current || current.type !== "del") {
+        i++;
+        continue;
+      }
+
+      const removedLines: DiffLine[] = [];
+      while (i < hunk.lines.length && hunk.lines[i]?.type === "del") {
+        const line = hunk.lines[i];
+        if (line) {
+          removedLines.push(line);
+        }
+        i++;
+      }
+
+      const addedLines: DiffLine[] = [];
+      while (i < hunk.lines.length && hunk.lines[i]?.type === "add") {
+        const line = hunk.lines[i];
+        if (line) {
+          addedLines.push(line);
+        }
+        i++;
+      }
+
+      const pairCount = Math.min(removedLines.length, addedLines.length);
+      for (let j = 0; j < pairCount; j++) {
+        const removeLine = removedLines[j];
+        const addLine = addedLines[j];
+        if (!removeLine || !addLine) {
+          continue;
+        }
+        const { oldSegments, newSegments } = computeWordDiff(removeLine.content, addLine.content);
+        removeLine.segments = oldSegments;
+        addLine.segments = newSegments;
       }
     }
   }

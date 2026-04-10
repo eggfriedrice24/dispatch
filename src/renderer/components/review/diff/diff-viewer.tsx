@@ -14,7 +14,6 @@ import { BlameButton } from "@/renderer/components/review/diff/blame-popover";
 import { CiAnnotation, type Annotation } from "@/renderer/components/review/diff/ci-annotation";
 import { useTheme } from "@/renderer/lib/app/theme-context";
 import {
-  computeWordDiff,
   getDiffFilePath,
   type DiffFile,
   type DiffLine,
@@ -66,6 +65,7 @@ interface DiffViewerProps {
   reviewCommentReactions?: Record<string, GhReactionGroup[]>;
   /** AI-generated suggestions, keyed by "path:line" */
   aiSuggestions?: Map<string, AiSuggestion[]>;
+  reviewActionsEnabled?: boolean;
   onPostSuggestion?: (suggestion: AiSuggestion, body?: string) => Promise<void>;
   onDismissSuggestion?: (id: string) => void;
 }
@@ -381,6 +381,7 @@ export function DiffViewer({
   resolvedThreadIds,
   reviewCommentReactions,
   aiSuggestions,
+  reviewActionsEnabled = true,
   onPostSuggestion,
   onDismissSuggestion,
 }: DiffViewerProps) {
@@ -494,6 +495,7 @@ export function DiffViewer({
 
   const activeRows =
     diffMode === "full-file" && fullFileModeRows !== null ? fullFileModeRows : rows;
+  const commentingEnabled = reviewActionsEnabled && Boolean(onCommentRange);
 
   // --- Search match counting (must be after rows) ---
   const totalSearchMatches = useMemo(() => {
@@ -642,6 +644,8 @@ export function DiffViewer({
           searchQuery={searchQuery}
           searchMatchIndex={clampedMatchIndex}
           activeSearchRef={activeSearchRef}
+          commentingEnabled={commentingEnabled}
+          reviewActionsEnabled={reviewActionsEnabled}
           onStartSelect={handleStartSelect}
           onLineHover={handleLineHover}
           onGutterClick={handleGutterClick}
@@ -812,10 +816,25 @@ function renderLineContent(
   language: string,
   shikiTheme: string = "github-dark-default",
 ): React.ReactNode {
+  const hasWordDiff = Boolean(line.segments?.some((segment) => segment.type === "change"));
   const tokens =
     highlighter && language !== "text"
       ? safeTokenize(highlighter, line.content, language, shikiTheme)
       : null;
+  if (hasWordDiff && line.segments) {
+    return tokens ? (
+      <SyntaxSegmentedContent
+        segments={line.segments}
+        tokens={tokens}
+        type={line.type}
+      />
+    ) : (
+      <WordDiffContent
+        segments={line.segments}
+        type={line.type}
+      />
+    );
+  }
   if (tokens) {
     return <SyntaxContent tokens={tokens} />;
   }
@@ -843,6 +862,8 @@ function UnifiedDiffView({
   searchQuery,
   searchMatchIndex,
   activeSearchRef,
+  commentingEnabled,
+  reviewActionsEnabled,
   onStartSelect,
   onLineHover,
   onGutterClick,
@@ -864,6 +885,8 @@ function UnifiedDiffView({
   searchQuery: string;
   searchMatchIndex: number;
   activeSearchRef: React.RefObject<HTMLSpanElement | null>;
+  commentingEnabled: boolean;
+  reviewActionsEnabled: boolean;
   onStartSelect: (target: CommentTarget) => void;
   onLineHover: (target: CommentTarget) => void;
   onGutterClick: (target: CommentTarget, shiftKey: boolean) => void;
@@ -886,16 +909,6 @@ function UnifiedDiffView({
     return offsets;
   }, [rows, searchQuery]);
 
-  const linesByKey = useMemo(
-    () =>
-      new Map(
-        rows
-          .filter((row): row is FlatRow & { kind: "line" } => row.kind === "line")
-          .map((row) => [row.key, row.line]),
-      ),
-    [rows],
-  );
-
   return (
     <div className="w-full font-mono text-[12.5px] leading-5">
       {rows.map((row, index) => {
@@ -913,11 +926,11 @@ function UnifiedDiffView({
             <DiffLineRow
               key={row.key}
               line={row.line}
-              linesByKey={linesByKey}
               highlighter={highlighter}
               language={language}
               shikiTheme={shikiTheme}
               filePath={filePath}
+              commentingEnabled={commentingEnabled}
               onStartSelect={onStartSelect}
               onLineHover={onLineHover}
               onGutterClick={onGutterClick}
@@ -944,6 +957,7 @@ function UnifiedDiffView({
               key={row.key}
               comments={row.comments}
               prNumber={prNumber}
+              reviewActionsEnabled={reviewActionsEnabled}
               resolvedThreadIds={resolvedThreadIds}
               reviewCommentReactions={reviewCommentReactions}
             />
@@ -992,11 +1006,11 @@ function UnifiedDiffView({
 
 function DiffLineRow({
   line,
-  linesByKey,
   highlighter,
   language,
   shikiTheme,
   filePath,
+  commentingEnabled,
   onStartSelect,
   onLineHover,
   onGutterClick,
@@ -1009,11 +1023,11 @@ function DiffLineRow({
   activeSearchRef,
 }: {
   line: FlatLine;
-  linesByKey: Map<string, FlatLine>;
   highlighter: Highlighter | null;
   language: string;
   shikiTheme: string;
   filePath: string;
+  commentingEnabled: boolean;
   onStartSelect: (target: CommentTarget) => void;
   onLineHover: (target: CommentTarget) => void;
   onGutterClick: (target: CommentTarget, shiftKey: boolean) => void;
@@ -1033,32 +1047,20 @@ function DiffLineRow({
     );
   }
 
-  // Word diff pairing
-  const pair = line.pairKey ? (linesByKey.get(line.pairKey) ?? null) : null;
-  const wordDiff =
-    pair &&
-    ((line.type === "del" && pair.type === "add") || (line.type === "add" && pair.type === "del"))
-      ? computeWordDiff(
-          line.type === "del" ? line.content : pair.content,
-          line.type === "add" ? line.content : pair.content,
-        )
-      : null;
-
-  const hasWordDiff = Boolean(wordDiff);
-  const wordSegments = wordDiff
-    ? line.type === "del"
-      ? wordDiff.oldSegments
-      : wordDiff.newSegments
-    : null;
+  const hasWordDiff = Boolean(line.segments?.some((segment) => segment.type === "change"));
+  const wordSegments = hasWordDiff ? (line.segments ?? null) : null;
 
   const tokens =
-    !hasWordDiff && highlighter && language !== "text"
+    highlighter && language !== "text"
       ? safeTokenize(highlighter, line.content, language, shikiTheme)
       : null;
 
   const commentTarget = getCommentTarget(line);
   const lineNum = commentTarget?.line ?? null;
-  const isCommentable = commentTarget !== null;
+  const canCommentOnLine = commentingEnabled && commentTarget !== null;
+  const blameLine = line.newLineNumber;
+  const showBlameButton = blameLine !== null && line.type !== "del";
+  const showLineActions = showBlameButton || (canCommentOnLine && !isComposerActive);
 
   const rowBg = isSelected
     ? "!bg-[rgba(155,149,144,0.08)]"
@@ -1082,7 +1084,7 @@ function DiffLineRow({
         !isSelected && !isDragging ? "hover:brightness-110" : ""
       }`}
       onMouseEnter={() => {
-        if (commentTarget) {
+        if (commentingEnabled && commentTarget) {
           onLineHover(commentTarget);
         }
       }}
@@ -1104,37 +1106,39 @@ function DiffLineRow({
         }`}
       >
         <div className="relative flex h-5 items-center justify-end">
-          {isCommentable && !isComposerActive && (
+          {showLineActions && (
             <div className="pointer-events-none absolute top-1/2 left-1 flex -translate-y-1/2 items-center gap-1 opacity-0 transition-opacity group-focus-within/line:pointer-events-auto group-focus-within/line:opacity-100 group-hover/line:pointer-events-auto group-hover/line:opacity-100">
-              <button
-                type="button"
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  if (commentTarget) {
-                    onStartSelect(commentTarget);
-                  }
-                }}
-                onClick={(e) => {
-                  if (commentTarget) {
-                    onGutterClick(commentTarget, e.shiftKey);
-                  }
-                }}
-                className={lineActionButtonClassName}
-                tabIndex={-1}
-                aria-label={`Comment on line ${lineNum}`}
-              >
-                <Plus
-                  size={11}
-                  strokeWidth={2.5}
-                />
-              </button>
+              {canCommentOnLine && !isComposerActive && (
+                <button
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    if (commentTarget) {
+                      onStartSelect(commentTarget);
+                    }
+                  }}
+                  onClick={(e) => {
+                    if (commentTarget) {
+                      onGutterClick(commentTarget, e.shiftKey);
+                    }
+                  }}
+                  className={lineActionButtonClassName}
+                  tabIndex={-1}
+                  aria-label={`Comment on line ${lineNum}`}
+                >
+                  <Plus
+                    size={11}
+                    strokeWidth={2.5}
+                  />
+                </button>
+              )}
 
-              {line.newLineNumber && line.type !== "del" && (
+              {showBlameButton && blameLine !== null && (
                 <BlameButton
                   className={lineActionButtonClassName}
                   file={filePath}
                   gitRef="HEAD"
-                  line={line.newLineNumber}
+                  line={blameLine}
                 />
               )}
             </div>
@@ -1162,10 +1166,18 @@ function DiffLineRow({
           style={{ tabSize: 4 }}
         >
           {wordSegments ? (
-            <WordDiffContent
-              segments={wordSegments}
-              type={line.type}
-            />
+            tokens ? (
+              <SyntaxSegmentedContent
+                segments={wordSegments}
+                tokens={tokens}
+                type={line.type}
+              />
+            ) : (
+              <WordDiffContent
+                segments={wordSegments}
+                type={line.type}
+              />
+            )
           ) : searchQuery ? (
             <SearchHighlightedContent
               text={line.content}
@@ -1312,23 +1324,50 @@ interface ShikiToken {
   color?: string;
 }
 
+const SHIKI_TOKEN_CACHE_LIMIT = 500;
+const shikiTokenCache = new Map<string, ShikiToken[] | null>();
+
+function getShikiTokenCacheKey(content: string, lang: string, shikiTheme: string): string {
+  return `${shikiTheme}|${lang}|${content}`;
+}
+
+function setShikiTokenCache(key: string, tokens: ShikiToken[] | null): void {
+  if (!shikiTokenCache.has(key) && shikiTokenCache.size >= SHIKI_TOKEN_CACHE_LIMIT) {
+    const oldest = shikiTokenCache.keys().next().value;
+    if (oldest !== undefined) {
+      shikiTokenCache.delete(oldest);
+    }
+  }
+  shikiTokenCache.set(key, tokens);
+}
+
 function safeTokenize(
   highlighter: Highlighter,
   content: string,
   lang: string,
   shikiTheme: string = "github-dark-default",
 ): ShikiToken[] | null {
+  const cacheKey = getShikiTokenCacheKey(content, lang, shikiTheme);
+  const cached = shikiTokenCache.get(cacheKey);
+  if (cached !== undefined) {
+    return cached;
+  }
+
   try {
     const loadedLangs = highlighter.getLoadedLanguages();
     if (!loadedLangs.includes(lang)) {
+      setShikiTokenCache(cacheKey, null);
       return null;
     }
     const result = highlighter.codeToTokens(content, {
       lang: lang as Parameters<Highlighter["codeToTokens"]>[1]["lang"],
       theme: shikiTheme,
     } as Parameters<Highlighter["codeToTokens"]>[1]);
-    return result.tokens[0] ?? null;
+    const tokens = result.tokens[0] ?? null;
+    setShikiTokenCache(cacheKey, tokens);
+    return tokens;
   } catch {
+    setShikiTokenCache(cacheKey, null);
     return null;
   }
 }
@@ -1342,6 +1381,112 @@ function SyntaxContent({ tokens }: { tokens: ShikiToken[] }) {
           style={{ color: token.color }}
         >
           {token.content}
+        </span>
+      ))}
+    </>
+  );
+}
+
+function SyntaxSegmentedContent({
+  segments,
+  tokens,
+  type,
+}: {
+  segments: Segment[];
+  tokens: ShikiToken[];
+  type: "add" | "del" | "context" | "hunk-header";
+}) {
+  const result: {
+    text: string;
+    highlight: boolean;
+    color?: string;
+  }[] = [];
+
+  let segIdx = 0;
+  let segOffset = 0;
+  let tokIdx = 0;
+  let tokOffset = 0;
+
+  while (segIdx < segments.length && tokIdx < tokens.length) {
+    const segment = segments[segIdx];
+    const token = tokens[tokIdx];
+    if (!segment || !token) {
+      break;
+    }
+
+    const segmentRemaining = segment.text.length - segOffset;
+    const tokenRemaining = token.content.length - tokOffset;
+    const take = Math.min(segmentRemaining, tokenRemaining);
+
+    if (take > 0) {
+      result.push({
+        text: token.content.slice(tokOffset, tokOffset + take),
+        highlight: segment.type === "change",
+        color: token.color,
+      });
+    }
+
+    segOffset += take;
+    tokOffset += take;
+
+    if (segOffset >= segment.text.length) {
+      segIdx++;
+      segOffset = 0;
+    }
+    if (tokOffset >= token.content.length) {
+      tokIdx++;
+      tokOffset = 0;
+    }
+  }
+
+  while (tokIdx < tokens.length) {
+    const token = tokens[tokIdx];
+    if (!token) {
+      break;
+    }
+    const remaining = token.content.slice(tokOffset);
+    if (remaining) {
+      result.push({
+        text: remaining,
+        highlight: false,
+        color: token.color,
+      });
+    }
+    tokIdx++;
+    tokOffset = 0;
+  }
+
+  while (segIdx < segments.length) {
+    const segment = segments[segIdx];
+    if (!segment) {
+      break;
+    }
+    const remaining = segment.text.slice(segOffset);
+    if (remaining) {
+      result.push({
+        text: remaining,
+        highlight: segment.type === "change",
+      });
+    }
+    segIdx++;
+    segOffset = 0;
+  }
+
+  return (
+    <>
+      {result.map((segment, i) => (
+        <span
+          key={`${i}-${segment.text.slice(0, 5)}`}
+          style={{ color: segment.color }}
+          className={
+            segment.highlight
+              ? type === "add"
+                ? "bg-diff-add-word -mx-px rounded-[2px] px-px"
+                : "bg-diff-del-word -mx-px rounded-[2px] px-px"
+              : undefined
+          }
+        >
+          {segment.text}
         </span>
       ))}
     </>
