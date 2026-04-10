@@ -7,6 +7,7 @@ import type {
   AiTaskResolvedConfig,
 } from "@/shared/ipc";
 
+import { isAiEnabledPreference } from "@/renderer/hooks/preferences/use-preference";
 import { ipc } from "@/renderer/lib/app/ipc";
 import { useQuery } from "@tanstack/react-query";
 
@@ -127,7 +128,7 @@ export function useAiConfig(): AiResolvedConfig {
     staleTime: 30_000,
   });
 
-  if (enabledQuery.data !== "true") {
+  if (!isAiEnabledPreference(enabledQuery.data)) {
     return FALLBACK_AI_CONFIG;
   }
 

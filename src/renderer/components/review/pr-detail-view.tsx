@@ -17,7 +17,7 @@ import { EmptyState } from "@/renderer/components/shared/empty-state";
 import { PrDetailSkeleton } from "@/renderer/components/shared/loading-skeletons";
 import { useAiSuggestions } from "@/renderer/hooks/ai/use-ai-suggestions";
 import { useKeyboardShortcuts } from "@/renderer/hooks/app/use-keyboard-shortcuts";
-import { usePreference } from "@/renderer/hooks/preferences/use-preference";
+import { isAiEnabledPreference, usePreference } from "@/renderer/hooks/preferences/use-preference";
 import { useSyntaxHighlighter } from "@/renderer/hooks/review/use-syntax-highlight";
 import { ipc } from "@/renderer/lib/app/ipc";
 import { queryClient } from "@/renderer/lib/app/query-client";
@@ -266,7 +266,7 @@ function PrDetail({ prNumber }: { prNumber: number }) {
     staleTime: 30_000,
   });
 
-  const aiEnabled = usePreference("aiEnabled") === "true";
+  const aiEnabled = isAiEnabledPreference(usePreference("aiEnabled"));
   const prDetail = detailQuery.data;
   const {
     suggestionsForFile,

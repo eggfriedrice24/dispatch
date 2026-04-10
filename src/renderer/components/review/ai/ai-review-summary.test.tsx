@@ -362,6 +362,58 @@ beforeEach(() => {
 });
 
 describe("AiReviewSummary", () => {
+  it("treats AI as enabled when the preference has not been saved yet", async () => {
+    vi.mocked(ipc).mockImplementation((method, args) => {
+      if (method === "preferences.get") {
+        const payload = args as { key: string };
+        return Promise.resolve(payload.key === "aiEnabled" ? null : null);
+      }
+      if (method === "ai.config") {
+        return Promise.resolve(createAiConfigResponse());
+      }
+      if (method === "ai.reviewSummary.get") {
+        return Promise.resolve(null);
+      }
+      if (method === "ai.complete") {
+        const payload = args as { task?: AiTaskId };
+        return Promise.resolve(
+          payload.task === "reviewConfidence"
+            ? JSON.stringify({
+                confidenceScore: 78,
+              })
+            : JSON.stringify({
+                summary: "- Cached summary",
+              }),
+        );
+      }
+      if (method === "ai.reviewSummary.set") {
+        const payload = args as {
+          summary: string;
+          confidenceScore: number | null;
+          snapshotKey: string;
+        };
+        return Promise.resolve({
+          summary: payload.summary,
+          confidenceScore: payload.confidenceScore,
+          snapshotKey: payload.snapshotKey,
+          generatedAt: "2026-03-31 12:00:00",
+        });
+      }
+      throw new Error(`Unexpected IPC call: ${String(method)}`);
+    });
+
+    renderSummary({ variant: "card" });
+
+    await userEvent.click(await screen.findByRole("button", { name: /ai summary/i }));
+
+    await waitFor(() => {
+      expect(ipc).toHaveBeenCalledWith(
+        "ai.complete",
+        expect.objectContaining({ task: "reviewSummary" }),
+      );
+    });
+  });
+
   it("shows a refresh prompt when the cached summary no longer matches the PR snapshot", async () => {
     vi.mocked(ipc).mockImplementation((method) => {
       if (method === "preferences.get") {

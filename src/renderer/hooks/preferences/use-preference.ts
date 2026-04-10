@@ -1,6 +1,10 @@
 import { ipc } from "@/renderer/lib/app/ipc";
 import { useQuery } from "@tanstack/react-query";
 
+export function isAiEnabledPreference(value: string | null | undefined): boolean {
+  return value !== "false";
+}
+
 /**
  * Read a single preference value from the database.
  * Returns null while loading or if the key is unset.
