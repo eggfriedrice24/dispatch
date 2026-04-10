@@ -11,9 +11,10 @@ vi.mock(import("@/hooks/use-media-query"), () => ({
   useMediaQuery: () => false,
 }));
 
-vi.mock(import("@/components/ui/tooltip"), () => ({
-  const Tooltip = (({ children }: { children?: ReactNode }) => <>{children ?? null}</>) as unknown as
-    typeof TooltipModule.Tooltip;
+vi.mock(import("@/components/ui/tooltip"), () => {
+  const Tooltip = (({ children }: { children?: ReactNode }) => (
+    <>{children ?? null}</>
+  )) as unknown as typeof TooltipModule.Tooltip;
   const TooltipTrigger = ((props: { render?: unknown }) => {
     const { render } = props;
     if (typeof render === "function") {
@@ -22,8 +23,9 @@ vi.mock(import("@/components/ui/tooltip"), () => ({
 
     return <>{(render as ReactNode) ?? null}</>;
   }) as unknown as typeof TooltipModule.TooltipTrigger;
-  const TooltipPopup = (({ children }: { children?: ReactNode }) => <>{children ?? null}</>) as unknown as
-    typeof TooltipModule.TooltipPopup;
+  const TooltipPopup = (({ children }: { children?: ReactNode }) => (
+    <>{children ?? null}</>
+  )) as unknown as typeof TooltipModule.TooltipPopup;
 
   return { Tooltip, TooltipTrigger, TooltipPopup };
 });
