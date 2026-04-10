@@ -36,7 +36,7 @@ import { getReviewPositionKey } from "@/renderer/lib/review/review-position";
 import { relativeTime } from "@/shared/format";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { ArrowLeft, GitCommitHorizontal, GitMerge, XCircle } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { CompactPrHeader } from "./compact-pr-header";
 import { SidePanelOverlay, type PanelTab } from "./side-panel-overlay";
@@ -65,7 +65,7 @@ export function PrDetailView({ prNumber }: PrDetailViewProps) {
 // ---------------------------------------------------------------------------
 
 function PrDetail({ prNumber }: { prNumber: number }) {
-  const { cwd } = useWorkspace();
+  const { cwd, nwo, repo, repoTarget } = useWorkspace();
   const { currentFileIndex, setCurrentFileIndex, selectedCommit, setSelectedCommit } = useFileNav();
   const defaultDiffView = usePreference("defaultDiffView");
   const [diffMode, setDiffMode] = useState<"all" | "since-review">("all");
@@ -85,8 +85,8 @@ function PrDetail({ prNumber }: { prNumber: number }) {
 
   // Repo info (for admin permissions)
   const repoInfoQuery = useQuery({
-    queryKey: ["repo", "info", cwd],
-    queryFn: () => ipc("repo.info", { cwd }),
+    queryKey: ["repo", "info", nwo],
+    queryFn: () => ipc("repo.info", { ...repoTarget }),
     staleTime: 300_000,
   });
   const canPush = repoInfoQuery.data?.canPush ?? false;
@@ -102,8 +102,8 @@ function PrDetail({ prNumber }: { prNumber: number }) {
 
   // PR detail
   const detailQuery = useQuery({
-    queryKey: ["pr", "detail", cwd, prNumber],
-    queryFn: () => ipc("pr.detail", { cwd, prNumber }),
+    queryKey: ["pr", "detail", nwo, prNumber],
+    queryFn: () => ipc("pr.detail", { ...repoTarget, prNumber }),
     refetchInterval: 60_000,
   });
   const markPrActivitySeenMutation = useMutation({
@@ -138,12 +138,12 @@ function PrDetail({ prNumber }: { prNumber: number }) {
 
     hasMarkedPrActivityRef.current = true;
     markPrActivitySeenMutation.mutate({
-      repo: cwd,
+      repo: nwo,
       prNumber,
       updatedAt: detailQuery.data.updatedAt,
     });
   }, [
-    cwd,
+    nwo,
     detailQuery.data?.updatedAt,
     detailQuery.isFetchedAfterMount,
     markPrActivitySeenMutation,
@@ -152,32 +152,32 @@ function PrDetail({ prNumber }: { prNumber: number }) {
 
   // Full PR diff
   const diffQuery = useQuery({
-    queryKey: ["pr", "diff", cwd, prNumber],
-    queryFn: () => ipc("pr.diff", { cwd, prNumber }),
+    queryKey: ["pr", "diff", nwo, prNumber],
+    queryFn: () => ipc("pr.diff", { ...repoTarget, prNumber }),
     staleTime: 60_000,
   });
 
   // Commit-specific diff (only fetched when a commit is selected)
   const commitDiffQuery = useQuery({
-    queryKey: ["git", "commitDiff", cwd, selectedCommit?.oid],
-    queryFn: () => ipc("git.commitDiff", { cwd, sha: selectedCommit!.oid }),
-    enabled: Boolean(selectedCommit),
+    queryKey: ["git", "commitDiff", nwo, selectedCommit?.oid],
+    queryFn: () => ipc("git.commitDiff", { cwd: cwd!, sha: selectedCommit!.oid }),
+    enabled: Boolean(selectedCommit) && cwd !== null,
     staleTime: 60_000,
   });
 
   // Review rounds
-  const repoName = cwd.split("/").pop() ?? "";
+  const repoName = repo;
   const lastShaQuery = useQuery({
-    queryKey: ["review", "getLastSha", repoName, prNumber],
-    queryFn: () => ipc("review.getLastSha", { repo: repoName, prNumber }),
+    queryKey: ["review", "getLastSha", nwo, prNumber],
+    queryFn: () => ipc("review.getLastSha", { repo: nwo, prNumber }),
   });
   const lastSha = lastShaQuery.data ?? null;
   const headSha = detailQuery.data?.headRefOid ?? "";
 
   // Incremental diff
   const incrementalDiffQuery = useQuery({
-    queryKey: ["git", "diff", cwd, lastSha, headSha],
-    queryFn: () => ipc("git.diff", { cwd, fromRef: lastSha ?? "", toRef: headSha }),
+    queryKey: ["git", "diff", nwo, lastSha, headSha],
+    queryFn: () => ipc("git.diff", { cwd: cwd!, fromRef: lastSha ?? "", toRef: headSha }),
     enabled:
       !selectedCommit &&
       diffMode === "since-review" &&
@@ -205,15 +205,15 @@ function PrDetail({ prNumber }: { prNumber: number }) {
 
   // PR review comments (inline on code) — empty when viewing a commit
   const commentsQuery = useQuery({
-    queryKey: ["pr", "comments", cwd, prNumber],
-    queryFn: () => ipc("pr.comments", { cwd, prNumber }),
+    queryKey: ["pr", "comments", nwo, prNumber],
+    queryFn: () => ipc("pr.comments", { ...repoTarget, prNumber }),
     staleTime: 30_000,
   });
 
   // PR issue comments (general conversation)
   const issueCommentsQuery = useQuery({
-    queryKey: ["pr", "issueComments", cwd, prNumber],
-    queryFn: () => ipc("pr.issueComments", { cwd, prNumber }),
+    queryKey: ["pr", "issueComments", nwo, prNumber],
+    queryFn: () => ipc("pr.issueComments", { ...repoTarget, prNumber }),
     staleTime: 30_000,
   });
 
@@ -234,8 +234,8 @@ function PrDetail({ prNumber }: { prNumber: number }) {
 
   // CI annotations — empty when viewing a commit
   const annotationsQuery = useQuery({
-    queryKey: ["checks", "annotations", cwd, prNumber],
-    queryFn: () => ipc("checks.annotations", { cwd, prNumber }),
+    queryKey: ["checks", "annotations", nwo, prNumber],
+    queryFn: () => ipc("checks.annotations", { ...repoTarget, prNumber }),
     staleTime: 30_000,
   });
 
@@ -255,15 +255,15 @@ function PrDetail({ prNumber }: { prNumber: number }) {
 
   // Review threads (for resolved/unresolved state)
   const reviewThreadsQuery = useQuery({
-    queryKey: ["pr", "reviewThreads", cwd, prNumber],
-    queryFn: () => ipc("pr.reviewThreads", { cwd, prNumber }),
+    queryKey: ["pr", "reviewThreads", nwo, prNumber],
+    queryFn: () => ipc("pr.reviewThreads", { ...repoTarget, prNumber }),
     staleTime: 30_000,
   });
 
   // Reactions (PR body + all comments)
   const reactionsQuery = useQuery({
-    queryKey: ["pr", "reactions", cwd, prNumber],
-    queryFn: () => ipc("pr.reactions", { cwd, prNumber }),
+    queryKey: ["pr", "reactions", nwo, prNumber],
+    queryFn: () => ipc("pr.reactions", { ...repoTarget, prNumber }),
     staleTime: 30_000,
   });
 
@@ -289,6 +289,7 @@ function PrDetail({ prNumber }: { prNumber: number }) {
   const currentFile = files[currentFileIndex] ?? null;
   const currentFilePath = currentFile ? getDiffFilePath(currentFile) : "";
   const currentLanguage = inferLanguage(currentFilePath);
+  const [isPrimingFullFileView, setIsPrimingFullFileView] = useState(false);
 
   useEffect(() => {
     if (currentFilePath) {
@@ -326,12 +327,45 @@ function PrDetail({ prNumber }: { prNumber: number }) {
 
   // Full file content (for "show full file" mode)
   const fullFileRef = selectedCommit ? selectedCommit.oid : headSha || "HEAD";
+  const fullFileQueryKey = ["gh", "fileAtRef", nwo, fullFileRef, currentFilePath] as const;
+  const fetchFullFileContent = useCallback(
+    () => ipc("gh.fileAtRef", { ...repoTarget, ref: fullFileRef, filePath: currentFilePath }),
+    [currentFilePath, fullFileRef, repoTarget],
+  );
   const fullFileQuery = useQuery({
-    queryKey: ["gh", "fileAtRef", cwd, fullFileRef, currentFilePath],
-    queryFn: () => ipc("gh.fileAtRef", { cwd, ref: fullFileRef, filePath: currentFilePath }),
+    queryKey: fullFileQueryKey,
+    queryFn: fetchFullFileContent,
     enabled: showFullFile && Boolean(currentFilePath) && Boolean(fullFileRef),
     staleTime: 120_000,
   });
+  const isFullFileContentLoading = showFullFile && fullFileQuery.isLoading;
+  const isFullFileLoading = isPrimingFullFileView || isFullFileContentLoading;
+  const handleViewModeChange = useCallback(
+    async (nextViewMode: DiffMode) => {
+      if (nextViewMode !== "full-file" || showFullFile || !currentFilePath || !fullFileRef) {
+        setViewMode(nextViewMode);
+        return;
+      }
+
+      setIsPrimingFullFileView(true);
+
+      try {
+        await queryClient.fetchQuery({
+          queryKey: fullFileQueryKey,
+          queryFn: fetchFullFileContent,
+          staleTime: 120_000,
+        });
+        startTransition(() => {
+          setViewMode("full-file");
+          setIsPrimingFullFileView(false);
+        });
+      } catch {
+        toastManager.add({ title: "Failed to load full file", type: "error" });
+        setIsPrimingFullFileView(false);
+      }
+    },
+    [currentFilePath, fetchFullFileContent, fullFileQueryKey, fullFileRef, showFullFile],
+  );
 
   const [panelOpen, setPanelOpen] = useState(true);
   const [panelTab, setPanelTab] = useState<PanelTab>("overview");
@@ -386,11 +420,17 @@ function PrDetail({ prNumber }: { prNumber: number }) {
 
   // File navigation
   const goToPrevFile = useCallback(() => {
+    if (isFullFileLoading) {
+      return;
+    }
     setCurrentFileIndex(Math.max(0, currentFileIndex - 1));
-  }, [currentFileIndex, setCurrentFileIndex]);
+  }, [currentFileIndex, isFullFileLoading, setCurrentFileIndex]);
   const goToNextFile = useCallback(() => {
+    if (isFullFileLoading) {
+      return;
+    }
     setCurrentFileIndex(Math.min(files.length - 1, currentFileIndex + 1));
-  }, [currentFileIndex, files.length, setCurrentFileIndex]);
+  }, [currentFileIndex, files.length, isFullFileLoading, setCurrentFileIndex]);
 
   // Viewed files (shared query key — React Query dedupes with sidebar)
   const viewedQuery = useQuery({
@@ -400,7 +440,7 @@ function PrDetail({ prNumber }: { prNumber: number }) {
 
   // Toggle viewed state for current file via `v` key
   const handleToggleViewed = useCallback(() => {
-    if (!currentFilePath || selectedCommit) {
+    if (!currentFilePath || selectedCommit || isFullFileLoading) {
       return;
     }
     const isCurrentlyViewed = viewedQuery.data?.includes(currentFilePath) ?? false;
@@ -414,7 +454,7 @@ function PrDetail({ prNumber }: { prNumber: number }) {
       .catch(() => {
         toastManager.add({ title: "Failed to update viewed state", type: "error" });
       });
-  }, [currentFilePath, prNumber, repoName, selectedCommit, viewedQuery]);
+  }, [currentFilePath, isFullFileLoading, prNumber, repoName, selectedCommit, viewedQuery]);
 
   // Keyboard shortcuts — centralized via useKeyboardShortcuts
   const { getBinding } = useKeybindings();
@@ -434,6 +474,9 @@ function PrDetail({ prNumber }: { prNumber: number }) {
     {
       ...getBinding("actions.nextUnreviewed"),
       handler: () => {
+        if (isFullFileLoading) {
+          return;
+        }
         // Jump to next unviewed file
         const viewed = new Set(viewedQuery.data ?? []);
         for (let i = currentFileIndex + 1; i < files.length; i++) {
@@ -469,8 +512,8 @@ function PrDetail({ prNumber }: { prNumber: number }) {
 
   // Check if the current user has been re-requested for review (e.g. after new commits)
   const reviewRequestsQuery = useQuery({
-    queryKey: ["pr", "reviewRequests", cwd, prNumber],
-    queryFn: () => ipc("pr.reviewRequests", { cwd, prNumber }),
+    queryKey: ["pr", "reviewRequests", nwo, prNumber],
+    queryFn: () => ipc("pr.reviewRequests", { ...repoTarget, prNumber }),
   });
 
   // Loading
@@ -522,7 +565,7 @@ function PrDetail({ prNumber }: { prNumber: number }) {
         isAuthor={isAuthor}
         panelOpen={panelOpen}
         onTogglePanel={togglePanel}
-        cwd={cwd}
+        repoTarget={repoTarget}
         totalAdditions={totalAdditions}
         totalDeletions={totalDeletions}
         showPanelToggle={showPanelToggle}
@@ -584,7 +627,7 @@ function PrDetail({ prNumber }: { prNumber: number }) {
             onDiffModeChange={setDiffMode}
             hasLastReview={!selectedCommit && Boolean(lastSha) && lastSha !== headSha}
             viewMode={viewMode}
-            onViewModeChange={setViewMode}
+            onViewModeChange={handleViewModeChange}
             isViewed={
               selectedCommit
                 ? false
@@ -592,32 +635,24 @@ function PrDetail({ prNumber }: { prNumber: number }) {
                   ? (viewedQuery.data?.includes(currentFilePath) ?? false)
                   : false
             }
-            onToggleViewed={() => {
-              if (currentFilePath && !selectedCommit) {
-                const isCurrentlyViewed = viewedQuery.data?.includes(currentFilePath) ?? false;
-                ipc("review.setFileViewed", {
-                  repo: repoName,
-                  prNumber,
-                  filePath: currentFilePath,
-                  viewed: !isCurrentlyViewed,
-                })
-                  .then(() => viewedQuery.refetch())
-                  .catch(() => {
-                    toastManager.add({ title: "Failed to update viewed state", type: "error" });
-                  });
-              }
-            }}
+            onToggleViewed={handleToggleViewed}
             hideReviewControls={Boolean(selectedCommit)}
             onAiSuggest={
               aiEnabled && currentFilePath ? () => generateForFile(currentFilePath) : undefined
             }
             isAiSuggesting={currentFilePath ? isAiGenerating(currentFilePath) : false}
             aiSuggestEnabled={aiEnabled}
+            isFullFileLoading={isFullFileLoading}
           />
 
           {isLoadingDiff ? (
             <div className="flex flex-1 items-center justify-center">
               <Spinner className="text-primary h-4 w-4" />
+            </div>
+          ) : isFullFileContentLoading ? (
+            <div className="flex flex-1 items-center justify-center gap-2">
+              <Spinner className="text-accent-text h-4 w-4" />
+              <span className="text-text-tertiary text-xs font-medium">Loading full file...</span>
             </div>
           ) : currentFile ? (
             <DiffViewer
@@ -678,7 +713,7 @@ function PrDetail({ prNumber }: { prNumber: number }) {
             isAuthor={isAuthor}
             isDraft={pr.isDraft}
             pr={pr}
-            cwd={cwd}
+            repoTarget={repoTarget}
             prNumber={prNumber}
             canAdmin={canPush}
             hasMergeQueue={hasMergeQueue}
