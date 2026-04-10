@@ -181,6 +181,11 @@ describe("resolveOllamaEndpointUrl", () => {
       "http://localhost:11434/api/chat",
     );
   });
+
+  it("accepts host-only base URLs commonly used in Ollama env vars", () => {
+    expect(resolveOllamaEndpointUrl("localhost:11434")).toBe("http://localhost:11434/api/chat");
+    expect(resolveOllamaEndpointUrl("127.0.0.1:11434/api")).toBe("http://127.0.0.1:11434/api/chat");
+  });
 });
 
 describe("buildOpencodeCommandArgs", () => {

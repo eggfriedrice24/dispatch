@@ -124,6 +124,23 @@ describe("resolveAiConfigFromSources", () => {
     ]);
   });
 
+  it("passes detected Ollama model suggestions through provider config", () => {
+    const config = resolveAiConfigFromSources(
+      createPreferences({
+        aiBigProvider: "ollama",
+      }),
+      {},
+      {
+        ollamaSuggestedModels: ["qwen2.5-coder:14b", "llama3.2:latest"],
+      },
+    );
+
+    expect(config.providers.ollama.suggestedModels).toEqual([
+      "qwen2.5-coder:14b",
+      "llama3.2:latest",
+    ]);
+  });
+
   it("allows the small slot to use a different provider and task routing", () => {
     const config = resolveAiConfigFromSources(
       createPreferences({

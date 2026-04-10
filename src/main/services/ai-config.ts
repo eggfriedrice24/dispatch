@@ -26,6 +26,7 @@ import {
 } from "../../shared/ai-provider-settings";
 import * as repo from "../db/repository";
 import { resolveClaudeSuggestedModels } from "./claude-models";
+import { resolveOllamaSuggestedModels } from "./ollama-models";
 import { resolveOpencodeSuggestedModels } from "./opencode-models";
 
 const AI_PREFERENCE_KEYS = [
@@ -107,6 +108,7 @@ interface AiProviderStatusConfig {
 
 interface ResolveAiConfigFromSourcesOptions {
   claudeSuggestedModels?: string[];
+  ollamaSuggestedModels?: string[];
   opencodeSuggestedModels?: string[];
 }
 
@@ -572,6 +574,7 @@ export function resolveAiConfigFromSources(
       env,
       provider: "ollama",
       activeProviderForLegacy,
+      suggestedModels: options.ollamaSuggestedModels ?? [],
     }),
     opencode: resolveProviderConfig({
       preferences,
@@ -630,6 +633,7 @@ export function resolveAiConfigFromSources(
 export function getAiConfig(): AiResolvedConfig {
   return resolveAiConfigFromSources(readAiPreferences(), process.env, {
     claudeSuggestedModels: resolveClaudeSuggestedModels(process.env),
+    ollamaSuggestedModels: resolveOllamaSuggestedModels(),
     opencodeSuggestedModels: resolveOpencodeSuggestedModels(),
   });
 }
@@ -657,9 +661,11 @@ export function getAiProviderConfigWithSecrets(
     suggestedModels:
       provider === "claude"
         ? resolveClaudeSuggestedModels(process.env)
-        : provider === "opencode"
-          ? resolveOpencodeSuggestedModels()
-          : [],
+        : provider === "ollama"
+          ? resolveOllamaSuggestedModels()
+          : provider === "opencode"
+            ? resolveOpencodeSuggestedModels()
+            : [],
   });
 
   return {

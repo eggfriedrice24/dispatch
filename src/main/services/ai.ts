@@ -12,6 +12,7 @@ import {
   getAiSlotConfigWithSecrets,
   getAiTaskConfigWithSecrets,
 } from "./ai-config";
+import { cacheOllamaSuggestedModels, parseOllamaTagsOutput } from "./ollama-models";
 import { refreshOpencodeModelsCache } from "./opencode-models";
 import { execFile, resolveExecutablePath, whichVersion } from "./shell";
 
@@ -91,7 +92,10 @@ function normalizePathname(pathname: string): string {
 
 export function resolveOllamaEndpointUrl(baseUrl?: string): string {
   const rawBaseUrl = baseUrl?.trim().length ? baseUrl.trim() : "http://localhost:11434";
-  const parsedBaseUrl = new URL(rawBaseUrl);
+  const normalizedBaseUrl = /^[a-z][a-z\d+.-]*:\/\//iu.test(rawBaseUrl)
+    ? rawBaseUrl
+    : `http://${rawBaseUrl}`;
+  const parsedBaseUrl = new URL(normalizedBaseUrl);
   const pathname = normalizePathname(parsedBaseUrl.pathname);
   const endpointPath = "/api/chat";
 
@@ -239,17 +243,18 @@ export function parseOpencodeJsonOutput(output: string): string {
 
   for (const line of output.split("\n")) {
     const trimmed = line.trim();
-    if (!trimmed) {
-      continue;
-    }
-
-    try {
-      const event = JSON.parse(trimmed) as { type: string; part?: { type: string; text?: string } };
-      if (event.type === "text" && event.part?.type === "text" && event.part.text) {
-        textParts.push(event.part.text);
+    if (trimmed) {
+      try {
+        const event = JSON.parse(trimmed) as {
+          type: string;
+          part?: { type: string; text?: string };
+        };
+        if (event.type === "text" && event.part?.type === "text" && event.part.text) {
+          textParts.push(event.part.text);
+        }
+      } catch {
+        // Skip non-JSON lines.
       }
-    } catch {
-      // Skip non-JSON lines.
     }
   }
 
@@ -557,6 +562,12 @@ async function probeOllamaStatus(): Promise<AiProviderStatus> {
       signal: controller.signal,
     });
 
+    if (response.ok) {
+      cacheOllamaSuggestedModels(parseOllamaTagsOutput(await response.text()));
+    } else {
+      cacheOllamaSuggestedModels([]);
+    }
+
     return {
       provider: "ollama",
       version,
@@ -565,6 +576,7 @@ async function probeOllamaStatus(): Promise<AiProviderStatus> {
       statusText: response.ok ? "Local runtime ready" : "Local runtime unavailable",
     };
   } catch {
+    cacheOllamaSuggestedModels([]);
     return {
       provider: "ollama",
       version,
@@ -596,9 +608,9 @@ async function probeOpencodeStatus(): Promise<AiProviderStatus> {
   // The result is used synchronously by getAiConfig().
   await refreshOpencodeModelsCache();
 
-  // opencode doesn't have a dedicated auth status command; if the binary
-  // exists we report it as available. Authentication is handled per-provider
-  // inside opencode's own config.
+  // OpenCode doesn't have a dedicated auth status command; if the binary
+  // Exists we report it as available. Authentication is handled per-provider
+  // Inside OpenCode's own config.
   return {
     provider: "opencode",
     version,
@@ -863,7 +875,7 @@ async function completeWithOpencode(args: ResolvedAiCompletionArgs): Promise<str
 
     return result.stdout;
   } catch (error) {
-    if (error instanceof Error && !/^OpenCode CLI error:/u.test(error.message)) {
+    if (error instanceof Error && !error.message.startsWith("OpenCode CLI error:")) {
       throw createCliError("opencode", error.message);
     }
     throw error;
