@@ -1,6 +1,5 @@
 /* eslint-disable import/max-dependencies -- These AI settings parts intentionally group provider cards and formatting helpers used only by SettingsView. */
 import type { AiProvider, AiProviderStatus } from "@/shared/ipc";
-import type { ReactNode } from "react";
 
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
@@ -9,6 +8,7 @@ import {
   DEFAULT_AI_BINARY_PATH_BY_PROVIDER,
 } from "@/shared/ai-provider-settings";
 import { ChevronDown } from "lucide-react";
+import { type ReactNode, useId } from "react";
 
 export function getDefaultAiBaseUrl(provider: string): string {
   return DEFAULT_AI_BASE_URL_BY_PROVIDER[provider as AiProvider] ?? "Default";
@@ -202,10 +202,19 @@ export function AiProviderRow({
   onToggleExpanded: () => void;
   children: ReactNode;
 }) {
+  const panelId = useId();
+
   return (
     <Collapsible open={isExpanded}>
       <div className={cn(hasDivider && "border-border border-t")}>
-        <div className="flex items-center gap-3 px-5 py-5">
+        <button
+          type="button"
+          onClick={onToggleExpanded}
+          aria-controls={panelId}
+          aria-expanded={isExpanded}
+          aria-label={`Toggle ${label} settings`}
+          className="hover:bg-bg-raised/40 flex w-full cursor-pointer items-center gap-3 bg-transparent px-5 py-5 text-left transition-colors outline-none focus-visible:ring-1 focus-visible:ring-[--border-accent]"
+        >
           <span className={cn("h-3 w-3 shrink-0 rounded-full", dotClass)} />
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
@@ -226,12 +235,7 @@ export function AiProviderRow({
             </div>
             <p className="text-text-secondary mt-1 text-[11px] leading-[1.5]">{statusText}</p>
           </div>
-          <button
-            type="button"
-            onClick={onToggleExpanded}
-            className="text-text-tertiary hover:text-text-primary hover:bg-bg-raised inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-md transition-colors"
-            aria-label={`Toggle ${label} settings`}
-          >
+          <span className="text-text-tertiary inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md">
             <ChevronDown
               size={15}
               className={cn(
@@ -239,9 +243,13 @@ export function AiProviderRow({
                 isExpanded && "rotate-180",
               )}
             />
-          </button>
-        </div>
-        <CollapsibleContent className="border-border-subtle border-t">
+          </span>
+        </button>
+        <CollapsibleContent
+          id={panelId}
+          keepMounted
+          className="border-border-subtle border-t"
+        >
           <div className="bg-[linear-gradient(180deg,rgba(255,255,255,0.01),rgba(255,255,255,0)),radial-gradient(circle_at_top_left,rgba(212,136,58,0.05),transparent_55%)] px-5 py-4">
             {children}
           </div>
