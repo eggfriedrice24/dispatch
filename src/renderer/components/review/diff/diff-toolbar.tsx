@@ -40,6 +40,7 @@ export function DiffToolbar({
   onAiSuggest,
   isAiSuggesting,
   aiSuggestEnabled,
+  isFullFileLoading = false,
 }: {
   currentFile: DiffFile | null;
   currentIndex: number;
@@ -57,10 +58,12 @@ export function DiffToolbar({
   onAiSuggest?: () => void;
   isAiSuggesting?: boolean;
   aiSuggestEnabled?: boolean;
+  isFullFileLoading?: boolean;
 }) {
   const compressedPathToolbar = useMediaQuery({ max: 1320 });
   const compactToolbar = useMediaQuery({ max: 1100 });
   const denseToolbar = useMediaQuery({ max: 920 });
+  const controlsLocked = isFullFileLoading;
   const filePath = currentFile ? getDiffFilePath(currentFile) : "";
   const fileName = filePath.split("/").pop() ?? "";
   const dirPath = filePath.includes("/") ? filePath.slice(0, filePath.lastIndexOf("/") + 1) : "";
@@ -74,6 +77,7 @@ export function DiffToolbar({
     <button
       type="button"
       onClick={onToggleViewed}
+      disabled={controlsLocked}
       title={denseToolbar ? (isViewed ? "Viewed" : "Mark file as viewed") : undefined}
       aria-label={isViewed ? "Viewed" : "Mark file as viewed"}
       className={`flex cursor-pointer items-center rounded-md border px-2 py-0.5 text-[11px] transition-colors ${
@@ -82,7 +86,7 @@ export function DiffToolbar({
         isViewed
           ? "bg-accent-muted border-border-accent text-accent-text"
           : "border-border bg-bg-raised text-text-secondary hover:text-text-primary"
-      }`}
+      } disabled:cursor-default disabled:opacity-50`}
     >
       {denseToolbar ? (
         isViewed ? (
@@ -114,7 +118,10 @@ export function DiffToolbar({
   );
 
   return (
-    <div className="border-border-subtle bg-bg-surface flex h-8 shrink-0 items-center gap-2 overflow-hidden border-b px-3">
+    <div
+      aria-busy={controlsLocked || undefined}
+      className="border-border-subtle bg-bg-surface flex h-8 shrink-0 items-center gap-2 overflow-hidden border-b px-3"
+    >
       {/* File path */}
       <div className="min-w-0 flex-1 basis-0 overflow-hidden">
         {filePath ? (
@@ -145,7 +152,8 @@ export function DiffToolbar({
           <button
             type="button"
             onClick={() => onDiffModeChange("all")}
-            className="text-purple cursor-pointer text-[10px] hover:underline"
+            disabled={controlsLocked}
+            className="text-purple cursor-pointer text-[10px] hover:underline disabled:cursor-default disabled:opacity-50"
           >
             {denseToolbar ? "All" : "Show all"}
           </button>
@@ -156,7 +164,8 @@ export function DiffToolbar({
         <button
           type="button"
           onClick={() => onDiffModeChange("since-review")}
-          className="text-purple hover:bg-purple-muted shrink-0 cursor-pointer rounded-md px-2 py-0.5 text-[10px] whitespace-nowrap transition-colors"
+          disabled={controlsLocked}
+          className="text-purple hover:bg-purple-muted shrink-0 cursor-pointer rounded-md px-2 py-0.5 text-[10px] whitespace-nowrap transition-colors disabled:cursor-default disabled:opacity-50"
         >
           Since review
         </button>
@@ -170,9 +179,9 @@ export function DiffToolbar({
               <button
                 type="button"
                 onClick={onAiSuggest}
-                disabled={isAiSuggesting}
+                disabled={controlsLocked || isAiSuggesting}
                 aria-label="AI review"
-                className="text-primary hover:bg-primary/10 flex shrink-0 cursor-pointer items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-medium whitespace-nowrap transition-colors disabled:opacity-50"
+                className="text-primary hover:bg-primary/10 flex shrink-0 cursor-pointer items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-medium whitespace-nowrap transition-colors disabled:cursor-default disabled:opacity-50"
               >
                 {isAiSuggesting ? <Spinner className="h-3 w-3" /> : <Sparkles size={11} />}
                 {!showIconOnlyControls && "AI Review"}
@@ -190,6 +199,7 @@ export function DiffToolbar({
         <button
           type="button"
           onClick={() => onViewModeChange("unified")}
+          disabled={controlsLocked}
           title={showIconOnlyControls ? "Unified diff" : undefined}
           aria-label="Unified diff"
           className={`flex cursor-pointer items-center rounded-sm px-2 py-0.5 text-[10px] whitespace-nowrap transition-colors ${
@@ -198,7 +208,7 @@ export function DiffToolbar({
             viewMode === "unified"
               ? "bg-bg-elevated text-text-primary shadow-sm"
               : "text-text-tertiary"
-          }`}
+          } disabled:cursor-default disabled:opacity-50`}
         >
           <Rows2 size={11} />
           {!showIconOnlyControls && "Unified"}
@@ -206,6 +216,7 @@ export function DiffToolbar({
         <button
           type="button"
           onClick={() => onViewModeChange("split")}
+          disabled={controlsLocked}
           title={showIconOnlyControls ? "Split diff" : undefined}
           aria-label="Split diff"
           className={`flex cursor-pointer items-center rounded-sm px-2 py-0.5 text-[10px] whitespace-nowrap transition-colors ${
@@ -214,7 +225,7 @@ export function DiffToolbar({
             viewMode === "split"
               ? "bg-bg-elevated text-text-primary shadow-sm"
               : "text-text-tertiary"
-          }`}
+          } disabled:cursor-default disabled:opacity-50`}
         >
           <Columns2 size={11} />
           {!showIconOnlyControls && "Split"}
@@ -222,17 +233,26 @@ export function DiffToolbar({
         <button
           type="button"
           onClick={() => onViewModeChange("full-file")}
-          title={showIconOnlyControls ? "Full file" : undefined}
-          aria-label="Full file"
+          disabled={controlsLocked}
+          title={
+            showIconOnlyControls
+              ? isFullFileLoading
+                ? "Loading full file"
+                : "Full file"
+              : undefined
+          }
+          aria-label={isFullFileLoading ? "Loading full file" : "Full file"}
           className={`flex cursor-pointer items-center rounded-sm px-2 py-0.5 text-[10px] whitespace-nowrap transition-colors ${
             showIconOnlyControls ? "gap-0" : "gap-1"
           } ${
             viewMode === "full-file"
               ? "bg-bg-elevated text-text-primary shadow-sm"
-              : "text-text-tertiary"
-          }`}
+              : isFullFileLoading
+                ? "text-accent-text"
+                : "text-text-tertiary"
+          } disabled:cursor-default disabled:opacity-50`}
         >
-          <FileText size={11} />
+          {isFullFileLoading ? <Spinner className="h-[11px] w-[11px]" /> : <FileText size={11} />}
           {!showIconOnlyControls && "Full file"}
         </button>
       </div>
@@ -263,7 +283,8 @@ export function DiffToolbar({
               <button
                 type="button"
                 onClick={onPrev}
-                disabled={currentIndex === 0}
+                disabled={controlsLocked || currentIndex === 0}
+                aria-label="Previous file"
                 className="border-border bg-bg-raised text-text-secondary hover:text-text-primary flex h-5 w-5 cursor-pointer items-center justify-center rounded-sm border disabled:cursor-not-allowed disabled:opacity-30"
               >
                 <ChevronLeft size={13} />
@@ -281,7 +302,8 @@ export function DiffToolbar({
               <button
                 type="button"
                 onClick={onNext}
-                disabled={currentIndex >= totalFiles - 1}
+                disabled={controlsLocked || currentIndex >= totalFiles - 1}
+                aria-label="Next file"
                 className="border-border bg-bg-raised text-text-secondary hover:text-text-primary flex h-5 w-5 cursor-pointer items-center justify-center rounded-sm border disabled:cursor-not-allowed disabled:opacity-30"
               >
                 <ChevronRight size={13} />
