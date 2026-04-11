@@ -1,5 +1,5 @@
 import { summarizePrChecks } from "@/renderer/lib/review/pr-check-status";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 function check(status: string, conclusion: string | null) {
   return {

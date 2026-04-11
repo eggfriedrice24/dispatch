@@ -3,7 +3,7 @@ import {
   getCompletedPullRequestTimestamp,
   isCompletedPullRequest,
 } from "@/renderer/lib/review/completed-pr-state";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 describe("completed-pr-state", () => {
   it("treats merged and closed pull requests as completed", () => {

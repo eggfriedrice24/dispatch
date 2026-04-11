@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { DiffToolbar } from "@/renderer/components/review/diff/diff-toolbar";
 import { parseDiff } from "@/renderer/lib/review/diff-parser";
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 vi.mock(import("@/hooks/use-media-query"), () => ({
   useMediaQuery: () => false,

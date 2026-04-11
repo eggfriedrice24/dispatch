@@ -4,7 +4,7 @@ import {
   stringifyPrSearchTokens,
   type SearchablePrItem,
 } from "@/renderer/lib/inbox/pr-search";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 function createItem(
   overrides: Partial<Omit<SearchablePrItem, "pr">> & { pr?: Partial<SearchablePrItem["pr"]> },

@@ -2,7 +2,7 @@
 import "@testing-library/jest-dom/vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 import { EnvCheck, ENV_CHECK_WINDOW_DRAG_STYLE, ENV_CHECK_WINDOW_NO_DRAG_STYLE } from "./env-check";
 

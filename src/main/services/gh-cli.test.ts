@@ -1,7 +1,7 @@
 /* eslint-disable vitest/prefer-import-in-mock -- These module mocks need string paths for TypeScript compatibility in this suite. */
 import type * as Electron from "electron";
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { getPreference } from "../db/repository";
 import {

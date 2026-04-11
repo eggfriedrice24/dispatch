@@ -1,5 +1,5 @@
 /* eslint-disable no-inline-comments -- These tests keep short scenario notes adjacent to the expected copy. */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 /**
  * Toast Message Behavior Tests

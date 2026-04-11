@@ -5,7 +5,7 @@ import {
   resolveBinding,
   type KeybindingOverrides,
 } from "@/renderer/lib/keyboard/keybinding-registry";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 describe("DEFAULT_KEYBINDINGS", () => {
   it("contains all expected shortcuts", () => {

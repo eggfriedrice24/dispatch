@@ -4,7 +4,7 @@ import type { AiSuggestion } from "@/renderer/lib/review/ai-suggestions";
 import { DiffViewer } from "@/renderer/components/review/diff/diff-viewer";
 import { parseDiff } from "@/renderer/lib/review/diff-parser";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 vi.mock(import("@/renderer/components/review/diff/blame-popover"), () => ({
   BlameButton: ({ line }: { line: number }) => (

@@ -4,7 +4,7 @@ import {
   buildSuggestionPrompt,
   parseSuggestionsResponse,
 } from "@/renderer/lib/review/ai-suggestions";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 describe("parseSuggestionsResponse", () => {
   it("dedupes repeated suggestions in the same response", () => {

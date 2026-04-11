@@ -1,6 +1,6 @@
 import { resolveMergeStrategy } from "@/renderer/lib/review/merge-strategy";
 /* eslint-disable max-depth, no-inline-comments -- This file enumerates merge-path combinations as an executable contract. */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 describe("resolveMergeStrategy", () => {
   describe("type safety and input validation", () => {

@@ -9,7 +9,7 @@ import { parseDiff, getDiffFilePath, type DiffFile } from "@/renderer/lib/review
  * - Security: path traversal, command injection
  */
 /* eslint-disable prefer-destructuring, no-inline-comments -- These tests intentionally read like concrete parser scenarios. */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 describe("Diff Parser - Critical Edge Cases", () => {
   describe("malformed input", () => {

@@ -5,7 +5,7 @@ import {
   buildHeuristicTriageSections,
   classifyFiles,
 } from "@/renderer/lib/review/triage-classifier";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 function createDiffFile(overrides: Partial<DiffFile> = {}): DiffFile {
   return {

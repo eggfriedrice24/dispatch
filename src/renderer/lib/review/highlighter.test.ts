@@ -1,5 +1,5 @@
 import { inferLanguage } from "@/renderer/lib/review/highlighter";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 describe("inferLanguage", () => {
   describe("JavaScript/TypeScript", () => {

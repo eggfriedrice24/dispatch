@@ -1,5 +1,5 @@
 import { applyMarkdownFormat } from "@/renderer/lib/review/markdown-format";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 describe("applyMarkdownFormat", () => {
   it("wraps the selected text for bold formatting", () => {

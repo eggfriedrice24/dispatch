@@ -3,7 +3,7 @@ import "@testing-library/jest-dom/vitest";
 import { ContentEvent } from "@/renderer/components/review/comments/conversation-tab";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 vi.mock("@/renderer/lib/app/workspace-context", () => ({
   useWorkspace: () => ({ cwd: "/tmp/dispatch", switchWorkspace: vi.fn() }),

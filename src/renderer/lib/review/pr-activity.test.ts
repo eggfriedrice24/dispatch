@@ -3,7 +3,7 @@ import {
   hasNewPrActivity,
   indexPrActivityStates,
 } from "@/renderer/lib/review/pr-activity";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 describe("getPrActivityKey", () => {
   it("builds a stable composite key from repo and PR number", () => {

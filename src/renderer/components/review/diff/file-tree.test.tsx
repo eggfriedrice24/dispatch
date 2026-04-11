@@ -2,7 +2,7 @@ import "@testing-library/jest-dom/vitest";
 import { FileTree } from "@/renderer/components/review/diff/file-tree";
 import { parseDiff } from "@/renderer/lib/review/diff-parser";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 const MULTI_FILE_DIFF = `diff --git a/src/nested/a.ts b/src/nested/a.ts
 index 1111111..2222222 100644

@@ -4,7 +4,7 @@ import {
   preferWorkspacePrs,
   type EnrichedDashboardPr,
 } from "@/renderer/lib/inbox/home-prs";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 function createDashboardItem(
   overrides: Partial<EnrichedDashboardPr["pr"]> & {

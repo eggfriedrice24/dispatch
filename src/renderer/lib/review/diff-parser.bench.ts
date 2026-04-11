@@ -1,5 +1,5 @@
 import { parseDiff } from "@/renderer/lib/review/diff-parser";
-import { bench, describe } from "vitest";
+import { bench, describe } from "vite-plus/test";
 
 function generateDiff(lineCount: number): string {
   let diff = "diff --git a/big-file.ts b/big-file.ts\n--- a/big-file.ts\n+++ b/big-file.ts\n";

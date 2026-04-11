@@ -1,5 +1,5 @@
 /* eslint-disable require-await, no-inline-comments, no-promise-executor-return, unicorn/consistent-function-scoping -- This suite intentionally models async-shaped handlers and Promise edge cases. */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 /**
  * IPC Error Handling Tests

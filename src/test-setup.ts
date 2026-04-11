@@ -1,8 +1,8 @@
 /* eslint-disable jest/no-hooks, jest/require-top-level-describe, jest/no-untyped-mock-factory, unicorn/prefer-global-this, vitest/prefer-import-in-mock -- This file is a shared Vitest setup module, not an executable test suite. */
-/// <reference types="vitest/globals" />
+/// <reference types="vite-plus/test/globals" />
 import { cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom";
-import { afterEach, vi } from "vitest";
+import { afterEach, vi } from "vite-plus/test";
 
 // Mock the IPC layer for component tests
 vi.mock("./renderer/lib/ipc", () => ({

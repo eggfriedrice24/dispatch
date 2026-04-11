@@ -1,5 +1,5 @@
 import { sendNotification, type NotificationType } from "@/renderer/lib/app/notifications";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 describe("sendNotification", () => {
   beforeEach(() => {

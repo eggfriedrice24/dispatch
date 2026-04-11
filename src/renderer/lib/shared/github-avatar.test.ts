@@ -4,7 +4,7 @@ import {
   isEnterpriseManagedUserLogin,
   resizeGitHubAvatarUrl,
 } from "@/renderer/lib/shared/github-avatar";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 describe("buildGitHubAvatarUrl", () => {
   it("uses the repo host instead of hardcoding github.com", () => {

@@ -1,5 +1,5 @@
 import { computeWordDiff, getDiffFilePath, parseDiff } from "@/renderer/lib/review/diff-parser";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 describe("parseDiff", () => {
   it("parses a simple modification", () => {
