@@ -3,7 +3,12 @@ import type * as Electron from "electron";
 
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
-import { getPreference } from "../db/repository";
+import {
+  getPrCache,
+  getPrListCache,
+  getPreference,
+  invalidatePersistedPrCaches,
+} from "../db/repository";
 import {
   createReviewComment,
   getPrDetail,
@@ -41,8 +46,14 @@ vi.mock("electron", async () => {
 vi.mock("../db/repository", () => ({
   cacheDisplayNames: vi.fn(),
   getDisplayNames: vi.fn(() => new Map()),
+  getPrCache: vi.fn(() => null),
+  getPrListCache: vi.fn(() => null),
   getPreference: vi.fn(() => null),
   getRepoAccount: vi.fn(() => null),
+  invalidatePersistedPrCaches: vi.fn(),
+  savePrDetail: vi.fn(),
+  savePrListCache: vi.fn(),
+  savePrListItems: vi.fn(),
   setRepoAccount: vi.fn(),
 }));
 
@@ -51,7 +62,10 @@ vi.mock("./shell", () => ({
 }));
 
 const execFileMock = vi.mocked(execFile);
+const getPrCacheMock = vi.mocked(getPrCache);
+const getPrListCacheMock = vi.mocked(getPrListCache);
 const getPreferenceMock = vi.mocked(getPreference);
+const invalidatePersistedPrCachesMock = vi.mocked(invalidatePersistedPrCaches);
 
 function createPrListStdout(title: string): string {
   return JSON.stringify([
@@ -127,15 +141,20 @@ function createWorkflowRunsStdout(attempt: number): string {
 }
 
 function createPrDetailStdout({
+  state = "OPEN",
+  title = "Large review surface",
   changedFiles = 1,
   files = [{ path: "src/a.ts", additions: 3, deletions: 1 }],
 }: {
+  state?: "OPEN" | "CLOSED" | "MERGED";
+  title?: string;
   changedFiles?: number;
   files?: Array<{ path: string; additions: number; deletions: number }>;
 } = {}): string {
   return JSON.stringify({
     number: 42,
-    title: "Large review surface",
+    state,
+    title,
     body: "Covers a wide set of changes.",
     author: { login: "octocat" },
     headRefName: "feature/huge-pr",
@@ -279,8 +298,13 @@ describe("gh-cli caching", () => {
   afterEach(() => {
     vi.clearAllMocks();
     execFileMock.mockReset();
+    getPrCacheMock.mockReset();
+    getPrCacheMock.mockReturnValue(null);
+    getPrListCacheMock.mockReset();
+    getPrListCacheMock.mockReturnValue(null);
     getPreferenceMock.mockReset();
     getPreferenceMock.mockReturnValue(null);
+    invalidatePersistedPrCachesMock.mockReset();
     invalidateAllCaches();
   });
 
@@ -319,8 +343,6 @@ describe("gh-cli caching", () => {
       .mockRejectedValueOnce(new Error("merge queue unavailable"))
       .mockResolvedValueOnce({ stdout: createPrListStdout("Before edit"), stderr: "" })
       .mockResolvedValueOnce({ stdout: "", stderr: "" })
-      .mockResolvedValueOnce({ stdout: createRepoInfoStdout(), stderr: "" })
-      .mockRejectedValueOnce(new Error("merge queue unavailable"))
       .mockResolvedValueOnce({ stdout: createPrListStdout("After edit"), stderr: "" });
 
     await expect(listPrsCore("/repo-title", "all")).resolves.toMatchObject([
@@ -328,11 +350,152 @@ describe("gh-cli caching", () => {
     ]);
 
     await updatePrTitle("/repo-title", 42, "After edit");
+    expect(invalidatePersistedPrCachesMock).toHaveBeenCalledWith("/repo-title", 42);
 
     await expect(listPrsCore("/repo-title", "all")).resolves.toMatchObject([
       { title: "After edit" },
     ]);
-    expect(execFileMock).toHaveBeenCalledTimes(7);
+    expect(execFileMock).toHaveBeenCalledTimes(5);
+  });
+
+  it("uses persisted terminal PR core lists without shell calls", async () => {
+    getPrListCacheMock.mockReturnValueOnce({
+      data: [
+        {
+          additions: 24,
+          author: { login: "octocat", name: "The Octocat" },
+          baseRefName: "main",
+          deletions: 8,
+          headRefName: "feature/cache",
+          isDraft: false,
+          number: 42,
+          reviewDecision: "REVIEW_REQUIRED",
+          state: "CLOSED",
+          title: "Persisted closed PR",
+          updatedAt: "2026-03-20T00:00:00Z",
+          url: "https://github.com/octo/dispatch/pull/42",
+        },
+      ],
+      fetchedAt: "3026-03-20T00:00:00Z",
+    } as ReturnType<typeof getPrListCache>);
+
+    await expect(listPrsCore("/repo-persisted-core", "all", "closed")).resolves.toMatchObject([
+      { title: "Persisted closed PR" },
+    ]);
+    expect(execFileMock).not.toHaveBeenCalled();
+  });
+
+  it("ignores stale persisted terminal PR core lists", async () => {
+    getPrListCacheMock.mockReturnValueOnce({
+      data: [
+        {
+          additions: 24,
+          author: { login: "octocat", name: "The Octocat" },
+          baseRefName: "main",
+          deletions: 8,
+          headRefName: "feature/cache",
+          isDraft: false,
+          number: 42,
+          reviewDecision: "REVIEW_REQUIRED",
+          state: "CLOSED",
+          title: "Stale closed PR",
+          updatedAt: "2026-03-20T00:00:00Z",
+          url: "https://github.com/octo/dispatch/pull/42",
+        },
+      ],
+      fetchedAt: "2000-03-20T00:00:00Z",
+    } as ReturnType<typeof getPrListCache>);
+
+    execFileMock
+      .mockResolvedValueOnce({ stdout: createRepoInfoStdout(), stderr: "" })
+      .mockRejectedValueOnce(new Error("merge queue unavailable"))
+      .mockResolvedValueOnce({ stdout: createPrListStdout("Fresh closed PR"), stderr: "" });
+
+    await expect(listPrsCore("/repo-stale-core", "all", "closed")).resolves.toMatchObject([
+      { title: "Fresh closed PR" },
+    ]);
+    expect(execFileMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("bypasses persisted terminal PR core lists when a forced refresh is requested", async () => {
+    getPrListCacheMock.mockReturnValueOnce({
+      data: [
+        {
+          additions: 24,
+          author: { login: "octocat", name: "The Octocat" },
+          baseRefName: "main",
+          deletions: 8,
+          headRefName: "feature/cache",
+          isDraft: false,
+          number: 42,
+          reviewDecision: "REVIEW_REQUIRED",
+          state: "CLOSED",
+          title: "Persisted closed PR",
+          updatedAt: "2026-03-20T00:00:00Z",
+          url: "https://github.com/octo/dispatch/pull/42",
+        },
+      ],
+      fetchedAt: "3026-03-20T00:00:00Z",
+    } as ReturnType<typeof getPrListCache>);
+
+    execFileMock
+      .mockResolvedValueOnce({ stdout: createRepoInfoStdout(), stderr: "" })
+      .mockRejectedValueOnce(new Error("merge queue unavailable"))
+      .mockResolvedValueOnce({ stdout: createPrListStdout("Fresh closed PR"), stderr: "" });
+
+    await expect(
+      listPrsCore("/repo-persisted-core-force", "all", "closed", true),
+    ).resolves.toMatchObject([{ title: "Fresh closed PR" }]);
+    expect(getPrListCacheMock).not.toHaveBeenCalled();
+    expect(execFileMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("uses persisted terminal PR enrichment without shell calls", async () => {
+    getPrListCacheMock.mockReturnValueOnce({
+      data: [
+        {
+          additions: 24,
+          autoMergeRequest: null,
+          deletions: 8,
+          mergeable: "MERGEABLE",
+          number: 42,
+          statusCheckRollup: [{ conclusion: "SUCCESS", name: "CI", status: "COMPLETED" }],
+        },
+      ],
+      fetchedAt: "3026-03-20T00:00:00Z",
+    } as ReturnType<typeof getPrListCache>);
+
+    await expect(
+      listPrsEnrichment("/repo-persisted-enrichment", "all", "closed"),
+    ).resolves.toMatchObject([{ mergeable: "MERGEABLE" }]);
+    expect(execFileMock).not.toHaveBeenCalled();
+  });
+
+  it("bypasses persisted terminal PR enrichment when a forced refresh is requested", async () => {
+    getPrListCacheMock.mockReturnValueOnce({
+      data: [
+        {
+          additions: 24,
+          autoMergeRequest: null,
+          deletions: 8,
+          mergeable: "UNKNOWN",
+          number: 42,
+          statusCheckRollup: [],
+        },
+      ],
+      fetchedAt: "3026-03-20T00:00:00Z",
+    } as ReturnType<typeof getPrListCache>);
+
+    execFileMock
+      .mockResolvedValueOnce({ stdout: createRepoInfoStdout(), stderr: "" })
+      .mockRejectedValueOnce(new Error("merge queue unavailable"))
+      .mockResolvedValueOnce({ stdout: createPrEnrichmentStdout(), stderr: "" });
+
+    await expect(
+      listPrsEnrichment("/repo-persisted-enrichment-force", "all", "closed", true),
+    ).resolves.toMatchObject([{ mergeable: "MERGEABLE" }]);
+    expect(getPrListCacheMock).not.toHaveBeenCalled();
+    expect(execFileMock).toHaveBeenCalledTimes(3);
   });
 
   it("uses the saved pull request fetch limit for PR list calls", async () => {
@@ -636,8 +799,6 @@ describe("gh-cli caching", () => {
       .mockResolvedValueOnce({ stdout: createRepoInfoStdout(), stderr: "" })
       .mockRejectedValueOnce(new Error("merge queue unavailable"))
       .mockResolvedValueOnce({ stdout: createPrListStdout("Cached"), stderr: "" })
-      .mockResolvedValueOnce({ stdout: createRepoInfoStdout(), stderr: "" })
-      .mockRejectedValueOnce(new Error("merge queue unavailable"))
       .mockResolvedValueOnce({ stdout: createPrListStdout("Fresh"), stderr: "" });
 
     await expect(listPrsCore("/repo-force-refresh", "all")).resolves.toMatchObject([
@@ -648,7 +809,7 @@ describe("gh-cli caching", () => {
       { title: "Fresh" },
     ]);
 
-    expect(execFileMock).toHaveBeenCalledTimes(6);
+    expect(execFileMock).toHaveBeenCalledTimes(4);
   });
 
   it("invalidates cached workflow runs after a rerun", async () => {
@@ -749,6 +910,67 @@ describe("gh-cli caching", () => {
       ["api", "repos/octo/dispatch/pulls/42/files?per_page=100&page=2"],
       expect.anything(),
     );
+  });
+
+  it("uses persisted terminal PR detail without shell calls", async () => {
+    getPrCacheMock.mockReturnValueOnce({
+      detail: JSON.parse(createPrDetailStdout({ state: "MERGED", title: "Persisted merged PR" })),
+      fetchedAt: "3026-03-20T00:00:00Z",
+      listItem: null,
+      prNumber: 42,
+      repo: "/repo-persisted-detail",
+      state: "MERGED",
+      updatedAt: "2026-03-20T00:05:00Z",
+    });
+
+    await expect(getPrDetail("/repo-persisted-detail", 42)).resolves.toMatchObject({
+      title: "Persisted merged PR",
+    });
+    expect(execFileMock).not.toHaveBeenCalled();
+  });
+
+  it("ignores stale persisted terminal PR detail", async () => {
+    getPrCacheMock.mockReturnValueOnce({
+      detail: JSON.parse(createPrDetailStdout({ state: "MERGED", title: "Stale merged PR" })),
+      fetchedAt: "2000-03-20T00:00:00Z",
+      listItem: null,
+      prNumber: 42,
+      repo: "/repo-stale-detail",
+      state: "MERGED",
+      updatedAt: "2026-03-20T00:05:00Z",
+    });
+
+    execFileMock.mockResolvedValueOnce({
+      stdout: createPrDetailStdout({ state: "MERGED", title: "Fresh merged PR" }),
+      stderr: "",
+    });
+
+    await expect(getPrDetail("/repo-stale-detail", 42)).resolves.toMatchObject({
+      title: "Fresh merged PR",
+    });
+    expect(execFileMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores persisted detail for open pull requests", async () => {
+    getPrCacheMock.mockReturnValueOnce({
+      detail: JSON.parse(createPrDetailStdout({ state: "OPEN", title: "Cached open PR" })),
+      fetchedAt: "3026-03-20T00:00:00Z",
+      listItem: null,
+      prNumber: 42,
+      repo: "/repo-open-detail",
+      state: "OPEN",
+      updatedAt: "2026-03-20T00:05:00Z",
+    });
+
+    execFileMock.mockResolvedValueOnce({
+      stdout: createPrDetailStdout({ state: "OPEN", title: "Fresh open PR" }),
+      stderr: "",
+    });
+
+    await expect(getPrDetail("/repo-open-detail", 42)).resolves.toMatchObject({
+      title: "Fresh open PR",
+    });
+    expect(execFileMock).toHaveBeenCalledTimes(1);
   });
 
   it("uses the upstream repo for PR reactions when the current clone is a fork", async () => {

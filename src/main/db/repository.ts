@@ -1,3 +1,4 @@
+import type { GhPrDetail, GhPrListItem } from "../../shared/ipc";
 import type {
   ReviewResumeSelectedCommit,
   ReviewResumeState,
@@ -225,6 +226,203 @@ export function markPrActivitySeen(repo: string, prNumber: number, updatedAt: st
       last_seen_updated_at = excluded.last_seen_updated_at,
       seen_at = excluded.seen_at
   `).run(repo, prNumber, updatedAt);
+}
+
+// ---------------------------------------------------------------------------
+// Pull Request Cache
+// ---------------------------------------------------------------------------
+
+export interface PrCacheEntry {
+  repo: string;
+  prNumber: number;
+  state: GhPrListItem["state"] | null;
+  updatedAt: string | null;
+  fetchedAt: string;
+  listItem: GhPrListItem | null;
+  detail: GhPrDetail | null;
+}
+
+export interface PrListCacheEntry<T> {
+  data: T;
+  fetchedAt: string;
+}
+
+function parseCachedJson<T>(value: string | null): T | null {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return null;
+  }
+}
+
+function toCachedPrListItem(detail: GhPrDetail): GhPrListItem {
+  return {
+    number: detail.number,
+    title: detail.title,
+    state: detail.state,
+    author: detail.author,
+    headRefName: detail.headRefName,
+    baseRefName: detail.baseRefName,
+    reviewDecision: detail.reviewDecision,
+    statusCheckRollup: detail.statusCheckRollup.map(
+      ({ detailsUrl: _detailsUrl, ...status }) => status,
+    ),
+    updatedAt: detail.updatedAt,
+    url: detail.url,
+    isDraft: detail.isDraft,
+    additions: detail.additions,
+    deletions: detail.deletions,
+    mergeable: detail.mergeable,
+    autoMergeRequest: detail.autoMergeRequest,
+  };
+}
+
+export function getPrCache(repo: string, prNumber: number): PrCacheEntry | null {
+  const db = getDatabase();
+  const row = db
+    .prepare(`
+      SELECT repo, number, data, detail_data, state, updated_at, fetched_at
+      FROM pr_cache
+      WHERE repo = ? AND number = ?
+    `)
+    .get(repo, prNumber) as
+    | {
+        repo: string;
+        number: number;
+        data: string;
+        detail_data: string | null;
+        state: GhPrListItem["state"] | null;
+        updated_at: string | null;
+        fetched_at: string;
+      }
+    | undefined;
+
+  if (!row) {
+    return null;
+  }
+
+  return {
+    repo: row.repo,
+    prNumber: row.number,
+    state: row.state,
+    updatedAt: row.updated_at,
+    fetchedAt: row.fetched_at,
+    listItem: parseCachedJson<GhPrListItem>(row.data),
+    detail: parseCachedJson<GhPrDetail>(row.detail_data),
+  };
+}
+
+export function savePrListItems(repo: string, items: GhPrListItem[]): void {
+  if (items.length === 0) {
+    return;
+  }
+
+  const db = getDatabase();
+  const writePrListItem = db.prepare(`
+    INSERT INTO pr_cache (repo, number, data, state, updated_at, fetched_at)
+    VALUES (?, ?, ?, ?, ?, datetime('now'))
+    ON CONFLICT(repo, number) DO UPDATE SET
+      data = excluded.data,
+      state = excluded.state,
+      updated_at = excluded.updated_at,
+      fetched_at = excluded.fetched_at
+  `);
+
+  const writePrListItems = db.transaction((entries: GhPrListItem[]) => {
+    for (const item of entries) {
+      writePrListItem.run(repo, item.number, JSON.stringify(item), item.state, item.updatedAt);
+    }
+  });
+
+  writePrListItems(items);
+}
+
+export function savePrDetail(repo: string, detail: GhPrDetail): void {
+  const db = getDatabase();
+  const listItem = toCachedPrListItem(detail);
+
+  db.prepare(`
+    INSERT INTO pr_cache (repo, number, data, detail_data, state, updated_at, fetched_at)
+    VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+    ON CONFLICT(repo, number) DO UPDATE SET
+      data = excluded.data,
+      detail_data = excluded.detail_data,
+      state = excluded.state,
+      updated_at = excluded.updated_at,
+      fetched_at = excluded.fetched_at
+  `).run(
+    repo,
+    detail.number,
+    JSON.stringify(listItem),
+    JSON.stringify(detail),
+    detail.state,
+    detail.updatedAt,
+  );
+}
+
+export function getPrListCache<T>(args: {
+  repo: string;
+  filter: "reviewRequested" | "authored" | "all";
+  state: "closed" | "merged";
+  cacheKey: string;
+}): PrListCacheEntry<T> | null {
+  const db = getDatabase();
+  const row = db
+    .prepare(`
+      SELECT data, fetched_at
+      FROM pr_list_cache
+      WHERE repo = ? AND filter = ? AND state = ? AND limit_key = ?
+    `)
+    .get(args.repo, args.filter, args.state, args.cacheKey) as
+    | {
+        data: string;
+        fetched_at: string;
+      }
+    | undefined;
+
+  if (!row) {
+    return null;
+  }
+
+  const data = parseCachedJson<T>(row.data);
+  if (!data) {
+    return null;
+  }
+
+  return {
+    data,
+    fetchedAt: row.fetched_at,
+  };
+}
+
+export function savePrListCache<T>(args: {
+  repo: string;
+  filter: "reviewRequested" | "authored" | "all";
+  state: "closed" | "merged";
+  cacheKey: string;
+  data: T;
+}): void {
+  const db = getDatabase();
+  db.prepare(`
+    INSERT INTO pr_list_cache (repo, filter, state, limit_key, data, fetched_at)
+    VALUES (?, ?, ?, ?, ?, datetime('now'))
+    ON CONFLICT(repo, filter, state, limit_key) DO UPDATE SET
+      data = excluded.data,
+      fetched_at = excluded.fetched_at
+  `).run(args.repo, args.filter, args.state, args.cacheKey, JSON.stringify(args.data));
+}
+
+export function invalidatePersistedPrCaches(repo: string, prNumber?: number): void {
+  const db = getDatabase();
+  db.prepare("DELETE FROM pr_list_cache WHERE repo = ?").run(repo);
+
+  if (prNumber !== undefined) {
+    db.prepare("DELETE FROM pr_cache WHERE repo = ? AND number = ?").run(repo, prNumber);
+  }
 }
 
 // ---------------------------------------------------------------------------

@@ -1,3 +1,5 @@
+import type { RepoTarget } from "@/shared/ipc";
+
 import { Spinner } from "@/components/ui/spinner";
 import { ipc } from "@/renderer/lib/app/ipc";
 import { useQuery } from "@tanstack/react-query";
@@ -13,7 +15,7 @@ import { useEffect, useMemo, useRef, useState, type RefObject, type ReactNode } 
  */
 
 export interface LogViewerProps {
-  repoTarget: import("@/shared/ipc").RepoTarget;
+  repoTarget: RepoTarget;
   runId: number;
   searchQuery?: string;
   activeMatchIndex?: number;
@@ -226,14 +228,20 @@ function LogSection({
         />
       );
     });
-  }, [activeMatchIndex, activeMatchRef, linesToRender, matchOffset, searchQuery, section.isGroup, startLine]);
+  }, [
+    activeMatchIndex,
+    activeMatchRef,
+    linesToRender,
+    matchOffset,
+    searchQuery,
+    section.isGroup,
+    startLine,
+  ]);
 
   if (!section.isGroup) {
     return (
       <table className="mb-0.5 w-full text-[11px]">
-        <tbody>
-          {renderedRows}
-        </tbody>
+        <tbody>{renderedRows}</tbody>
       </table>
     );
   }
@@ -258,48 +266,49 @@ function LogSection({
         )}
         <span className="text-text-primary font-mono text-[11px] font-medium">{section.name}</span>
         {hasMatches && (
-          <span className="bg-primary/20 text-primary ml-1 rounded-sm px-1 text-[9px]">matches</span>
+          <span className="bg-primary/20 text-primary ml-1 rounded-sm px-1 text-[9px]">
+            matches
+          </span>
         )}
       </button>
       {expanded && (
-        <div className="border-l border-border-subtle pl-3">
+        <div className="border-border-subtle border-l pl-3">
           <table className="w-full text-[11px]">
             <tbody>
               {renderedRows}
               {section.lines.length > LOG_SECTION_PREVIEW_LIMIT &&
                 !hasMatches &&
                 (isShowingAllLines ? (
-                <tr>
-                  <td className="text-text-tertiary w-8 select-none pt-1 align-top text-right font-mono text-[10px]">
-                    {startLine + section.lines.length}
-                  </td>
-                  <td className="px-0 pt-1">
-                    <button
-                      type="button"
-                      onClick={() => setIsShowingAllLines(false)}
-                      className="hover:bg-bg-raised text-text-tertiary px-2 py-0.5 rounded text-left"
-                    >
-                      Show fewer lines
-                    </button>
-                  </td>
-                </tr>
+                  <tr>
+                    <td className="text-text-tertiary w-8 pt-1 text-right align-top font-mono text-[10px] select-none">
+                      {startLine + section.lines.length}
+                    </td>
+                    <td className="px-0 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setIsShowingAllLines(false)}
+                        className="hover:bg-bg-raised text-text-tertiary rounded px-2 py-0.5 text-left"
+                      >
+                        Show fewer lines
+                      </button>
+                    </td>
+                  </tr>
                 ) : (
-                <tr>
-                  <td className="text-text-tertiary w-8 select-none pt-1 align-top text-right font-mono text-[10px]">
-                    {startLine + 1 + linesToRender.length}
-                  </td>
-                  <td className="px-0 pt-1">
-                    <button
-                      type="button"
-                      onClick={() => setIsShowingAllLines(true)}
-                      className="hover:bg-bg-raised text-text-tertiary px-2 py-0.5 rounded text-left"
-                    >
-                      Show all {section.lines.length} lines ({hiddenLineCount} more)
-                    </button>
-                  </td>
-                </tr>
+                  <tr>
+                    <td className="text-text-tertiary w-8 pt-1 text-right align-top font-mono text-[10px] select-none">
+                      {startLine + 1 + linesToRender.length}
+                    </td>
+                    <td className="px-0 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setIsShowingAllLines(true)}
+                        className="hover:bg-bg-raised text-text-tertiary rounded px-2 py-0.5 text-left"
+                      >
+                        Show all {section.lines.length} lines ({hiddenLineCount} more)
+                      </button>
+                    </td>
+                  </tr>
                 ))}
-                )}
             </tbody>
           </table>
         </div>
@@ -335,11 +344,11 @@ function LogLineRow({
   if (!searchQuery) {
     return (
       <tr className={rowClass}>
-        <td className="text-text-tertiary w-8 select-none px-0 py-0 text-right font-mono text-[10px] tabular-nums">
+        <td className="text-text-tertiary w-8 px-0 py-0 text-right font-mono text-[10px] tabular-nums select-none">
           {lineNumber}
         </td>
         <td className="px-0 py-0">
-          <pre className="whitespace-pre-wrap break-all font-mono text-[11px]">
+          <pre className="font-mono text-[11px] break-all whitespace-pre-wrap">
             {segments.map((seg, i) => (
               <span
                 key={`${i}-${seg.text.slice(0, 5)}`}
@@ -359,12 +368,12 @@ function LogLineRow({
 
   return (
     <tr className={rowClass}>
-      <td className="text-text-tertiary w-8 select-none px-0 py-0 text-right font-mono text-[10px] tabular-nums">
+      <td className="text-text-tertiary w-8 px-0 py-0 text-right font-mono text-[10px] tabular-nums select-none">
         {lineNumber}
       </td>
       <td className="px-0 py-0">
-        <pre className="whitespace-pre-wrap break-all font-mono text-[11px]">
-            {segments.map((seg, i) => {
+        <pre className="font-mono text-[11px] break-all whitespace-pre-wrap">
+          {segments.map((seg, i) => {
             const parts: ReactNode[] = [];
             let remaining = seg.text;
             let lower = remaining.toLowerCase();

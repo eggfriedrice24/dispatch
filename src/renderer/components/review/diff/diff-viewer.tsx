@@ -329,7 +329,7 @@ function buildSplitRows(rows: FlatRow[]): SplitRow[] {
         splitRows.push({
           kind: "pair",
           key: row.key,
-          left: row.line.type === "add" ? null : row.line,
+          left: row.line,
           right: row.line,
         });
         lastLineDestination = { kind: "direct" };
@@ -538,7 +538,7 @@ export function DiffViewer({
 
   // --- Scroll to a specific comment line (triggered by thread clicks) ---
   useEffect(() => {
-    if (scrollToLine == null || !scrollRef.current) {
+    if (scrollToLine === null || scrollToLine === undefined || !scrollRef.current) {
       return;
     }
     // Wait for the DOM to render comment rows after file switch
@@ -1636,8 +1636,8 @@ function safeTokenize(
           themes: {
             light: themePair.light,
             dark: themePair.dark,
-          } as Parameters<Highlighter["codeToTokens"]>[1]["themes"],
-        } as Parameters<Highlighter["codeToTokens"]>[1]);
+          },
+        } as unknown as Parameters<Highlighter["codeToTokens"]>[1]);
       } catch {
         return highlighter.codeToTokens(content, {
           lang: lang as Parameters<Highlighter["codeToTokens"]>[1]["lang"],

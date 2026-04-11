@@ -8,10 +8,19 @@ import type {
   GhReactionContent,
   GhReactionGroup,
   GhReviewComment,
+  GhReviewThread,
   RepoTarget,
 } from "../../../shared/ipc";
 
 import { PR_FETCH_LIMIT_UNLIMITED } from "../../../shared/pr-fetch-limit";
+import {
+  getPrCache,
+  getPrListCache,
+  invalidatePersistedPrCaches,
+  savePrDetail,
+  savePrListCache,
+  savePrListItems,
+} from "../../db/repository";
 import {
   PR_LIST_CORE_FIELDS,
   PR_LIST_ENRICHMENT_FIELDS,
@@ -39,6 +48,129 @@ import {
 const MAX_BROAD_ENRICHMENT_LIMIT = 100;
 const MAX_ALL_STATE_ENRICHMENT_LIMIT = 50;
 const UNLIMITED_PR_PAGE_SIZE = 100;
+const PERSISTED_CLOSED_PR_LIST_TTL_MS = 4 * 60 * 60 * 1000;
+const PERSISTED_MERGED_PR_LIST_TTL_MS = 24 * 60 * 60 * 1000;
+const PERSISTED_CLOSED_PR_DETAIL_TTL_MS = 60 * 60 * 1000;
+const PERSISTED_MERGED_PR_DETAIL_TTL_MS = 6 * 60 * 60 * 1000;
+
+function isTerminalPrState(state: string): state is "CLOSED" | "MERGED" {
+  return state === "CLOSED" || state === "MERGED";
+}
+
+function isTerminalPrListState(
+  state: "open" | "closed" | "merged" | "all",
+): state is "closed" | "merged" {
+  return state === "closed" || state === "merged";
+}
+
+function isPersistedCacheFresh(fetchedAt: string, ttl: number): boolean {
+  const timestamp = Date.parse(fetchedAt);
+  return Number.isFinite(timestamp) && Date.now() - timestamp <= ttl;
+}
+
+function resolvePersistedPrListTtlMs(state: "closed" | "merged"): number {
+  return state === "merged" ? PERSISTED_MERGED_PR_LIST_TTL_MS : PERSISTED_CLOSED_PR_LIST_TTL_MS;
+}
+
+function resolvePersistedPrDetailTtlMs(state: "CLOSED" | "MERGED"): number {
+  return state === "MERGED" ? PERSISTED_MERGED_PR_DETAIL_TTL_MS : PERSISTED_CLOSED_PR_DETAIL_TTL_MS;
+}
+
+function primePrCaches(key: string, data: GhPrListItem[]): void {
+  setCache(prListCache, key, { data: data.map((pr) => toCorePrListItem(pr)) });
+  setCache(prEnrichmentCache, key, { data: data.map((pr) => toPrEnrichment(pr)) });
+}
+
+function getCachedTerminalPrListData<T>(args: {
+  repoKey: string;
+  filter: "reviewRequested" | "authored" | "all";
+  state: "open" | "closed" | "merged" | "all";
+  cacheKey: string;
+}): T | null {
+  if (!isTerminalPrListState(args.state)) {
+    return null;
+  }
+
+  try {
+    const cached = getPrListCache<T>({
+      repo: args.repoKey,
+      filter: args.filter,
+      state: args.state,
+      cacheKey: args.cacheKey,
+    });
+
+    if (!cached) {
+      return null;
+    }
+
+    return isPersistedCacheFresh(cached.fetchedAt, resolvePersistedPrListTtlMs(args.state))
+      ? cached.data
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function persistTerminalPrListData<T>(args: {
+  repoKey: string;
+  filter: "reviewRequested" | "authored" | "all";
+  state: "open" | "closed" | "merged" | "all";
+  cacheKey: string;
+  data: T;
+}): void {
+  try {
+    if (isTerminalPrListState(args.state)) {
+      savePrListCache({
+        repo: args.repoKey,
+        filter: args.filter,
+        state: args.state,
+        cacheKey: args.cacheKey,
+        data: args.data,
+      });
+    }
+  } catch {
+    // Cache persistence is best-effort so it never blocks live PR reads.
+  }
+}
+
+function persistFullPrListItems(repoKey: string, data: GhPrListItem[]): void {
+  try {
+    savePrListItems(repoKey, data);
+  } catch {
+    // Full PR snapshots are best-effort and should never block the caller.
+  }
+}
+
+function getCachedTerminalPrDetail(repoKey: string, prNumber: number): GhPrDetail | null {
+  try {
+    const cached = getPrCache(repoKey, prNumber);
+    if (
+      !cached?.detail ||
+      !cached.state ||
+      !isTerminalPrState(cached.state) ||
+      !isPersistedCacheFresh(cached.fetchedAt, resolvePersistedPrDetailTtlMs(cached.state))
+    ) {
+      return null;
+    }
+
+    return cached.detail;
+  } catch {
+    return null;
+  }
+}
+
+function persistPrDetailCache(repoKey: string, detail: GhPrDetail): void {
+  try {
+    savePrDetail(repoKey, detail);
+  } catch {
+    // Detail caching is opportunistic; fetch results should still succeed if SQLite misses.
+  }
+}
+
+function invalidatePrCaches(repoKey: string, prNumber?: number): void {
+  invalidatePrListCaches(repoKey);
+  invalidatePersistedPrCaches(repoKey, prNumber);
+}
 
 async function resolveOpenPullRequest(
   cwdOrTarget: string | RepoTarget,
@@ -493,6 +625,20 @@ function listUnlimitedPrs(
     cache: prFullCache,
     key,
     loader: async () => {
+      if (!forceRefresh) {
+        const cached = getCachedTerminalPrListData<GhPrListItem[]>({
+          repoKey: resolved.nwo,
+          filter,
+          state,
+          cacheKey: `${PR_FETCH_LIMIT_UNLIMITED}::full`,
+        });
+        if (cached) {
+          cacheAuthorDisplayNames(cached);
+          primePrCaches(key, cached);
+          return cached;
+        }
+      }
+
       const rawPullRequests =
         filter === "all"
           ? await fetchUnlimitedRepositoryPullRequests(cwdOrTarget, state)
@@ -500,8 +646,15 @@ function listUnlimitedPrs(
       const data = rawPullRequests.map((pr) => mapRawPullRequest(pr));
 
       cacheAuthorDisplayNames(data);
-      setCache(prListCache, key, { data: data.map((pr) => toCorePrListItem(pr)) });
-      setCache(prEnrichmentCache, key, { data: data.map((pr) => toPrEnrichment(pr)) });
+      primePrCaches(key, data);
+      persistTerminalPrListData({
+        repoKey: resolved.nwo,
+        filter,
+        state,
+        cacheKey: `${PR_FETCH_LIMIT_UNLIMITED}::full`,
+        data,
+      });
+      persistFullPrListItems(resolved.nwo, data);
 
       return data;
     },
@@ -548,6 +701,19 @@ export function listPrsCore(
     cache: prListCache,
     key,
     loader: async () => {
+      if (!forceRefresh) {
+        const cached = getCachedTerminalPrListData<GhPrListItemCore[]>({
+          repoKey: resolved.nwo,
+          filter,
+          state,
+          cacheKey: `${limit}::core`,
+        });
+        if (cached) {
+          cacheAuthorDisplayNames(cached);
+          return cached;
+        }
+      }
+
       if (limit === PR_FETCH_LIMIT_UNLIMITED) {
         const rawPullRequests =
           filter === "all"
@@ -566,6 +732,13 @@ export function listPrsCore(
           mapRawPullRequestCore(pr as RawPullRequestCoreNode),
         );
         cacheAuthorDisplayNames(data);
+        persistTerminalPrListData({
+          repoKey: resolved.nwo,
+          filter,
+          state,
+          cacheKey: `${limit}::core`,
+          data,
+        });
         return data;
       }
 
@@ -581,6 +754,13 @@ export function listPrsCore(
       const { stdout } = await ghExec(args, { cwd: resolved.cwd, timeout: 30_000 });
       const data = parseJsonOutput<GhPrListItemCore[]>(stdout);
       cacheAuthorDisplayNames(data);
+      persistTerminalPrListData({
+        repoKey: resolved.nwo,
+        filter,
+        state,
+        cacheKey: `${limit}::core`,
+        data,
+      });
       return data;
     },
   });
@@ -609,6 +789,18 @@ export function listPrsEnrichment(
     cache: prEnrichmentCache,
     key,
     loader: async () => {
+      if (!forceRefresh) {
+        const cached = getCachedTerminalPrListData<GhPrEnrichment[]>({
+          repoKey: resolved.nwo,
+          filter,
+          state,
+          cacheKey: `${limit}::enrichment`,
+        });
+        if (cached) {
+          return cached;
+        }
+      }
+
       if (limit === PR_FETCH_LIMIT_UNLIMITED) {
         const rawPullRequests =
           filter === "all"
@@ -623,9 +815,17 @@ export function listPrsEnrichment(
                 state,
                 UNLIMITED_PULL_REQUEST_ENRICHMENT_FIELDS,
               );
-        return rawPullRequests.map((pr) =>
+        const data = rawPullRequests.map((pr) =>
           mapRawPullRequestEnrichment(pr as RawPullRequestEnrichmentNode),
         );
+        persistTerminalPrListData({
+          repoKey: resolved.nwo,
+          filter,
+          state,
+          cacheKey: `${limit}::enrichment`,
+          data,
+        });
+        return data;
       }
 
       const repoArgs =
@@ -638,7 +838,15 @@ export function listPrsEnrichment(
         limit,
       });
       const { stdout } = await ghExec(args, { cwd: resolved.cwd, timeout: 60_000 });
-      return parseJsonOutput<GhPrEnrichment[]>(stdout);
+      const data = parseJsonOutput<GhPrEnrichment[]>(stdout);
+      persistTerminalPrListData({
+        repoKey: resolved.nwo,
+        filter,
+        state,
+        cacheKey: `${limit}::enrichment`,
+        data,
+      });
+      return data;
     },
   });
 }
@@ -675,12 +883,8 @@ export function listPrs(
       const { stdout } = await ghExec(args, { cwd: resolved.cwd, timeout: 60_000 });
       const data = parseJsonOutput<GhPrListItem[]>(stdout);
 
-      setCache(prListCache, key, {
-        data: data.map((pr) => toCorePrListItem(pr)),
-      });
-      setCache(prEnrichmentCache, key, {
-        data: data.map((pr) => toPrEnrichment(pr)),
-      });
+      cacheAuthorDisplayNames(data);
+      primePrCaches(key, data);
 
       return data;
     },
@@ -723,6 +927,11 @@ export async function getPrDetail(
     typeof cwdOrTarget === "string"
       ? { cwd: cwdOrTarget, repoFlag: [] as string[], nwo: cwdOrTarget }
       : resolveRepoCwd(cwdOrTarget);
+  const cachedDetail = getCachedTerminalPrDetail(resolved.nwo, prNumber);
+  if (cachedDetail) {
+    return cachedDetail;
+  }
+
   const { stdout } = await ghExec(
     ["pr", "view", String(prNumber), "--json", PR_DETAIL_FIELDS, ...resolved.repoFlag],
     {
@@ -737,12 +946,13 @@ export async function getPrDetail(
   const { changedFiles, ...prDetail } = detail;
 
   if (changedFiles <= prDetail.files.length) {
+    persistPrDetailCache(resolved.nwo, prDetail);
     return prDetail;
   }
 
   try {
     const files = await listPullRequestFiles(cwdOrTarget, prNumber);
-    return {
+    const hydratedDetail = {
       ...prDetail,
       files: files.map((file) => ({
         path: file.filename,
@@ -750,7 +960,10 @@ export async function getPrDetail(
         deletions: file.deletions,
       })),
     };
+    persistPrDetailCache(resolved.nwo, hydratedDetail);
+    return hydratedDetail;
   } catch {
+    persistPrDetailCache(resolved.nwo, prDetail);
     return prDetail;
   }
 }
@@ -951,7 +1164,7 @@ export async function updatePrTitle(
     cwd: resolved.cwd,
     timeout: 15_000,
   });
-  invalidatePrListCaches(resolved.nwo);
+  invalidatePrCaches(resolved.nwo, prNumber);
 }
 
 export async function updatePrBody(
@@ -967,7 +1180,7 @@ export async function updatePrBody(
     cwd: resolved.cwd,
     timeout: 15_000,
   });
-  invalidatePrListCaches(resolved.nwo);
+  invalidatePrCaches(resolved.nwo, prNumber);
 }
 
 export async function listRepoLabels(
@@ -997,6 +1210,7 @@ export async function addPrLabel(
     cwd: resolved.cwd,
     timeout: 15_000,
   });
+  invalidatePrCaches(resolved.nwo, prNumber);
 }
 
 export async function removePrLabel(
@@ -1012,6 +1226,7 @@ export async function removePrLabel(
     cwd: resolved.cwd,
     timeout: 15_000,
   });
+  invalidatePrCaches(resolved.nwo, prNumber);
 }
 
 export type MergeStrategy = "merge" | "squash" | "rebase";
@@ -1040,7 +1255,7 @@ export async function mergePr(
   }
   args.push(...resolved.repoFlag);
   const { stdout } = await ghExec(args, { cwd: resolved.cwd });
-  invalidatePrListCaches(resolved.nwo);
+  invalidatePrCaches(resolved.nwo, prNumber);
   const queued = /merge queue|enqueue|auto-merge/i.test(stdout);
   return { queued };
 }
@@ -1058,7 +1273,7 @@ export async function updatePrBranch(
     cwd: resolved.cwd,
     timeout: 30_000,
   });
-  invalidatePrListCaches(resolved.nwo);
+  invalidatePrCaches(resolved.nwo, prNumber);
 }
 
 export async function closePr(cwdOrTarget: string | RepoTarget, prNumber: number): Promise<void> {
@@ -1067,7 +1282,7 @@ export async function closePr(cwdOrTarget: string | RepoTarget, prNumber: number
       ? { cwd: cwdOrTarget, repoFlag: [] as string[], nwo: cwdOrTarget }
       : resolveRepoCwd(cwdOrTarget);
   await ghExec(["pr", "close", String(prNumber), ...resolved.repoFlag], { cwd: resolved.cwd });
-  invalidatePrListCaches(resolved.nwo);
+  invalidatePrCaches(resolved.nwo, prNumber);
 }
 
 export async function getMergeQueueStatus(
@@ -1163,7 +1378,7 @@ export async function replyToReviewComment(
     ],
     { cwd: resolved.cwd, timeout: 15_000 },
   );
-  invalidatePrListCaches(resolved.nwo);
+  invalidatePrCaches(resolved.nwo, prNumber);
 }
 
 export async function createPrComment(
@@ -1179,7 +1394,7 @@ export async function createPrComment(
     cwd: resolved.cwd,
     timeout: 15_000,
   });
-  invalidatePrListCaches(resolved.nwo);
+  invalidatePrCaches(resolved.nwo, prNumber);
 }
 
 export async function getIssueComments(
@@ -1366,7 +1581,7 @@ export async function resolveReviewThread(
     ],
     { cwd: resolved.cwd, timeout: 10_000 },
   );
-  invalidatePrListCaches(resolved.nwo);
+  invalidatePrCaches(resolved.nwo);
 }
 
 export async function unresolveReviewThread(
@@ -1386,7 +1601,7 @@ export async function unresolveReviewThread(
     ],
     { cwd: resolved.cwd, timeout: 10_000 },
   );
-  invalidatePrListCaches(resolved.nwo);
+  invalidatePrCaches(resolved.nwo);
 }
 
 export async function getPrReviewRequests(
@@ -1465,15 +1680,7 @@ export async function getPrReviewRequests(
 export async function getPrReviewThreads(
   cwdOrTarget: string | RepoTarget,
   prNumber: number,
-): Promise<
-  Array<{
-    id: string;
-    isResolved: boolean;
-    path: string;
-    line: number | null;
-    comments: Array<{ author: { login: string }; body: string }>;
-  }>
-> {
+): Promise<GhReviewThread[]> {
   const resolved =
     typeof cwdOrTarget === "string"
       ? { cwd: cwdOrTarget, repoFlag: [] as string[], nwo: cwdOrTarget }
@@ -1488,7 +1695,9 @@ export async function getPrReviewThreads(
             isResolved
             path
             line
-            comments(first: 3) {
+            startLine
+            diffSide
+            comments(first: 100) {
               nodes {
                 databaseId
                 author { login }
@@ -1514,8 +1723,14 @@ export async function getPrReviewThreads(
               isResolved: boolean;
               path: string;
               line: number | null;
+              startLine: number | null;
+              diffSide: "LEFT" | "RIGHT" | null;
               comments: {
-                nodes: Array<{ databaseId: number | null; author: { login: string }; body: string }>;
+                nodes: Array<{
+                  databaseId: number | null;
+                  author: { login: string };
+                  body: string;
+                }>;
               };
             }>;
           };
@@ -1529,6 +1744,8 @@ export async function getPrReviewThreads(
     isResolved: thread.isResolved,
     path: thread.path,
     line: thread.line,
+    startLine: thread.startLine,
+    diffSide: thread.diffSide ?? "RIGHT",
     rootCommentId: thread.comments.nodes[0]?.databaseId ?? null,
     comments: thread.comments.nodes,
   }));
@@ -1586,7 +1803,7 @@ export async function createReviewComment(args: {
   }
 
   await ghExec(ghArgs, { cwd: resolved.cwd, timeout: 15_000 });
-  invalidatePrListCaches(resolved.nwo);
+  invalidatePrCaches(resolved.nwo, args.prNumber);
 }
 
 export type ReviewEvent = "APPROVE" | "REQUEST_CHANGES" | "COMMENT";
@@ -1621,7 +1838,7 @@ export async function submitReview(args: {
   }
   ghArgs.push(...resolved.repoFlag);
   await ghExec(ghArgs, { cwd: resolved.cwd, timeout: 15_000 });
-  invalidatePrListCaches(resolved.nwo);
+  invalidatePrCaches(resolved.nwo, args.prNumber);
 }
 
 const REACTION_GROUPS_FRAGMENT = `

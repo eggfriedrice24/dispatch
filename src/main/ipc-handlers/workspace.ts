@@ -20,21 +20,23 @@ export const workspaceHandlers: Pick<
   "workspace.list": async () => {
     const workspaces = repo.getWorkspaces();
     // Lazy-resolve owner/repo from git remote for migrated workspaces with heuristic values
-    for (const ws of workspaces) {
-      if (ws.path && ws.owner === "unknown") {
-        try {
-          const { owner, repo: repoName } = await ghCli.getOwnerRepo(ws.path);
-          repo.addWorkspace({ owner, repo: repoName, path: ws.path, name: ws.name });
-          ws.owner = owner;
-          ws.repo = repoName;
-        } catch {
-          // Git remote not available, keep heuristic values
+    await Promise.all(
+      workspaces.map(async (ws) => {
+        if (ws.path && ws.owner === "unknown") {
+          try {
+            const { owner, repo: repoName } = await ghCli.getOwnerRepo(ws.path);
+            repo.addWorkspace({ owner, repo: repoName, path: ws.path, name: ws.name });
+            ws.owner = owner;
+            ws.repo = repoName;
+          } catch {
+            // Git remote not available, keep heuristic values
+          }
         }
-      }
-    }
+      }),
+    );
     return workspaces;
   },
-  "workspace.add": async (args) => {
+  "workspace.add": (args) => {
     const name = args.name ?? args.repo;
     repo.addWorkspace({ owner: args.owner, repo: args.repo, path: args.path, name });
     return { owner: args.owner, repo: args.repo, path: args.path ?? null, name };

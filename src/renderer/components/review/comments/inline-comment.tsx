@@ -1,3 +1,4 @@
+import type { ReviewThreadState } from "@/renderer/lib/review/review-comments";
 /* eslint-disable import/max-dependencies -- Inline comments are the integration point for reactions, editing, markdown, and review actions in one row component. */
 import type { GhReactionGroup } from "@/shared/ipc";
 
@@ -23,7 +24,6 @@ import {
   inferLanguage,
   type ShikiToken,
 } from "@/renderer/lib/review/highlighter";
-import type { ReviewThreadState } from "@/renderer/lib/review/review-comments";
 import { relativeTime } from "@/shared/format";
 import { useMutation } from "@tanstack/react-query";
 import {
@@ -92,13 +92,19 @@ export function InlineComment({
 
   const roots = comments.filter((c) => !c.in_reply_to_id);
   const replies = comments.filter((c) => Boolean(c.in_reply_to_id));
+  const rootIds = new Set(roots.map((comment) => comment.id));
+  const orphanReplies = replies.filter((comment) => !rootIds.has(comment.in_reply_to_id ?? -1));
 
   const botRoots = roots.filter((c) => isBot(c.user.login));
   const humanRoots = roots.filter((c) => !isBot(c.user.login));
+  const orphanBotReplies = orphanReplies.filter((comment) => isBot(comment.user.login));
+  const orphanHumanReplies = orphanReplies.filter((comment) => !isBot(comment.user.login));
+  const humanEntries = [...humanRoots, ...orphanHumanReplies];
+  const botEntries = [...botRoots, ...orphanBotReplies];
 
   return (
     <div className="border-border mx-4 my-3 max-w-[52rem] overflow-hidden rounded-[10px] border bg-[linear-gradient(180deg,rgba(15,15,18,0.98),rgba(10,10,12,0.94))] shadow-[0_10px_30px_rgba(0,0,0,0.28)]">
-      {humanRoots.map((root, i) => {
+      {humanEntries.map((root, i) => {
         const threadReplies = replies.filter((r) => r.in_reply_to_id === root.id);
         return (
           <CommentThread
@@ -118,16 +124,16 @@ export function InlineComment({
         );
       })}
 
-      {botRoots.length > 0 && (
+      {botEntries.length > 0 && (
         <>
-          {humanRoots.length > 0 && <div className="border-border border-t" />}
+          {humanEntries.length > 0 && <div className="border-border border-t" />}
           <BotCommentGroup
-            key={botRoots
+            key={botEntries
               .map(
                 (comment) => `${comment.user.login}:${shouldAutoCollapseBot(comment.user.login)}`,
               )
               .join("|")}
-            comments={botRoots}
+            comments={botEntries}
             toggleMinimized={toggleMinimized}
             isBot={isBot}
             shouldAutoCollapseBot={shouldAutoCollapseBot}
@@ -196,7 +202,8 @@ function CommentThread({
   const totalCount = 1 + replies.length;
   const canMutateThread = reviewActionsEnabled && Boolean(prNumber);
   const preview = useMemo(() => buildCommentPreview(root.body, 160), [root.body]);
-  const rootAutoMinimized = shouldAutoCollapseBot(root.user.login) || (isResolvedThread && !hasReplies);
+  const rootAutoMinimized =
+    shouldAutoCollapseBot(root.user.login) || (isResolvedThread && !hasReplies);
 
   return (
     <div
@@ -925,8 +932,8 @@ function SuggestionBlock({ suggestion, language }: { suggestion: string; languag
         themes: {
           light: shikiTheme.light,
           dark: shikiTheme.dark,
-        } as Parameters<typeof highlighter.codeToTokens>[1]["themes"],
-      } as Parameters<typeof highlighter.codeToTokens>[1]);
+        },
+      } as unknown as Parameters<typeof highlighter.codeToTokens>[1]);
       return result.tokens.map((lineTokens) => lineTokens.map((token) => token as ShikiToken));
     } catch {
       return null;

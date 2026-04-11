@@ -28,6 +28,7 @@ export function getDashboardPrKey(workspacePath: string, prNumber: number): stri
   return `${workspacePath}::${prNumber}`;
 }
 
+/* eslint-disable-next-line max-params -- This classifier consumes four independent dashboard inputs and is clearer as explicit parameters. */
 export function categorizeHomePrs(
   prs: EnrichedDashboardPr[],
   reviewRequestedKeys: Set<string>,

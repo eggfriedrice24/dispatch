@@ -316,10 +316,10 @@ export async function getRepoHost(cwdOrTarget: string | RepoTarget): Promise<str
   return null;
 }
 
-export async function getRepoInfo(cwdOrTarget: string | RepoTarget): Promise<RepoInfo> {
+export function getRepoInfo(cwdOrTarget: string | RepoTarget): Promise<RepoInfo> {
   const resolved =
     typeof cwdOrTarget === "string"
-      ? { cwd: cwdOrTarget, repoFlag: [] as string[] }
+      ? { cwd: cwdOrTarget, repoFlag: [] as string[], nwo: cwdOrTarget }
       : resolveRepoCwd(cwdOrTarget);
   const cacheKey = `repoInfo::${resolved.cwd ?? resolved.nwo}`;
 

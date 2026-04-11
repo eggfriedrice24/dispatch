@@ -31,8 +31,22 @@ export function initDatabase(): Database.Database {
       repo          TEXT    NOT NULL,
       number        INTEGER NOT NULL,
       data          TEXT    NOT NULL,
+      detail_data   TEXT,
+      state         TEXT,
+      updated_at    TEXT,
       fetched_at    TEXT    NOT NULL DEFAULT (datetime('now')),
       UNIQUE(repo, number)
+    );
+
+    CREATE TABLE IF NOT EXISTS pr_list_cache (
+      id            INTEGER PRIMARY KEY,
+      repo          TEXT    NOT NULL,
+      filter        TEXT    NOT NULL,
+      state         TEXT    NOT NULL,
+      limit_key     TEXT    NOT NULL,
+      data          TEXT    NOT NULL,
+      fetched_at    TEXT    NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(repo, filter, state, limit_key)
     );
 
     CREATE TABLE IF NOT EXISTS review_state (
@@ -161,8 +175,21 @@ export function initDatabase(): Database.Database {
     db.exec("ALTER TABLE ai_review_summaries ADD COLUMN confidence_score INTEGER");
   }
 
+  const prCacheColumns = db.prepare("PRAGMA table_info(pr_cache)").all() as Array<{
+    name: string;
+  }>;
+  if (!prCacheColumns.some((column) => column.name === "detail_data")) {
+    db.exec("ALTER TABLE pr_cache ADD COLUMN detail_data TEXT");
+  }
+  if (!prCacheColumns.some((column) => column.name === "state")) {
+    db.exec("ALTER TABLE pr_cache ADD COLUMN state TEXT");
+  }
+  if (!prCacheColumns.some((column) => column.name === "updated_at")) {
+    db.exec("ALTER TABLE pr_cache ADD COLUMN updated_at TEXT");
+  }
+
   // Migration: normalize legacy workspaces schema for nullable path support and
-  // remote-only workspace workflows.
+  // Remote-only workspace workflows.
   const workspaceColumns = db.prepare("PRAGMA table_info(workspaces)").all() as Array<{
     name: string;
     notnull: number;
@@ -171,8 +198,7 @@ export function initDatabase(): Database.Database {
   const hadRepoColumn = workspaceColumns.some((column) => column.name === "repo");
   const pathColumn = workspaceColumns.find((column) => column.name === "path");
   const hasLegacyPathConstraint = pathColumn?.notnull === 1;
-  const shouldMigrateWorkspaces =
-    !hadOwnerColumn || !hadRepoColumn || hasLegacyPathConstraint;
+  const shouldMigrateWorkspaces = !hadOwnerColumn || !hadRepoColumn || hasLegacyPathConstraint;
 
   if (shouldMigrateWorkspaces) {
     const selectOwner = hadOwnerColumn ? "owner" : "NULL AS owner";
@@ -201,9 +227,7 @@ export function initDatabase(): Database.Database {
       // Path is like "/Users/x/code/owner/repo" — use last two segments as owner/repo.
       // This is a heuristic; actual owner/repo will be resolved via git remote on first use.
       const existingRows = db
-        .prepare(
-          "SELECT id, path, name FROM workspaces WHERE owner IS NULL AND path IS NOT NULL",
-        )
+        .prepare("SELECT id, path, name FROM workspaces WHERE owner IS NULL AND path IS NOT NULL")
         .all() as Array<{ id: number; path: string; name: string }>;
       const updateStmt = db.prepare("UPDATE workspaces SET owner = ?, repo = ? WHERE id = ?");
       for (const row of existingRows) {

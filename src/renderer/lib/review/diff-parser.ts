@@ -726,6 +726,8 @@ function pairChangedLines(
     return [];
   }
 
+  type PairMove = "pair" | "skip-add" | "skip-remove";
+
   const similarityMatrix = removedLines.map((removedLine) =>
     addedLines.map((addedLine) =>
       computeLinePairSimilarity(removedLine.content, addedLine.content),
@@ -736,8 +738,8 @@ function pairChangedLines(
     { length: removedLines.length + 1 },
     () => new Float64Array(addedLines.length + 1),
   );
-  const moves = Array.from({ length: removedLines.length + 1 }, () =>
-    Array.from({ length: addedLines.length + 1 }, () => "skip-add" as const),
+  const moves: PairMove[][] = Array.from({ length: removedLines.length + 1 }, () =>
+    Array.from({ length: addedLines.length + 1 }, () => "skip-add"),
   );
 
   for (let removedIndex = 1; removedIndex <= removedLines.length; removedIndex++) {

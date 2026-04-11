@@ -1,6 +1,4 @@
 /* eslint-disable no-continue, no-inline-comments, @typescript-eslint/no-non-null-assertion -- Markdown AST traversal is clearer as a guarded walk than forcing alternative forms. */
-import type { Highlighter } from "shiki";
-
 import { useSyntaxHighlighter } from "@/renderer/hooks/review/use-syntax-highlight";
 import { openExternal } from "@/renderer/lib/app/open-external";
 import { useTheme } from "@/renderer/lib/app/theme-context";
@@ -35,6 +33,8 @@ interface MarkdownBodyProps {
   repo?: string;
   className?: string;
 }
+
+type SyntaxHighlighter = NonNullable<ReturnType<typeof useSyntaxHighlighter>>;
 
 /**
  * Pre-process markdown:
@@ -79,29 +79,29 @@ function preprocess(md: string, repo?: string): string {
  * Syntax-highlight a fenced code block using Shiki.
  * Returns an array of <span> elements with token colors, or null on failure.
  */
-function highlightCode(
-  highlighter: Highlighter,
-  code: string,
-  lang: string,
-  shikiTheme: { light: string; dark: string },
-  resolvedTheme: ThemeMode,
-): React.ReactNode[] | null {
+function highlightCode(args: {
+  highlighter: SyntaxHighlighter;
+  code: string;
+  lang: string;
+  shikiTheme: { light: string; dark: string };
+  resolvedTheme: ThemeMode;
+}): React.ReactNode[] | null {
   try {
-    if (!highlighter.getLoadedLanguages().includes(lang)) {
+    if (!args.highlighter.getLoadedLanguages().includes(args.lang)) {
       return null;
     }
-    const result = highlighter.codeToTokens(code, {
-      lang: lang as Parameters<Highlighter["codeToTokens"]>[1]["lang"],
+    const result = args.highlighter.codeToTokens(args.code, {
+      lang: args.lang as Parameters<SyntaxHighlighter["codeToTokens"]>[1]["lang"],
       themes: {
-        light: shikiTheme.light,
-        dark: shikiTheme.dark,
-      } as Parameters<Highlighter["codeToTokens"]>[1]["themes"],
-    } as Parameters<Highlighter["codeToTokens"]>[1]);
+        light: args.shikiTheme.light,
+        dark: args.shikiTheme.dark,
+      },
+    } as unknown as Parameters<SyntaxHighlighter["codeToTokens"]>[1]);
     return result.tokens.flatMap((line, li) => {
       const spans = line.map((token, ti) => (
         <span
           key={`${li}-${ti}`}
-          style={{ color: getShikiTokenColor(token as ShikiToken, resolvedTheme) }}
+          style={{ color: getShikiTokenColor(token as ShikiToken, args.resolvedTheme) }}
         >
           {token.content}
         </span>
@@ -179,13 +179,13 @@ export function MarkdownBody({ content, repo, className = "" }: MarkdownBodyProp
               typeof codeClass === "string" ? codeClass.match(/language-(\w+)/) : null;
             if (langMatch && highlighter) {
               const code = String(children).replace(/\n$/, "");
-              const tokens = highlightCode(
+              const tokens = highlightCode({
                 highlighter,
                 code,
-                langMatch[1]!,
+                lang: langMatch[1]!,
                 shikiTheme,
                 resolvedTheme,
-              );
+              });
               if (tokens) {
                 return (
                   <code
