@@ -2,7 +2,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { ipc } from "@/renderer/lib/app/ipc";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, ChevronRight } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type RefObject, type ReactNode } from "react";
 
 /**
  * CI Log viewer — DISPATCH-DESIGN-SYSTEM.md § 8.7
@@ -19,6 +19,8 @@ export interface LogViewerProps {
   activeMatchIndex?: number;
   onMatchCountChange?: (count: number) => void;
 }
+
+const LOG_SECTION_PREVIEW_LIMIT = 200;
 
 export function LogViewer({
   repoTarget,
@@ -75,28 +77,53 @@ function LogContent({
   const sections = useMemo(() => parseLogSections(raw), [raw]);
   const activeMatchRef = useRef<HTMLSpanElement>(null);
 
-  // Count total matches across all sections and report to parent
+  const sectionRenderData = useMemo(() => {
+    const result: LogSectionRenderData[] = [];
+    let cursorLine = 1;
+    let cursorMatch = 0;
+
+    for (const section of sections) {
+      const sectionMatchOffset = cursorMatch;
+      let sectionMatchCount = 0;
+      for (const line of section.lines) {
+        sectionMatchCount += countMatchesInLine(line, searchQuery);
+      }
+      cursorMatch += sectionMatchCount;
+
+      const sectionLineCount = section.lines.length + (section.isGroup ? 1 : 0);
+      result.push({
+        section,
+        startLine: cursorLine,
+        matchOffset: sectionMatchOffset,
+      });
+
+      cursorLine += sectionLineCount;
+    }
+
+    return result;
+  }, [sections, searchQuery]);
+
   const allLines = useMemo(() => {
     const lines: string[] = [];
-    for (const section of sections) {
+    for (const { section } of sectionRenderData) {
       for (const line of section.lines) {
         lines.push(line);
       }
     }
     return lines;
-  }, [sections]);
+  }, [sectionRenderData]);
 
   const matchCount = useMemo(() => {
     if (!searchQuery) {
       return 0;
     }
-    const q = searchQuery.toLowerCase();
     let count = 0;
     for (const line of allLines) {
       // Strip ANSI codes for matching
       // eslint-disable-next-line no-control-regex
       const clean = line.replaceAll(/\u001B\[\d+(?:;\d+)*m/g, "");
       const lower = clean.toLowerCase();
+      const q = searchQuery.toLowerCase();
       let idx = lower.indexOf(q);
       while (idx !== -1) {
         count++;
@@ -106,50 +133,343 @@ function LogContent({
     return count;
   }, [allLines, searchQuery]);
 
-  // Notify parent of match count changes during render
-  const prevMatchCountRef = useRef<number | null>(null);
-  if (prevMatchCountRef.current !== matchCount) {
-    prevMatchCountRef.current = matchCount;
+  useEffect(() => {
     onMatchCountChange?.(matchCount);
-  }
+  }, [matchCount, onMatchCountChange]);
 
-  // Scroll active match into view
   useEffect(() => {
     activeMatchRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
   }, [activeMatchIndex]);
 
   return (
     <div className="bg-bg-root max-h-[400px] overflow-y-auto rounded-md p-3">
-      {sections.length === 0 && (
+      {sectionRenderData.length === 0 && (
         <span className="text-text-tertiary text-[11px]">No log output</span>
       )}
-      {sections.map((section, i) => (
+      {sectionRenderData.map(({ section, startLine, matchOffset }, index) => (
         <LogSection
-          key={`${section.name}-${i}`}
+          key={`${section.name}-${index}`}
           section={section}
+          startLine={startLine}
           searchQuery={searchQuery}
           activeMatchIndex={activeMatchIndex}
           activeMatchRef={activeMatchRef}
-          globalOffset={computeSectionOffset(sections, i, searchQuery)}
+          matchOffset={matchOffset}
         />
       ))}
     </div>
   );
 }
 
-/** Compute the global match offset for a section (how many matches come before it) */
-function computeSectionOffset(
-  sections: LogSectionData[],
-  sectionIndex: number,
-  query: string,
-): number {
-  let offset = 0;
-  for (const section of sections.slice(0, sectionIndex)) {
-    for (const line of section.lines) {
-      offset += countMatchesInLine(line, query);
+function LogSection({
+  section,
+  startLine,
+  searchQuery,
+  activeMatchIndex,
+  activeMatchRef,
+  matchOffset,
+}: {
+  section: LogSectionData;
+  startLine: number;
+  searchQuery: string;
+  activeMatchIndex: number;
+  activeMatchRef: RefObject<HTMLSpanElement | null>;
+  matchOffset: number;
+}) {
+  const hasMatches = useMemo(() => {
+    if (!searchQuery) {
+      return false;
+    }
+    const q = searchQuery.toLowerCase();
+    return section.lines.some((line) => {
+      // eslint-disable-next-line no-control-regex
+      const clean = line.replaceAll(/\u001B\[\d+(?:;\d+)*m/g, "").toLowerCase();
+      return clean.includes(q);
+    });
+  }, [section.lines, searchQuery]);
+
+  const isLong = section.lines.length > LOG_SECTION_PREVIEW_LIMIT;
+  const defaultExpanded = section.name.toLowerCase().startsWith("run ") || !isLong;
+  const [expandedState, setExpandedState] = useState<boolean | null>(null);
+  const [isShowingAllLines, setIsShowingAllLines] = useState(false);
+
+  const expanded = hasMatches ? true : (expandedState ?? defaultExpanded);
+
+  useEffect(() => {
+    setIsShowingAllLines(false);
+  }, [expanded, section.name, searchQuery]);
+
+  const linesToRender = useMemo(() => {
+    if (section.isGroup && expanded && !hasMatches && isLong && !isShowingAllLines) {
+      return section.lines.slice(0, LOG_SECTION_PREVIEW_LIMIT);
+    }
+    return section.lines;
+  }, [expanded, hasMatches, isLong, isShowingAllLines, section]);
+
+  const hiddenLineCount = section.lines.length - linesToRender.length;
+
+  const renderedRows = useMemo(() => {
+    let lineMatchCursor = 0;
+    return linesToRender.map((line, lineIndex) => {
+      const rowLine = section.isGroup ? startLine + 1 + lineIndex : startLine + lineIndex;
+      const matchesBefore = matchOffset + lineMatchCursor;
+      lineMatchCursor += countMatchesInLine(line, searchQuery);
+      return (
+        <LogLineRow
+          key={`${startLine}-line-${lineIndex}`}
+          lineNumber={rowLine}
+          text={line}
+          searchQuery={searchQuery}
+          matchOffset={matchesBefore}
+          activeMatchIndex={activeMatchIndex}
+          activeMatchRef={activeMatchRef}
+        />
+      );
+    });
+  }, [activeMatchIndex, activeMatchRef, linesToRender, matchOffset, searchQuery, section.isGroup, startLine]);
+
+  if (!section.isGroup) {
+    return (
+      <table className="mb-0.5 w-full text-[11px]">
+        <tbody>
+          {renderedRows}
+        </tbody>
+      </table>
+    );
+  }
+
+  return (
+    <div className="mb-0.5">
+      <button
+        type="button"
+        onClick={() => setExpandedState((prev) => !prev)}
+        className="hover:bg-bg-raised flex w-full cursor-pointer items-center gap-1 rounded-sm px-1 py-0.5 text-left"
+      >
+        {expanded ? (
+          <ChevronDown
+            size={11}
+            className="text-text-tertiary shrink-0"
+          />
+        ) : (
+          <ChevronRight
+            size={11}
+            className="text-text-tertiary shrink-0"
+          />
+        )}
+        <span className="text-text-primary font-mono text-[11px] font-medium">{section.name}</span>
+        {hasMatches && (
+          <span className="bg-primary/20 text-primary ml-1 rounded-sm px-1 text-[9px]">matches</span>
+        )}
+      </button>
+      {expanded && (
+        <div className="border-l border-border-subtle pl-3">
+          <table className="w-full text-[11px]">
+            <tbody>
+              {renderedRows}
+              {section.lines.length > LOG_SECTION_PREVIEW_LIMIT &&
+                !hasMatches &&
+                (isShowingAllLines ? (
+                <tr>
+                  <td className="text-text-tertiary w-8 select-none pt-1 align-top text-right font-mono text-[10px]">
+                    {startLine + section.lines.length}
+                  </td>
+                  <td className="px-0 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setIsShowingAllLines(false)}
+                      className="hover:bg-bg-raised text-text-tertiary px-2 py-0.5 rounded text-left"
+                    >
+                      Show fewer lines
+                    </button>
+                  </td>
+                </tr>
+                ) : (
+                <tr>
+                  <td className="text-text-tertiary w-8 select-none pt-1 align-top text-right font-mono text-[10px]">
+                    {startLine + 1 + linesToRender.length}
+                  </td>
+                  <td className="px-0 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setIsShowingAllLines(true)}
+                      className="hover:bg-bg-raised text-text-tertiary px-2 py-0.5 rounded text-left"
+                    >
+                      Show all {section.lines.length} lines ({hiddenLineCount} more)
+                    </button>
+                  </td>
+                </tr>
+                ))}
+                )}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LogLineRow({
+  lineNumber,
+  text,
+  searchQuery,
+  matchOffset,
+  activeMatchIndex,
+  activeMatchRef,
+}: {
+  lineNumber: number;
+  text: string;
+  searchQuery: string;
+  matchOffset: number;
+  activeMatchIndex: number;
+  activeMatchRef: RefObject<HTMLSpanElement | null>;
+}) {
+  const segments = useMemo(() => parseAnsi(text), [text]);
+  const rowSeverity = getLineSeverity(segments);
+  const rowClass =
+    rowSeverity === "error"
+      ? "bg-destructive/10"
+      : rowSeverity === "warning"
+        ? "bg-warning/10"
+        : "hover:bg-bg-raised/40";
+
+  if (!searchQuery) {
+    return (
+      <tr className={rowClass}>
+        <td className="text-text-tertiary w-8 select-none px-0 py-0 text-right font-mono text-[10px] tabular-nums">
+          {lineNumber}
+        </td>
+        <td className="px-0 py-0">
+          <pre className="whitespace-pre-wrap break-all font-mono text-[11px]">
+            {segments.map((seg, i) => (
+              <span
+                key={`${i}-${seg.text.slice(0, 5)}`}
+                className={seg.className}
+              >
+                {seg.text}
+              </span>
+            ))}
+          </pre>
+        </td>
+      </tr>
+    );
+  }
+
+  let globalMatchIdx = matchOffset;
+  const q = searchQuery.toLowerCase();
+
+  return (
+    <tr className={rowClass}>
+      <td className="text-text-tertiary w-8 select-none px-0 py-0 text-right font-mono text-[10px] tabular-nums">
+        {lineNumber}
+      </td>
+      <td className="px-0 py-0">
+        <pre className="whitespace-pre-wrap break-all font-mono text-[11px]">
+            {segments.map((seg, i) => {
+            const parts: ReactNode[] = [];
+            let remaining = seg.text;
+            let lower = remaining.toLowerCase();
+            let matchPos = lower.indexOf(q);
+
+            while (matchPos !== -1) {
+              if (matchPos > 0) {
+                parts.push(
+                  <span
+                    key={`${i}-pre-${matchPos}`}
+                    className={seg.className}
+                  >
+                    {remaining.slice(0, matchPos)}
+                  </span>,
+                );
+              }
+              const isActive = globalMatchIdx === activeMatchIndex;
+              parts.push(
+                <span
+                  key={`${i}-match-${matchPos}`}
+                  ref={isActive ? activeMatchRef : undefined}
+                  className={`rounded-xs ${
+                    isActive ? "bg-primary text-bg-root" : "bg-warning/40 text-text-primary"
+                  }`}
+                >
+                  {remaining.slice(matchPos, matchPos + q.length)}
+                </span>,
+              );
+              globalMatchIdx++;
+              remaining = remaining.slice(matchPos + q.length);
+              lower = remaining.toLowerCase();
+              matchPos = lower.indexOf(q);
+            }
+
+            if (remaining) {
+              parts.push(
+                <span
+                  key={`${i}-rest`}
+                  className={seg.className}
+                >
+                  {remaining}
+                </span>,
+              );
+            }
+
+            return parts;
+          })}
+        </pre>
+      </td>
+    </tr>
+  );
+}
+
+interface LogSectionData {
+  name: string;
+  lines: string[];
+  isGroup: boolean;
+}
+
+interface LogSectionRenderData {
+  section: LogSectionData;
+  startLine: number;
+  matchOffset: number;
+}
+
+function parseLogSections(raw: string): LogSectionData[] {
+  const lines = raw.split("\n");
+  const sections: LogSectionData[] = [];
+  let currentGroup: LogSectionData | null = null;
+  let currentUngrouped: LogSectionData | null = null;
+
+  for (const line of lines) {
+    if (line.includes("##[group]")) {
+      if (currentUngrouped && currentUngrouped.lines.length > 0) {
+        sections.push(currentUngrouped);
+        currentUngrouped = null;
+      }
+      const name = line.replace(/.*##\[group\]/, "").trim();
+      if (currentGroup) {
+        sections.push(currentGroup);
+      }
+      currentGroup = { name: name || "Group", lines: [], isGroup: true };
+    } else if (line.includes("##[endgroup]")) {
+      if (currentGroup) {
+        sections.push(currentGroup);
+        currentGroup = null;
+      }
+    } else if (currentGroup) {
+      currentGroup.lines.push(line);
+    } else {
+      if (!currentUngrouped) {
+        currentUngrouped = { name: "", lines: [], isGroup: false };
+      }
+      currentUngrouped.lines.push(line);
     }
   }
-  return offset;
+
+  if (currentGroup) {
+    sections.push(currentGroup);
+  }
+  if (currentUngrouped && currentUngrouped.lines.length > 0) {
+    sections.push(currentUngrouped);
+  }
+
+  return sections;
 }
 
 function countMatchesInLine(line: string, query: string): number {
@@ -168,250 +488,17 @@ function countMatchesInLine(line: string, query: string): number {
   return count;
 }
 
-// ---------------------------------------------------------------------------
-// Log section parsing
-// ---------------------------------------------------------------------------
-
-interface LogSectionData {
-  name: string;
-  lines: string[];
-  isGroup: boolean;
-}
-
-function parseLogSections(raw: string): LogSectionData[] {
-  const lines = raw.split("\n");
-  const sections: LogSectionData[] = [];
-  let currentGroup: LogSectionData | null = null;
-
-  for (const line of lines) {
-    if (line.includes("##[group]")) {
-      const name = line.replace(/.*##\[group\]/, "").trim();
-      currentGroup = { name: name || "Group", lines: [], isGroup: true };
-    } else if (line.includes("##[endgroup]")) {
-      if (currentGroup) {
-        sections.push(currentGroup);
-        currentGroup = null;
-      }
-    } else if (currentGroup) {
-      currentGroup.lines.push(line);
-    } else {
-      const lastSection = sections.at(-1);
-      if (lastSection && !lastSection.isGroup) {
-        lastSection.lines.push(line);
-      } else {
-        sections.push({ name: "", lines: [line], isGroup: false });
-      }
-    }
+function getLineSeverity(segments: AnsiSegment[]): "error" | "warning" | "default" {
+  const hasError = segments.some((segment) => segment.className.includes("text-destructive"));
+  if (hasError) {
+    return "error";
   }
-
-  if (currentGroup) {
-    sections.push(currentGroup);
+  const hasWarning = segments.some((segment) => segment.className.includes("text-warning"));
+  if (hasWarning) {
+    return "warning";
   }
-
-  return sections;
+  return "default";
 }
-
-function LogSection({
-  section,
-  searchQuery,
-  activeMatchIndex,
-  activeMatchRef,
-  globalOffset,
-}: {
-  section: LogSectionData;
-  searchQuery: string;
-  activeMatchIndex: number;
-  activeMatchRef: React.RefObject<HTMLSpanElement | null>;
-  globalOffset: number;
-}) {
-  // Auto-expand sections that contain search matches
-  const hasMatches = useMemo(() => {
-    if (!searchQuery) {
-      return false;
-    }
-    const q = searchQuery.toLowerCase();
-    return section.lines.some((line) => {
-      // eslint-disable-next-line no-control-regex
-      const clean = line.replaceAll(/\u001B\[\d+(?:;\d+)*m/g, "").toLowerCase();
-      return clean.includes(q);
-    });
-  }, [section.lines, searchQuery]);
-
-  const defaultExpanded = !section.isGroup || hasMatches;
-  const [expandedState, setExpandedState] = useState<boolean | null>(null);
-  // Force-expand groups when search finds matches inside them,
-  // Regardless of user's manual collapsed state.
-  const expanded = hasMatches && section.isGroup ? true : (expandedState ?? defaultExpanded);
-
-  let lineMatchOffset = globalOffset;
-
-  if (!section.isGroup) {
-    return (
-      <pre className="text-text-secondary font-mono text-[11px] leading-4">
-        {section.lines.map((line, i) => {
-          const matchesBefore = lineMatchOffset;
-          lineMatchOffset += countMatchesInLine(line, searchQuery);
-          return (
-            <LogLine
-              key={`${i}-${line.slice(0, 10)}`}
-              text={line}
-              searchQuery={searchQuery}
-              matchOffset={matchesBefore}
-              activeMatchIndex={activeMatchIndex}
-              activeMatchRef={activeMatchRef}
-            />
-          );
-        })}
-      </pre>
-    );
-  }
-
-  return (
-    <div className="mb-0.5">
-      <button
-        type="button"
-        onClick={() => setExpandedState(!expanded)}
-        className="hover:bg-bg-raised flex w-full cursor-pointer items-center gap-1 rounded-sm px-1 py-0.5 text-left"
-      >
-        {expanded ? (
-          <ChevronDown
-            size={11}
-            className="text-text-tertiary shrink-0"
-          />
-        ) : (
-          <ChevronRight
-            size={11}
-            className="text-text-tertiary shrink-0"
-          />
-        )}
-        <span className="text-text-primary font-mono text-[11px] font-medium">{section.name}</span>
-        {hasMatches && !expanded && (
-          <span className="bg-primary/20 text-primary ml-1 rounded-sm px-1 text-[9px]">
-            matches
-          </span>
-        )}
-      </button>
-      {expanded && (
-        <pre className="text-text-secondary ml-3 font-mono text-[11px] leading-4">
-          {section.lines.map((line, i) => {
-            const matchesBefore = lineMatchOffset;
-            lineMatchOffset += countMatchesInLine(line, searchQuery);
-            return (
-              <LogLine
-                key={`${i}-${line.slice(0, 10)}`}
-                text={line}
-                searchQuery={searchQuery}
-                matchOffset={matchesBefore}
-                activeMatchIndex={activeMatchIndex}
-                activeMatchRef={activeMatchRef}
-              />
-            );
-          })}
-        </pre>
-      )}
-    </div>
-  );
-}
-
-/**
- * Render a single log line with ANSI color + search highlighting.
- */
-function LogLine({
-  text,
-  searchQuery,
-  matchOffset,
-  activeMatchIndex,
-  activeMatchRef,
-}: {
-  text: string;
-  searchQuery: string;
-  matchOffset: number;
-  activeMatchIndex: number;
-  activeMatchRef: React.RefObject<HTMLSpanElement | null>;
-}) {
-  const segments = useMemo(() => parseAnsi(text), [text]);
-
-  if (!searchQuery) {
-    return (
-      <div className="min-h-4">
-        {segments.map((seg, i) => (
-          <span
-            key={`${i}-${seg.text.slice(0, 5)}`}
-            className={seg.className}
-          >
-            {seg.text}
-          </span>
-        ))}
-        {"\n"}
-      </div>
-    );
-  }
-
-  // Highlight search matches within ANSI segments
-  let globalMatchIdx = matchOffset;
-  const q = searchQuery.toLowerCase();
-
-  return (
-    <div className="min-h-4">
-      {segments.map((seg, i) => {
-        const parts: React.ReactNode[] = [];
-        let remaining = seg.text;
-        let lower = remaining.toLowerCase();
-        let matchPos = lower.indexOf(q);
-
-        while (matchPos !== -1) {
-          // Text before match
-          if (matchPos > 0) {
-            parts.push(
-              <span
-                key={`${i}-pre-${matchPos}`}
-                className={seg.className}
-              >
-                {remaining.slice(0, matchPos)}
-              </span>,
-            );
-          }
-          // The match
-          const isActive = globalMatchIdx === activeMatchIndex;
-          parts.push(
-            <span
-              key={`${i}-match-${matchPos}`}
-              ref={isActive ? activeMatchRef : undefined}
-              className={`rounded-xs ${
-                isActive ? "bg-primary text-bg-root" : "bg-warning/40 text-text-primary"
-              }`}
-            >
-              {remaining.slice(matchPos, matchPos + q.length)}
-            </span>,
-          );
-          globalMatchIdx++;
-          remaining = remaining.slice(matchPos + q.length);
-          lower = remaining.toLowerCase();
-          matchPos = lower.indexOf(q);
-        }
-
-        // Remaining text after last match
-        if (remaining) {
-          parts.push(
-            <span
-              key={`${i}-rest`}
-              className={seg.className}
-            >
-              {remaining}
-            </span>,
-          );
-        }
-
-        return parts;
-      })}
-      {"\n"}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Minimal ANSI parser
-// ---------------------------------------------------------------------------
 
 interface AnsiSegment {
   text: string;
