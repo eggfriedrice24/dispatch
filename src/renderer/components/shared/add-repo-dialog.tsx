@@ -188,9 +188,7 @@ export function AddRepoDialog({ open, onOpenChange, onAdded }: AddRepoDialogProp
                   className="text-text-tertiary"
                 />
               </div>
-              <p className="text-text-secondary text-[12px]">
-                Start typing to find repositories
-              </p>
+              <p className="text-text-secondary text-[12px]">Start typing to find repositories</p>
             </div>
           )}
 
@@ -224,9 +222,7 @@ export function AddRepoDialog({ open, onOpenChange, onAdded }: AddRepoDialogProp
           {/* No results */}
           {!searchQuery.isLoading && hasQuery && results.length === 0 && (
             <div className="flex flex-col items-center justify-center py-8">
-              <p className="text-text-secondary text-[12px]">
-                No repositories matching "{query}"
-              </p>
+              <p className="text-text-secondary text-[12px]">No repositories matching "{query}"</p>
             </div>
           )}
 

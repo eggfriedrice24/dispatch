@@ -1,9 +1,10 @@
-import { getDatabase } from "./database";
-import { splitWorkspaceRows } from "./workspace-state";
 import type {
   ReviewResumeSelectedCommit,
   ReviewResumeState,
 } from "../../shared/ipc/contracts/review";
+
+import { getDatabase } from "./database";
+import { splitWorkspaceRows } from "./workspace-state";
 
 // ---------------------------------------------------------------------------
 // Review State (Incremental Diff)

@@ -11,13 +11,18 @@ import { ReviewMarkdownComposer } from "@/renderer/components/review/comments/re
 import { GitHubAvatar } from "@/renderer/components/shared/github-avatar";
 import { MarkdownBody } from "@/renderer/components/shared/markdown-body";
 import { useBotSettings } from "@/renderer/hooks/preferences/use-bot-settings";
+import { useTheme } from "@/renderer/lib/app/theme-context";
 import { useMinimizedComments } from "@/renderer/hooks/review/use-minimized-comments";
 import { useSyntaxHighlighter } from "@/renderer/hooks/review/use-syntax-highlight";
 import { ipc } from "@/renderer/lib/app/ipc";
 import { openExternal } from "@/renderer/lib/app/open-external";
 import { queryClient } from "@/renderer/lib/app/query-client";
 import { useWorkspace } from "@/renderer/lib/app/workspace-context";
-import { inferLanguage } from "@/renderer/lib/review/highlighter";
+import {
+  getShikiTokenColor,
+  inferLanguage,
+  type ShikiToken,
+} from "@/renderer/lib/review/highlighter";
 import { relativeTime } from "@/shared/format";
 import { useMutation } from "@tanstack/react-query";
 import {
@@ -896,6 +901,14 @@ function parseSuggestions(body: string): { bodyParts: BodyPart[]; suggestions: s
 
 function SuggestionBlock({ suggestion, language }: { suggestion: string; language: string }) {
   const highlighter = useSyntaxHighlighter();
+  const { codeThemeDark, codeThemeLight, resolvedTheme } = useTheme();
+  const shikiTheme = useMemo(
+    () => ({
+      light: codeThemeLight,
+      dark: codeThemeDark,
+    }),
+    [codeThemeDark, codeThemeLight],
+  );
   const lines = suggestion.split("\n");
 
   // Tokenize lines for syntax highlighting.
@@ -914,13 +927,16 @@ function SuggestionBlock({ suggestion, language }: { suggestion: string; languag
       );
       const result = highlighter.codeToTokens(strippedLines.join("\n"), {
         lang: language as Parameters<typeof highlighter.codeToTokens>[1]["lang"],
-        theme: "github-dark-default",
+        themes: {
+          light: shikiTheme.light,
+          dark: shikiTheme.dark,
+        } as Parameters<typeof highlighter.codeToTokens>[1]["themes"],
       } as Parameters<typeof highlighter.codeToTokens>[1]);
-      return result.tokens;
+      return result.tokens.map((lineTokens) => lineTokens.map((token) => token as ShikiToken));
     } catch {
       return null;
     }
-  }, [highlighter, language, lines]);
+  }, [highlighter, language, lines, shikiTheme]);
 
   return (
     <div className="my-2 overflow-hidden rounded-md border border-[rgba(61,214,140,0.15)] bg-[rgba(61,214,140,0.06)]">
@@ -965,7 +981,7 @@ function SuggestionBlock({ suggestion, language }: { suggestion: string; languag
               ? lineTokens.map((token, ti) => (
                   <span
                     key={ti}
-                    style={{ color: token.color }}
+                    style={{ color: getShikiTokenColor(token, resolvedTheme) }}
                   >
                     {token.content}
                   </span>

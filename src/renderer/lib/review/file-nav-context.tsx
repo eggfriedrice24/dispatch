@@ -3,6 +3,7 @@ import type {
   ReviewPanelTab,
   ReviewResumeSelectedCommit,
 } from "@/shared/ipc/contracts/review";
+
 import { type ReactNode, createContext, useCallback, useContext, useEffect, useState } from "react";
 
 /**
@@ -53,11 +54,7 @@ export interface FileNavProviderProps {
   onStateChange?: (state: FileNavState) => void;
 }
 
-export function FileNavProvider({
-  children,
-  initialState,
-  onStateChange,
-}: FileNavProviderProps) {
+export function FileNavProvider({ children, initialState, onStateChange }: FileNavProviderProps) {
   const [currentFileIndex, setCurrentFileIndexRaw] = useState<number>(
     initialState?.currentFileIndex ?? DEFAULT_FILE_NAV_STATE.currentFileIndex,
   );
@@ -73,7 +70,9 @@ export function FileNavProvider({
   const [panelOpen, setPanelOpen] = useState(
     initialState?.panelOpen ?? DEFAULT_FILE_NAV_STATE.panelOpen,
   );
-  const [panelTab, setPanelTab] = useState<ReviewPanelTab>(initialState?.panelTab ?? DEFAULT_FILE_NAV_STATE.panelTab);
+  const [panelTab, setPanelTab] = useState<ReviewPanelTab>(
+    initialState?.panelTab ?? DEFAULT_FILE_NAV_STATE.panelTab,
+  );
 
   const setCurrentFileIndex = useCallback((index: number) => {
     setCurrentFileIndexRaw(index);
@@ -101,7 +100,15 @@ export function FileNavProvider({
       panelOpen,
       panelTab,
     });
-  }, [currentFileIndex, currentFilePath, selectedCommit, diffMode, panelOpen, panelTab, onStateChange]);
+  }, [
+    currentFileIndex,
+    currentFilePath,
+    selectedCommit,
+    diffMode,
+    panelOpen,
+    panelTab,
+    onStateChange,
+  ]);
 
   return (
     <FileNavContext.Provider

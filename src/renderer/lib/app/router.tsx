@@ -1,5 +1,13 @@
 import { trackPage } from "@/renderer/lib/app/posthog";
-import { createContext, type ReactNode, useCallback, useContext, useEffect, useRef, useState } from "react";
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 /**
  * Simple state-based client-side router.
@@ -35,7 +43,10 @@ interface RouterProviderProps {
   initialRoute?: Route;
 }
 
-export function RouterProvider({ children, initialRoute = ROUTER_INITIAL_ROUTE }: RouterProviderProps) {
+export function RouterProvider({
+  children,
+  initialRoute = ROUTER_INITIAL_ROUTE,
+}: RouterProviderProps) {
   const [route, setRoute] = useState<Route>(initialRoute);
   const previousRoute = useRef<Route>(initialRoute);
 

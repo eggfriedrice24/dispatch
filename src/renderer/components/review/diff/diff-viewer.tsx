@@ -19,6 +19,13 @@ import {
   type DiffLine,
   type Segment,
 } from "@/renderer/lib/review/diff-parser";
+import {
+  DEFAULT_CODE_THEME_DARK,
+  DEFAULT_CODE_THEME_LIGHT,
+  getShikiTokenColor,
+  type ShikiToken,
+  type ThemeMode,
+} from "@/renderer/lib/review/highlighter";
 import { getReviewPositionKey } from "@/renderer/lib/review/review-position";
 import { ChevronDown, ChevronUp, Plus, Search, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -458,7 +465,11 @@ export function DiffViewer({
   onDismissSuggestion,
 }: DiffViewerProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const { codeTheme: shikiTheme } = useTheme();
+  const { codeThemeDark, codeThemeLight, resolvedTheme } = useTheme();
+  const shikiTheme = useMemo(
+    () => ({ light: codeThemeLight, dark: codeThemeDark }),
+    [codeThemeDark, codeThemeLight],
+  );
 
   // --- Search state ---
   const [searchOpen, setSearchOpen] = useState(false);
@@ -704,6 +715,7 @@ export function DiffViewer({
           highlighter={highlighter ?? null}
           language={language ?? "text"}
           shikiTheme={shikiTheme}
+          resolvedTheme={resolvedTheme}
           filePath={filePath}
           prNumber={prNumber}
           reviewActionsEnabled={reviewActionsEnabled}
@@ -720,6 +732,7 @@ export function DiffViewer({
           highlighter={highlighter ?? null}
           language={language ?? "text"}
           shikiTheme={shikiTheme}
+          resolvedTheme={resolvedTheme}
           filePath={filePath}
           prNumber={prNumber}
           selectionRange={selectionRange}
@@ -753,6 +766,7 @@ function SplitDiffView({
   highlighter,
   language,
   shikiTheme,
+  resolvedTheme,
   filePath,
   prNumber,
   reviewActionsEnabled,
@@ -765,7 +779,8 @@ function SplitDiffView({
   rows: FlatRow[];
   highlighter: Highlighter | null;
   language: string;
-  shikiTheme: string;
+  shikiTheme: { light: string; dark: string };
+  resolvedTheme: ThemeMode;
   filePath: string;
   prNumber?: number;
   reviewActionsEnabled: boolean;
@@ -857,7 +872,9 @@ function SplitDiffView({
                     className="text-text-primary flex-1 overflow-x-auto pr-2 pl-1 whitespace-pre"
                     style={{ tabSize: 4 }}
                   >
-                    {row.left ? renderLineContent(row.left, highlighter, language, shikiTheme) : ""}
+                    {row.left
+                      ? renderLineContent(row.left, highlighter, language, shikiTheme, resolvedTheme)
+                      : ""}
                   </span>
                 </div>
               </td>
@@ -889,7 +906,7 @@ function SplitDiffView({
                     style={{ tabSize: 4 }}
                   >
                     {row.right
-                      ? renderLineContent(row.right, highlighter, language, shikiTheme)
+                      ? renderLineContent(row.right, highlighter, language, shikiTheme, resolvedTheme)
                       : ""}
                   </span>
                 </div>
@@ -906,12 +923,16 @@ function renderLineContent(
   line: FlatLine,
   highlighter: Highlighter | null,
   language: string,
-  shikiTheme: string = "github-dark-default",
+  shikiTheme: { light: string; dark: string } = {
+    light: DEFAULT_CODE_THEME_LIGHT,
+    dark: DEFAULT_CODE_THEME_DARK,
+  },
+  resolvedTheme: ThemeMode,
 ): React.ReactNode {
   const hasWordDiff = Boolean(line.segments?.some((segment) => segment.type === "change"));
   const tokens =
     highlighter && language !== "text"
-      ? safeTokenize(highlighter, line.content, language, shikiTheme)
+      ? safeTokenize(highlighter, line.content, language, shikiTheme, resolvedTheme)
       : null;
   if (hasWordDiff && line.segments) {
     return tokens ? (
@@ -919,6 +940,7 @@ function renderLineContent(
         segments={line.segments}
         tokens={tokens}
         type={line.type}
+        resolvedTheme={resolvedTheme}
       />
     ) : (
       <WordDiffContent
@@ -928,7 +950,7 @@ function renderLineContent(
     );
   }
   if (tokens) {
-    return <SyntaxContent tokens={tokens} />;
+    return <SyntaxContent tokens={tokens} resolvedTheme={resolvedTheme} />;
   }
   return line.content;
 }
@@ -946,6 +968,7 @@ function UnifiedDiffView({
   highlighter,
   language,
   shikiTheme,
+  resolvedTheme,
   filePath,
   prNumber,
   selectionRange,
@@ -968,7 +991,8 @@ function UnifiedDiffView({
   rows: FlatRow[];
   highlighter: Highlighter | null;
   language: string;
-  shikiTheme: string;
+  shikiTheme: { light: string; dark: string };
+  resolvedTheme: ThemeMode;
   filePath: string;
   prNumber?: number;
   selectionRange: { side: CommentSide; start: number; end: number } | null;
@@ -1021,6 +1045,7 @@ function UnifiedDiffView({
               highlighter={highlighter}
               language={language}
               shikiTheme={shikiTheme}
+              resolvedTheme={resolvedTheme}
               filePath={filePath}
               commentingEnabled={commentingEnabled}
               onStartSelect={onStartSelect}
@@ -1135,6 +1160,7 @@ function DiffLineRow({
   highlighter,
   language,
   shikiTheme,
+  resolvedTheme,
   filePath,
   commentingEnabled,
   onStartSelect,
@@ -1151,7 +1177,8 @@ function DiffLineRow({
   line: FlatLine;
   highlighter: Highlighter | null;
   language: string;
-  shikiTheme: string;
+  shikiTheme: { light: string; dark: string };
+  resolvedTheme: ThemeMode;
   filePath: string;
   commentingEnabled: boolean;
   onStartSelect: (target: CommentTarget) => void;
@@ -1178,7 +1205,7 @@ function DiffLineRow({
 
   const tokens =
     highlighter && language !== "text"
-      ? safeTokenize(highlighter, line.content, language, shikiTheme)
+      ? safeTokenize(highlighter, line.content, language, shikiTheme, resolvedTheme)
       : null;
 
   const commentTarget = getCommentTarget(line);
@@ -1297,6 +1324,7 @@ function DiffLineRow({
                 segments={wordSegments}
                 tokens={tokens}
                 type={line.type}
+                resolvedTheme={resolvedTheme}
               />
             ) : (
               <WordDiffContent
@@ -1312,9 +1340,13 @@ function DiffLineRow({
               matchOffset={searchMatchOffset}
               activeIndex={activeSearchIndex}
               activeRef={activeSearchRef}
+              resolvedTheme={resolvedTheme}
             />
           ) : tokens ? (
-            <SyntaxContent tokens={tokens} />
+            <SyntaxContent
+              tokens={tokens}
+              resolvedTheme={resolvedTheme}
+            />
           ) : (
             line.content
           )}
@@ -1341,6 +1373,7 @@ function SearchHighlightedContent({
   matchOffset,
   activeIndex,
   activeRef,
+  resolvedTheme,
 }: {
   text: string;
   tokens: ShikiToken[] | null;
@@ -1348,6 +1381,7 @@ function SearchHighlightedContent({
   matchOffset: number;
   activeIndex: number;
   activeRef: React.RefObject<HTMLSpanElement | null>;
+  resolvedTheme: ThemeMode;
 }) {
   const q = query.toLowerCase();
   let globalIdx = matchOffset;
@@ -1368,7 +1402,7 @@ function SearchHighlightedContent({
               parts.push(
                 <span
                   key={`${i}-${partKey++}`}
-                  style={{ color: token.color }}
+                  style={{ color: getShikiTokenColor(token, resolvedTheme) }}
                 >
                   {remaining.slice(0, matchPos)}
                 </span>,
@@ -1395,7 +1429,7 @@ function SearchHighlightedContent({
             parts.push(
               <span
                 key={`${i}-${partKey++}`}
-                style={{ color: token.color }}
+                style={{ color: getShikiTokenColor(token, resolvedTheme) }}
               >
                 {remaining}
               </span>,
@@ -1445,16 +1479,15 @@ function SearchHighlightedContent({
 // Syntax highlighted content
 // ---------------------------------------------------------------------------
 
-interface ShikiToken {
-  content: string;
-  color?: string;
-}
-
 const SHIKI_TOKEN_CACHE_LIMIT = 500;
 const shikiTokenCache = new Map<string, ShikiToken[] | null>();
 
-function getShikiTokenCacheKey(content: string, lang: string, shikiTheme: string): string {
-  return `${shikiTheme}|${lang}|${content}`;
+function getShikiTokenCacheKey(
+  content: string,
+  lang: string,
+  shikiTheme: { light: string; dark: string },
+): string {
+  return `${shikiTheme.dark}|${shikiTheme.light}|${lang}|${content}`;
 }
 
 function setShikiTokenCache(key: string, tokens: ShikiToken[] | null): void {
@@ -1471,7 +1504,11 @@ function safeTokenize(
   highlighter: Highlighter,
   content: string,
   lang: string,
-  shikiTheme: string = "github-dark-default",
+  shikiTheme: { light: string; dark: string } = {
+    light: DEFAULT_CODE_THEME_LIGHT,
+    dark: DEFAULT_CODE_THEME_DARK,
+  },
+  resolvedTheme: ThemeMode,
 ): ShikiToken[] | null {
   const cacheKey = getShikiTokenCacheKey(content, lang, shikiTheme);
   const cached = shikiTokenCache.get(cacheKey);
@@ -1485,11 +1522,22 @@ function safeTokenize(
       setShikiTokenCache(cacheKey, null);
       return null;
     }
-    const result = highlighter.codeToTokens(content, {
-      lang: lang as Parameters<Highlighter["codeToTokens"]>[1]["lang"],
-      theme: shikiTheme,
-    } as Parameters<Highlighter["codeToTokens"]>[1]);
-    const tokens = result.tokens[0] ?? null;
+    let result;
+    try {
+      result = highlighter.codeToTokens(content, {
+        lang: lang as Parameters<Highlighter["codeToTokens"]>[1]["lang"],
+        themes: {
+          light: shikiTheme.light,
+          dark: shikiTheme.dark,
+        } as Parameters<Highlighter["codeToTokens"]>[1]["themes"],
+      } as Parameters<Highlighter["codeToTokens"]>[1]);
+    } catch {
+      result = highlighter.codeToTokens(content, {
+        lang: lang as Parameters<Highlighter["codeToTokens"]>[1]["lang"],
+        theme: shikiTheme[resolvedTheme],
+      } as Parameters<Highlighter["codeToTokens"]>[1]);
+    }
+    const tokens = (result.tokens[0] as ShikiToken[] | undefined) ?? null;
     setShikiTokenCache(cacheKey, tokens);
     return tokens;
   } catch {
@@ -1498,13 +1546,13 @@ function safeTokenize(
   }
 }
 
-function SyntaxContent({ tokens }: { tokens: ShikiToken[] }) {
+function SyntaxContent({ tokens, resolvedTheme }: { tokens: ShikiToken[]; resolvedTheme: ThemeMode }) {
   return (
     <>
       {tokens.map((token, i) => (
         <span
           key={`${i}-${token.content.slice(0, 5)}`}
-          style={{ color: token.color }}
+          style={{ color: getShikiTokenColor(token, resolvedTheme) }}
         >
           {token.content}
         </span>
@@ -1517,10 +1565,12 @@ function SyntaxSegmentedContent({
   segments,
   tokens,
   type,
+  resolvedTheme,
 }: {
   segments: Segment[];
   tokens: ShikiToken[];
   type: "add" | "del" | "context" | "hunk-header";
+  resolvedTheme: ThemeMode;
 }) {
   const result: {
     text: string;
@@ -1548,7 +1598,7 @@ function SyntaxSegmentedContent({
       result.push({
         text: token.content.slice(tokOffset, tokOffset + take),
         highlight: segment.type === "change",
-        color: token.color,
+        color: getShikiTokenColor(token, resolvedTheme),
       });
     }
 
@@ -1575,7 +1625,7 @@ function SyntaxSegmentedContent({
       result.push({
         text: remaining,
         highlight: false,
-        color: token.color,
+        color: getShikiTokenColor(token, resolvedTheme),
       });
     }
     tokIdx++;

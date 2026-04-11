@@ -9,6 +9,7 @@ import { ipc } from "@/renderer/lib/app/ipc";
 import { queryClient } from "@/renderer/lib/app/query-client";
 import { useRouter } from "@/renderer/lib/app/router";
 import { useTheme } from "@/renderer/lib/app/theme-context";
+import { DEFAULT_CODE_THEME_DARK } from "@/renderer/lib/review/highlighter";
 import { useKeybindings } from "@/renderer/lib/keyboard/keybinding-context";
 import {
   DEFAULT_KEYBINDINGS,
@@ -298,7 +299,7 @@ export function SettingsView() {
   const resetDefaults = useCallback(async () => {
     await ipc("preferences.deleteMany", { keys: PREF_KEYS });
     setTheme("dark");
-    setCodeTheme("github-dark-default");
+    setCodeTheme(DEFAULT_CODE_THEME_DARK);
     resetAll();
     queryClient.invalidateQueries({ queryKey: ["preferences"] });
     queryClient.invalidateQueries({ queryKey: ["ai"] });

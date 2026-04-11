@@ -383,7 +383,7 @@ function PrDetail({ prNumber }: { prNumber: number }) {
     return map;
   }, [currentFilePathForAi, suggestionsForFile]);
 
-  const { codeTheme } = useTheme();
+  const { codeThemeLight, codeThemeDark } = useTheme();
   const activeFilePath = currentFilePath ?? "";
 
   // Ensure the language and code theme are loaded (lazy-load non-core langs & themes)
@@ -391,7 +391,8 @@ function PrDetail({ prNumber }: { prNumber: number }) {
     ensureLanguage(currentLanguage);
   }
   if (highlighter) {
-    ensureTheme(codeTheme);
+    ensureTheme(codeThemeDark);
+    ensureTheme(codeThemeLight);
   }
 
   // Full file content (for "show full file" mode)

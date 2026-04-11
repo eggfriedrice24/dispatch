@@ -2,12 +2,19 @@
 import type { Highlighter } from "shiki";
 
 import { useSyntaxHighlighter } from "@/renderer/hooks/review/use-syntax-highlight";
+import { useTheme } from "@/renderer/lib/app/theme-context";
 import { openExternal } from "@/renderer/lib/app/open-external";
+import {
+  getShikiTokenColor,
+  type ShikiToken,
+  type ThemeMode,
+} from "@/renderer/lib/review/highlighter";
 import { AlertCircle, Info, Lightbulb, OctagonAlert, TriangleAlert } from "lucide-react";
 import Markdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import remarkGemoji from "remark-gemoji";
 import remarkGfm from "remark-gfm";
+import { useMemo } from "react";
 
 /**
  * Render GitHub-flavored markdown (PR body, comments).
@@ -76,6 +83,8 @@ function highlightCode(
   highlighter: Highlighter,
   code: string,
   lang: string,
+  shikiTheme: { light: string; dark: string },
+  resolvedTheme: ThemeMode,
 ): React.ReactNode[] | null {
   try {
     if (!highlighter.getLoadedLanguages().includes(lang)) {
@@ -83,13 +92,16 @@ function highlightCode(
     }
     const result = highlighter.codeToTokens(code, {
       lang: lang as Parameters<Highlighter["codeToTokens"]>[1]["lang"],
-      theme: "github-dark-default",
+      themes: {
+        light: shikiTheme.light,
+        dark: shikiTheme.dark,
+      } as Parameters<Highlighter["codeToTokens"]>[1]["themes"],
     } as Parameters<Highlighter["codeToTokens"]>[1]);
     return result.tokens.flatMap((line, li) => {
       const spans = line.map((token, ti) => (
         <span
           key={`${li}-${ti}`}
-          style={{ color: token.color }}
+          style={{ color: getShikiTokenColor(token as ShikiToken, resolvedTheme) }}
         >
           {token.content}
         </span>
@@ -107,6 +119,14 @@ function highlightCode(
 
 export function MarkdownBody({ content, repo, className = "" }: MarkdownBodyProps) {
   const highlighter = useSyntaxHighlighter();
+  const { codeThemeDark, codeThemeLight, resolvedTheme } = useTheme();
+  const shikiTheme = useMemo(
+    () => ({
+      light: codeThemeLight,
+      dark: codeThemeDark,
+    }),
+    [codeThemeDark, codeThemeLight],
+  );
 
   if (!content.trim()) {
     return <p className="text-text-ghost text-xs italic">No description provided.</p>;
@@ -159,7 +179,13 @@ export function MarkdownBody({ content, repo, className = "" }: MarkdownBodyProp
               typeof codeClass === "string" ? codeClass.match(/language-(\w+)/) : null;
             if (langMatch && highlighter) {
               const code = String(children).replace(/\n$/, "");
-              const tokens = highlightCode(highlighter, code, langMatch[1]!);
+              const tokens = highlightCode(
+                highlighter,
+                code,
+                langMatch[1]!,
+                shikiTheme,
+                resolvedTheme,
+              );
               if (tokens) {
                 return (
                   <code

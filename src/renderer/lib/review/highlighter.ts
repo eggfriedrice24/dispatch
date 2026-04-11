@@ -2,6 +2,36 @@ import { createHighlighter, type Highlighter } from "shiki";
 
 let highlighterPromise: Promise<Highlighter> | null = null;
 
+export const DEFAULT_CODE_THEME_DARK = "vitesse-black";
+export const DEFAULT_CODE_THEME_LIGHT = "vitesse-light";
+export const DEFAULT_CODE_THEME: { light: string; dark: string } = {
+  light: DEFAULT_CODE_THEME_LIGHT,
+  dark: DEFAULT_CODE_THEME_DARK,
+};
+
+export type ThemeMode = "dark" | "light";
+
+export interface ShikiToken {
+  content: string;
+  color?: string;
+  htmlStyle?: {
+    color?: string;
+    [key: string]: string | undefined;
+  };
+}
+
+export function getShikiTokenColor(token: ShikiToken, mode: ThemeMode): string | undefined {
+  if (!token.htmlStyle) {
+    return token.color;
+  }
+
+  if (mode === "dark") {
+    return token.htmlStyle["--shiki-dark"] ?? token.htmlStyle.color ?? token.color;
+  }
+
+  return token.htmlStyle.color ?? token.color;
+}
+
 /**
  * Core languages loaded upfront. Others are loaded on-demand
  * via highlighter.loadLanguage() when first encountered.
@@ -27,7 +57,7 @@ const CORE_LANGS = [
 export function getHighlighter(): Promise<Highlighter> {
   if (!highlighterPromise) {
     highlighterPromise = createHighlighter({
-      themes: ["github-dark-default", "github-light-default"],
+      themes: [DEFAULT_CODE_THEME_DARK, DEFAULT_CODE_THEME_LIGHT],
       langs: [...CORE_LANGS],
     }).catch((error) => {
       highlighterPromise = null;

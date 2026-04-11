@@ -5,9 +5,9 @@ import { useWorkspace } from "@/renderer/lib/app/workspace-context";
 import { isCompletedPullRequest } from "@/renderer/lib/review/completed-pr-state";
 import { getDiffFilePath, parseDiff, type DiffFile } from "@/renderer/lib/review/diff-parser";
 import { useFileNav } from "@/renderer/lib/review/file-nav-context";
-import { useCallback, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft } from "lucide-react";
+import { useCallback, useMemo } from "react";
 
 /**
  * PR file sidebar — replaces the PR inbox when a PR is selected.
