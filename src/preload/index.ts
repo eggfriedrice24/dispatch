@@ -5,6 +5,7 @@ import {
   BADGE_COUNT_CHANNEL,
   IPC_CHANNEL,
   WINDOW_STATE_CHANNEL,
+  type WindowState,
 } from "../shared/ipc";
 
 type IpcResponse = { ok: true; data: unknown } | { ok: false; error: string };
@@ -85,13 +86,8 @@ contextBridge.exposeInMainWorld("api", {
     };
   },
 
-  onWindowStateChange(
-    callback: (state: { isFullscreen: boolean }) => void,
-  ): () => void {
-    const handler = (
-      _event: Electron.IpcRendererEvent,
-      state: { isFullscreen: boolean },
-    ) => {
+  onWindowStateChange(callback: (state: WindowState) => void): () => void {
+    const handler = (_event: Electron.IpcRendererEvent, state: WindowState) => {
       callback(state);
     };
     ipcRenderer.on(WINDOW_STATE_CHANNEL, handler);

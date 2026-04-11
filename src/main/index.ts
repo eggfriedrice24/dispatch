@@ -14,7 +14,7 @@ import {
   session,
 } from "electron";
 
-import { BADGE_COUNT_CHANNEL, WINDOW_STATE_CHANNEL } from "../shared/ipc";
+import { BADGE_COUNT_CHANNEL, WINDOW_STATE_CHANNEL, type WindowState } from "../shared/ipc";
 import { closeDatabase, initDatabase } from "./db/database";
 import { registerIpcHandler } from "./ipc-handler";
 import { trackFromMain } from "./services/analytics";
@@ -227,8 +227,13 @@ function createWindow(): BrowserWindow {
   const win = new BrowserWindow(WINDOW_CONFIG);
   configureExternalNavigation(win);
   setupImageAuth();
+
+  const getWindowState = (): WindowState => ({
+    isFullscreen: win.isFullScreen() || (process.platform === "darwin" && win.isSimpleFullScreen()),
+  });
+
   const emitWindowState = (): void => {
-    win.webContents.send(WINDOW_STATE_CHANNEL, { isFullscreen: win.isFullScreen() });
+    win.webContents.send(WINDOW_STATE_CHANNEL, getWindowState());
   };
 
   // MacOS: hide instead of quit on close (tray keeps running)
@@ -240,6 +245,11 @@ function createWindow(): BrowserWindow {
   });
   win.on("enter-full-screen", emitWindowState);
   win.on("leave-full-screen", emitWindowState);
+  win.on("maximize", emitWindowState);
+  win.on("unmaximize", emitWindowState);
+  win.on("resize", emitWindowState);
+  win.on("restore", emitWindowState);
+  win.on("show", emitWindowState);
   win.webContents.on("did-finish-load", emitWindowState);
 
   win.once("ready-to-show", () => {

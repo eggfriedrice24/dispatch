@@ -16,6 +16,7 @@ const apiMock = {
   setBadgeCount: vi.fn(),
   onNavigate: vi.fn(() => () => {}),
   onAnalyticsTrack: vi.fn(() => () => {}),
+  onWindowStateChange: vi.fn(() => () => {}),
 };
 
 Object.defineProperty(globalThis, "api", {
