@@ -114,7 +114,11 @@ export function commandMatch(text: string, query: string): boolean {
 // Smart filter parsing
 // ---------------------------------------------------------------------------
 
+export type CommandMode = "all" | "commands" | "prs" | "files";
+
 export interface ParsedCommandQuery {
+  /** Active mode — `>` for commands, `#` for PRs, `/` for files, default `all`. */
+  mode: CommandMode;
   /** Free-text portion after removing structured filters. */
   text: string;
   /** `#1234` or `pr:1234` — exact PR number. */
@@ -139,8 +143,21 @@ const FILTER_RE =
   /(?:#(\d+))|(?:@(\S+))|(?:\b(pr|author|branch|is|size|label|file|ext|review|state):(\S+))/gi;
 
 export function parseCommandQuery(raw: string): ParsedCommandQuery {
-  const result: ParsedCommandQuery = { text: "", is: [], hasFilters: false };
+  const result: ParsedCommandQuery = { mode: "all", text: "", is: [], hasFilters: false };
+
+  // Detect mode prefix before parsing filters
   let text = raw;
+  if (text.startsWith(">")) {
+    result.mode = "commands";
+    text = text.slice(1).trimStart();
+  } else if (text === "#" || text.startsWith("# ")) {
+    // Bare `#` or `# ` enters PR mode; `#123` is handled by FILTER_RE as a PR number filter
+    result.mode = "prs";
+    text = text.slice(1).trimStart();
+  } else if (text === "/" || text.startsWith("/ ")) {
+    result.mode = "files";
+    text = text.slice(1).trimStart();
+  }
 
   // Walk all structured tokens and strip them from the text
   for (const m of raw.matchAll(FILTER_RE)) {

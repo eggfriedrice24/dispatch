@@ -13,6 +13,7 @@ import { ReleasesView } from "@/renderer/components/workflows/releases-view";
 import { WorkflowsDashboard } from "@/renderer/components/workflows/workflows-dashboard";
 import { useKeyboardShortcuts } from "@/renderer/hooks/app/use-keyboard-shortcuts";
 import { useNotificationPolling } from "@/renderer/hooks/app/use-notification-polling";
+import { CommandPaletteProvider } from "@/renderer/lib/app/command-palette-context";
 import { ipc } from "@/renderer/lib/app/ipc";
 import { listenForMainProcessEvents } from "@/renderer/lib/app/posthog";
 import { RouterProvider, useRouter, type Route } from "@/renderer/lib/app/router";
@@ -246,94 +247,96 @@ function AppShell({ resumeState, resumeReady, initialFileNavState }: AppShellPro
   }, [fileNavState, nwo, route.view, resumeReady, selectedPr]);
 
   return (
-    <div className="bg-bg-root text-text-primary relative flex h-screen flex-col overflow-hidden">
-      {/* Background noise texture (§ 4.4) */}
-      <div
-        className="pointer-events-none fixed inset-0 z-0"
-        style={{
-          opacity: 0.015,
-          backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`,
-          backgroundRepeat: "repeat",
-          backgroundSize: "256px 256px",
-        }}
-      />
+    <CommandPaletteProvider>
+      <div className="bg-bg-root text-text-primary relative flex h-screen flex-col overflow-hidden">
+        {/* Background noise texture (§ 4.4) */}
+        <div
+          className="pointer-events-none fixed inset-0 z-0"
+          style={{
+            opacity: 0.015,
+            backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`,
+            backgroundRepeat: "repeat",
+            backgroundSize: "256px 256px",
+          }}
+        />
 
-      {/* Update banner */}
-      <UpdateBanner
-        onVisibilityChange={setBannerVisible}
-        isFullscreen={isFullscreen}
-      />
+        {/* Update banner */}
+        <UpdateBanner
+          onVisibilityChange={setBannerVisible}
+          isFullscreen={isFullscreen}
+        />
 
-      {/* Accent bar */}
-      <div
-        className="h-[2px] w-full shrink-0"
-        style={{
-          background: "linear-gradient(90deg, transparent, var(--primary), transparent)",
-          opacity: 0.4,
-        }}
-      />
+        {/* Accent bar */}
+        <div
+          className="h-[2px] w-full shrink-0"
+          style={{
+            background: "linear-gradient(90deg, transparent, var(--primary), transparent)",
+            opacity: 0.4,
+          }}
+        />
 
-      {/* Navbar */}
-      <Navbar
-        bannerVisible={bannerVisible}
-        isFullscreen={isFullscreen}
-      />
+        {/* Navbar */}
+        <Navbar
+          bannerVisible={bannerVisible}
+          isFullscreen={isFullscreen}
+        />
 
-      {/* View content */}
-      {route.view === "review" && !selectedPr && <HomeView />}
+        {/* View content */}
+        {route.view === "review" && !selectedPr && <HomeView />}
 
-      {route.view === "review" && selectedPr && (
-        <FileNavProvider
-          key={selectedPr}
-          initialState={fileNavState}
-          onStateChange={setFileNavState}
-        >
-          <ResizablePanelGroup
-            orientation="horizontal"
-            className="flex-1"
+        {route.view === "review" && selectedPr && (
+          <FileNavProvider
+            key={selectedPr}
+            initialState={fileNavState}
+            onStateChange={setFileNavState}
           >
-            {!sidebarCollapsed && (
-              <>
-                <ResizablePanel
-                  defaultSize="20%"
-                  minSize="12%"
-                  maxSize="35%"
-                >
-                  <ReviewSidebar
-                    prNumber={selectedPr}
-                    onBack={() => navigate({ view: "review", prNumber: null })}
-                    onSelectPr={(pr) => navigate({ view: "review", prNumber: pr })}
-                  />
-                </ResizablePanel>
-                <ResizableHandle />
-              </>
-            )}
-            <ResizablePanel>
-              <main className="flex h-full flex-col overflow-hidden">
-                <PrDetailView prNumber={selectedPr} />
-              </main>
-            </ResizablePanel>
-          </ResizablePanelGroup>
-        </FileNavProvider>
-      )}
+            <ResizablePanelGroup
+              orientation="horizontal"
+              className="flex-1"
+            >
+              {!sidebarCollapsed && (
+                <>
+                  <ResizablePanel
+                    defaultSize="20%"
+                    minSize="12%"
+                    maxSize="35%"
+                  >
+                    <ReviewSidebar
+                      prNumber={selectedPr}
+                      onBack={() => navigate({ view: "review", prNumber: null })}
+                      onSelectPr={(pr) => navigate({ view: "review", prNumber: pr })}
+                    />
+                  </ResizablePanel>
+                  <ResizableHandle />
+                </>
+              )}
+              <ResizablePanel>
+                <main className="flex h-full flex-col overflow-hidden">
+                  <PrDetailView prNumber={selectedPr} />
+                </main>
+              </ResizablePanel>
+            </ResizablePanelGroup>
+          </FileNavProvider>
+        )}
 
-      {route.view === "workflows" && <WorkflowsDashboard />}
+        {route.view === "workflows" && <WorkflowsDashboard />}
 
-      {route.view === "metrics" && <MetricsView />}
+        {route.view === "metrics" && <MetricsView />}
 
-      {route.view === "releases" && <ReleasesView />}
+        {route.view === "releases" && <ReleasesView />}
 
-      {route.view === "settings" && <SettingsView />}
+        {route.view === "settings" && <SettingsView />}
 
-      {/* Keyboard shortcuts dialog */}
-      <KeyboardShortcutsDialog
-        open={showShortcuts}
-        onClose={() => setShowShortcuts(false)}
-      />
+        {/* Keyboard shortcuts dialog */}
+        <KeyboardShortcutsDialog
+          open={showShortcuts}
+          onClose={() => setShowShortcuts(false)}
+        />
 
-      {/* Command palette (⌘K) */}
-      <CommandPalette />
-    </div>
+        {/* Command palette (⌘K) */}
+        <CommandPalette />
+      </div>
+    </CommandPaletteProvider>
   );
 }
 

@@ -1,6 +1,7 @@
 /* eslint-disable import/max-dependencies -- Navbar intentionally composes app-level chrome controls. */
 import type { GhAccount } from "@/shared/ipc";
 
+import { Kbd } from "@/components/ui/kbd";
 import {
   Menu,
   MenuGroup,
@@ -14,6 +15,7 @@ import { Tooltip, TooltipPopup, TooltipTrigger } from "@/components/ui/tooltip";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { AddRepoDialog } from "@/renderer/components/shared/add-repo-dialog";
 import { DispatchLogo } from "@/renderer/components/shared/dispatch-logo";
+import { useCommandPalette } from "@/renderer/lib/app/command-palette-context";
 import { ipc } from "@/renderer/lib/app/ipc";
 import { openExternal } from "@/renderer/lib/app/open-external";
 import { queryClient } from "@/renderer/lib/app/query-client";
@@ -32,6 +34,7 @@ import {
   Plus,
   Tag,
   RefreshCw,
+  Search,
   Settings,
   Users,
   Zap,
@@ -135,8 +138,13 @@ export function Navbar({
         )}
       </nav>
 
-      {/* Spacer */}
-      <div className="flex-1" />
+      {/* Search trigger + spacer */}
+      <div
+        className="flex flex-1 items-center justify-center"
+        style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+      >
+        {!collapseChromeLabels && <SearchTrigger compact={collapseNavLabels} />}
+      </div>
 
       {/* Workspace switcher + icons */}
       <div
@@ -436,6 +444,31 @@ function WorkspaceSwitcher({ compact = false }: { compact?: boolean }) {
         }}
       />
     </Menu>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Search trigger
+// ---------------------------------------------------------------------------
+
+function SearchTrigger({ compact = false }: { compact?: boolean }) {
+  const { setOpen } = useCommandPalette();
+
+  return (
+    <button
+      type="button"
+      onClick={() => setOpen(true)}
+      className="border-border bg-bg-raised/50 hover:bg-bg-raised hover:border-border-strong flex h-7 max-w-[280px] cursor-pointer items-center gap-2 rounded-md border px-2.5 transition-colors"
+    >
+      <Search
+        size={13}
+        className="text-text-ghost shrink-0"
+      />
+      {!compact && (
+        <span className="text-text-ghost min-w-0 truncate text-[11px]">Search or jump to...</span>
+      )}
+      <Kbd className="text-text-ghost ml-auto h-4 min-w-4 shrink-0 px-0.5 text-[9px]">⌘K</Kbd>
+    </button>
   );
 }
 
