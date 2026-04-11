@@ -2,8 +2,8 @@ import type { GhPrEnrichment, GhPrListItemCore } from "@/shared/ipc";
 
 import { ipc } from "@/renderer/lib/app/ipc";
 import { queryClient } from "@/renderer/lib/app/query-client";
-import { summarizePrChecks } from "@/renderer/lib/review/pr-check-status";
 import { useWorkspace } from "@/renderer/lib/app/workspace-context";
+import { summarizePrChecks } from "@/renderer/lib/review/pr-check-status";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 
@@ -26,6 +26,9 @@ type NotificationInput = {
   workspace: string;
   authorLogin?: string;
 };
+
+const PR_POLL_INTERVAL_MS = 60_000;
+const PR_POLL_STALE_TIME_MS = 60_000;
 
 function getPrNotificationKey(pr: { pullRequestRepository: string; number: number }): string {
   return `${pr.pullRequestRepository}::${pr.number}`;
@@ -99,7 +102,9 @@ export function useNotificationPolling(): void {
   const reviewQuery = useQuery({
     queryKey: ["pr", "listAll", "reviewRequested", "open"],
     queryFn: () => ipc("pr.listAll", { filter: "reviewRequested", state: "open" }),
-    refetchInterval: 30_000,
+    refetchInterval: PR_POLL_INTERVAL_MS,
+    staleTime: PR_POLL_STALE_TIME_MS,
+    refetchOnWindowFocus: false,
   });
 
   const reviewEnrichmentQuery = useQuery({
@@ -109,13 +114,17 @@ export function useNotificationPolling(): void {
         filter: "reviewRequested",
         state: "open",
       }),
-    refetchInterval: 30_000,
+    refetchInterval: PR_POLL_INTERVAL_MS,
+    staleTime: PR_POLL_STALE_TIME_MS,
+    refetchOnWindowFocus: false,
   });
 
   const authorQuery = useQuery({
     queryKey: ["pr", "listAll", "authored", "open"],
     queryFn: () => ipc("pr.listAll", { filter: "authored", state: "open" }),
-    refetchInterval: 30_000,
+    refetchInterval: PR_POLL_INTERVAL_MS,
+    staleTime: PR_POLL_STALE_TIME_MS,
+    refetchOnWindowFocus: false,
   });
 
   const authorEnrichmentQuery = useQuery({
@@ -125,7 +134,9 @@ export function useNotificationPolling(): void {
         filter: "authored",
         state: "open",
       }),
-    refetchInterval: 30_000,
+    refetchInterval: PR_POLL_INTERVAL_MS,
+    staleTime: PR_POLL_STALE_TIME_MS,
+    refetchOnWindowFocus: false,
   });
 
   useEffect(() => {
@@ -149,7 +160,10 @@ export function useNotificationPolling(): void {
       previousAuthorPrs.current = authorByKey;
       previousReviewEnrichment.current = reviewEnrichmentByKey;
       previousAuthorReady.current = new Map(
-        [...authorByKey].map(([key, pr]) => [key, isReadyToShip(pr, authorEnrichmentByKey.get(key))]),
+        [...authorByKey].map(([key, pr]) => [
+          key,
+          isReadyToShip(pr, authorEnrichmentByKey.get(key)),
+        ]),
       );
       globalThis.api.setBadgeCount(reviewQuery.data.length);
       return;

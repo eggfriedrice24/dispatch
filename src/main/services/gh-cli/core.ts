@@ -322,64 +322,73 @@ export async function getRepoInfo(cwdOrTarget: string | RepoTarget): Promise<Rep
     typeof cwdOrTarget === "string"
       ? { cwd: cwdOrTarget, repoFlag: [] as string[] }
       : resolveRepoCwd(cwdOrTarget);
-  const { stdout } = await ghExec(
-    [
-      "repo",
-      "view",
-      ...resolved.repoFlag,
-      "--json",
-      "nameWithOwner,isFork,parent,viewerPermission,defaultBranchRef",
-    ],
-    { cwd: resolved.cwd, timeout: 10_000 },
-  );
-  const data = parseJsonOutput<{
-    nameWithOwner: string;
-    isFork: boolean;
-    parent: { owner: { login: string }; name: string } | null;
-    viewerPermission: string;
-    defaultBranchRef: { name: string } | null;
-  }>(stdout);
-  const canPush = ["ADMIN", "MAINTAIN", "WRITE"].includes(data.viewerPermission);
+  const cacheKey = `repoInfo::${resolved.cwd ?? resolved.nwo}`;
 
-  let hasMergeQueue = false;
-  try {
-    const mergeQueueRepo =
-      data.isFork && data.parent
-        ? { owner: data.parent.owner.login, repo: data.parent.name }
-        : parseRepoFullName(data.nameWithOwner);
-    const { owner, repo } = mergeQueueRepo;
-    const defaultBranch = data.defaultBranchRef?.name ?? "main";
-    const { stdout: gqlOut } = await ghExec(
-      [
-        "api",
-        "graphql",
-        "-f",
-        `owner=${owner}`,
-        "-f",
-        `repo=${repo}`,
-        "-f",
-        `branch=${defaultBranch}`,
-        "-f",
-        `query=query($owner: String!, $repo: String!, $branch: String!) { repository(owner: $owner, name: $repo) { mergeQueue(branch: $branch) { id } } }`,
-      ],
-      { cwd: resolved.cwd, timeout: 10_000 },
-    );
-    const gql = JSON.parse(gqlOut) as {
-      data?: { repository?: { mergeQueue?: { id: string } | null } };
-    };
-    const mergeQueue = gql.data?.repository?.mergeQueue;
-    hasMergeQueue = mergeQueue !== null && mergeQueue !== undefined;
-  } catch {
-    // Merge queue query failed (e.g. GHES without merge queue support).
-  }
+  return getOrLoadCached({
+    cache: repoInfoCache,
+    key: cacheKey,
+    ttl: REPO_INFO_CACHE_TTL_MS,
+    loader: async () => {
+      const { stdout } = await ghExec(
+        [
+          "repo",
+          "view",
+          ...resolved.repoFlag,
+          "--json",
+          "nameWithOwner,isFork,parent,viewerPermission,defaultBranchRef",
+        ],
+        { cwd: resolved.cwd, timeout: 10_000 },
+      );
+      const data = parseJsonOutput<{
+        nameWithOwner: string;
+        isFork: boolean;
+        parent: { owner: { login: string }; name: string } | null;
+        viewerPermission: string;
+        defaultBranchRef: { name: string } | null;
+      }>(stdout);
+      const canPush = ["ADMIN", "MAINTAIN", "WRITE"].includes(data.viewerPermission);
 
-  return {
-    nameWithOwner: data.nameWithOwner,
-    isFork: data.isFork,
-    parent: data.parent ? `${data.parent.owner.login}/${data.parent.name}` : null,
-    canPush,
-    hasMergeQueue,
-  };
+      let hasMergeQueue = false;
+      try {
+        const mergeQueueRepo =
+          data.isFork && data.parent
+            ? { owner: data.parent.owner.login, repo: data.parent.name }
+            : parseRepoFullName(data.nameWithOwner);
+        const { owner, repo } = mergeQueueRepo;
+        const defaultBranch = data.defaultBranchRef?.name ?? "main";
+        const { stdout: gqlOut } = await ghExec(
+          [
+            "api",
+            "graphql",
+            "-f",
+            `owner=${owner}`,
+            "-f",
+            `repo=${repo}`,
+            "-f",
+            `branch=${defaultBranch}`,
+            "-f",
+            `query=query($owner: String!, $repo: String!, $branch: String!) { repository(owner: $owner, name: $repo) { mergeQueue(branch: $branch) { id } } }`,
+          ],
+          { cwd: resolved.cwd, timeout: 10_000 },
+        );
+        const gql = JSON.parse(gqlOut) as {
+          data?: { repository?: { mergeQueue?: { id: string } | null } };
+        };
+        const mergeQueue = gql.data?.repository?.mergeQueue;
+        hasMergeQueue = mergeQueue !== null && mergeQueue !== undefined;
+      } catch {
+        // Merge queue query failed (e.g. GHES without merge queue support).
+      }
+
+      return {
+        nameWithOwner: data.nameWithOwner,
+        isFork: data.isFork,
+        parent: data.parent ? `${data.parent.owner.login}/${data.parent.name}` : null,
+        canPush,
+        hasMergeQueue,
+      };
+    },
+  });
 }
 
 export async function isGhAuthenticated(): Promise<boolean> {
@@ -464,6 +473,7 @@ export const PR_LIST_SLIM = [
   "updatedAt",
   "isDraft",
 ].join(",");
+const REPO_INFO_CACHE_TTL_MS = 300_000;
 
 export function resolvePrListLimit(): string {
   return String(normalizePrFetchLimit(getPreference(PR_FETCH_LIMIT_PREFERENCE_KEY)));
@@ -494,6 +504,7 @@ export const prListCache = createCacheStore<GhPrListItemCore[]>();
 export const prEnrichmentCache = createCacheStore<GhPrEnrichment[]>();
 export const prFullCache = createCacheStore<GhPrListItem[]>();
 export const genericCache = createCacheStore<unknown>();
+const repoInfoCache = createCacheStore<RepoInfo>();
 
 export const CACHE_TTL_MS = 15_000;
 export const CACHE_TTL_LONG_MS = 60_000;
@@ -633,6 +644,7 @@ export function invalidateAllCaches(): void {
   clearCacheStore(prEnrichmentCache);
   clearCacheStore(prFullCache);
   clearCacheStore(genericCache);
+  clearCacheStore(repoInfoCache);
 }
 
 export function buildFilterArgs({

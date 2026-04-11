@@ -23,6 +23,10 @@ export const WINDOW_STATE_CHANNEL = "window-state";
 export const BADGE_COUNT_CHANNEL = "set-badge-count";
 export const ANALYTICS_CHANNEL = "analytics:track";
 
+export interface WindowState {
+  isFullscreen: boolean;
+}
+
 // ---------------------------------------------------------------------------
 // Service types shared across processes
 // ---------------------------------------------------------------------------

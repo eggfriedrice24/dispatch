@@ -1,3 +1,5 @@
+import type { WindowState } from "../shared/ipc";
+
 /**
  * Type declarations for the preload API exposed via contextBridge.
  */
@@ -16,7 +18,7 @@ declare global {
         properties?: Record<string, string | number | boolean>;
       }) => void,
     ): () => void;
-    onWindowStateChange(callback: (state: { isFullscreen: boolean }) => void): () => void;
+    onWindowStateChange(callback: (state: WindowState) => void): () => void;
   }
 
   var api: ElectronApi;
