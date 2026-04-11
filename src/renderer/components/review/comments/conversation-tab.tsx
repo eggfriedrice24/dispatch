@@ -67,7 +67,7 @@ export function ConversationTab({
     <div className="flex min-h-0 flex-1 flex-col">
       <div
         className="min-h-0 flex-1 overflow-y-auto"
-        style={{ padding: "12px" }}
+        style={{ padding: "14px" }}
       >
         {/* Unresolved section */}
         {unresolvedCount > 0 && (
@@ -698,7 +698,7 @@ function PanelComposer({ prNumber }: { prNumber: number }) {
   return (
     <div
       className="shrink-0"
-      style={{ borderTop: "1px solid var(--border)", padding: "8px 12px" }}
+      style={{ borderTop: "1px solid var(--border)", padding: "10px 14px" }}
     >
       <ReviewMarkdownComposer
         collapseWhenIdle

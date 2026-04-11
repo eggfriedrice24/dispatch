@@ -63,7 +63,7 @@ export function QueueZone({ queuePrs, activePrNumber, onBack, onSelectPr }: Queu
       {/* Header — always show back button */}
       <div
         className="flex items-center gap-1.5"
-        style={{ padding: "5px 10px 3px" }}
+        style={{ padding: "7px 10px 5px" }}
       >
         <button
           type="button"
@@ -96,7 +96,7 @@ export function QueueZone({ queuePrs, activePrNumber, onBack, onSelectPr }: Queu
                 ref={isActive ? activeRef : undefined}
                 type="button"
                 onClick={() => onSelectPr(pr.number)}
-                className={`flex w-full cursor-pointer items-start gap-2 border-l-2 px-3 py-1.5 text-left transition-colors ${
+                className={`flex w-full cursor-pointer items-start gap-2 border-l-2 px-3 py-2 text-left transition-colors ${
                   isActive
                     ? "border-l-primary bg-accent-muted"
                     : "hover:bg-bg-raised border-l-transparent"

@@ -120,7 +120,7 @@ export function DiffToolbar({
   return (
     <div
       aria-busy={controlsLocked || undefined}
-      className="border-border-subtle bg-bg-surface flex h-8 shrink-0 items-center gap-2 overflow-hidden border-b px-3"
+      className="border-border-subtle bg-bg-surface flex h-9 shrink-0 items-center gap-2 overflow-hidden border-b px-3"
     >
       {/* File path */}
       <div className="min-w-0 flex-1 basis-0 overflow-hidden">

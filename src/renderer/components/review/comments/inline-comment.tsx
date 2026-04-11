@@ -94,7 +94,7 @@ export function InlineComment({
   const humanRoots = roots.filter((c) => !isBot(c.user.login));
 
   return (
-    <div className="border-border mx-3 my-2 max-w-[46rem] overflow-hidden rounded-[10px] border bg-[linear-gradient(180deg,rgba(15,15,18,0.98),rgba(10,10,12,0.94))] shadow-[0_10px_30px_rgba(0,0,0,0.28)]">
+    <div className="border-border mx-4 my-3 max-w-[52rem] overflow-hidden rounded-[10px] border bg-[linear-gradient(180deg,rgba(15,15,18,0.98),rgba(10,10,12,0.94))] shadow-[0_10px_30px_rgba(0,0,0,0.28)]">
       {humanRoots.map((root, i) => {
         const threadReplies = replies.filter((r) => r.in_reply_to_id === root.id);
         return (
@@ -240,7 +240,7 @@ function CommentThread({
           <button
             type="button"
             onClick={() => setCollapsed(true)}
-            className="border-border-subtle text-text-tertiary hover:bg-bg-raised/30 hover:text-text-primary flex w-full cursor-pointer items-center gap-1.5 border-b px-3 py-1.5 text-left text-[10px] transition-colors"
+            className="border-border-subtle text-text-tertiary hover:bg-bg-raised/30 hover:text-text-primary flex w-full cursor-pointer items-center gap-1.5 border-b px-3 py-2 text-left text-[10px] transition-colors"
           >
             <ChevronDown
               size={11}
@@ -310,7 +310,7 @@ function CommentThread({
 
       {/* Quick reply button (when not already replying) */}
       {!showReply && !collapsed && canMutateThread && (
-        <div className="border-border-subtle flex items-center justify-between gap-2 border-t px-3 py-2">
+        <div className="border-border-subtle flex items-center justify-between gap-2 border-t px-3 py-2.5">
           <span className="text-text-ghost font-mono text-[10px]">
             {totalCount} {totalCount === 1 ? "message" : "messages"}
           </span>

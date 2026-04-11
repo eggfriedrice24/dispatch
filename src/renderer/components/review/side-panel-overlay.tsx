@@ -77,12 +77,12 @@ export function SidePanelOverlay({
         borderLeft: "1px solid var(--border)",
       }}
     >
-      {/* Header — 36px, tabs + close */}
+      {/* Header — 40px, tabs + close */}
       <div
         className="flex shrink-0 items-center"
         style={{
-          height: "36px",
-          padding: "0 8px",
+          height: "40px",
+          padding: "0 10px",
           borderBottom: "1px solid var(--border)",
           boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
         }}
@@ -135,7 +135,7 @@ export function SidePanelOverlay({
       ) : (
         <div
           className="flex-1 overflow-y-auto"
-          style={{ padding: "12px" }}
+          style={{ padding: "14px" }}
         >
           {activeTab === "overview" && (
             <PanelOverviewContent
@@ -862,7 +862,7 @@ function PanelTabButton({
       className="flex cursor-pointer items-center gap-[5px] select-none"
       style={{
         padding: "0 10px",
-        height: "36px",
+        height: "40px",
         fontSize: "12px",
         fontWeight: active ? 500 : 450,
         color: active ? "var(--text-primary)" : "var(--text-tertiary)",

@@ -836,7 +836,7 @@ function SplitDiffView({
               <tr key={row.key}>
                 <td
                   colSpan={5}
-                  className="border-border-subtle bg-diff-hunk-bg text-info h-5 border-y px-3 text-[11px]"
+                  className="border-border-subtle bg-diff-hunk-bg text-info h-6 border-y px-3 text-[11px]"
                 >
                   {row.left.content}
                 </td>
@@ -1194,7 +1194,7 @@ function DiffLineRow({
 }) {
   if (line.type === "hunk-header") {
     return (
-      <div className="border-border-subtle bg-diff-hunk-bg text-info flex h-5 items-center border-y px-3 text-[11px]">
+      <div className="border-border-subtle bg-diff-hunk-bg text-info flex h-6 items-center border-y px-3 text-[11px]">
         {line.content}
       </div>
     );

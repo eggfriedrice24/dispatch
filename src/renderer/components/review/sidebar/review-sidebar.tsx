@@ -245,7 +245,7 @@ export function ReviewSidebar({ prNumber, onBack, onSelectPr }: ReviewSidebarPro
       {!selectedCommit && (
         <div
           className="flex items-center gap-1.5"
-          style={{ padding: "6px 10px 2px" }}
+          style={{ padding: "8px 10px 4px" }}
         >
           <div className="bg-bg-raised flex gap-px rounded-md p-0.5">
             <button
@@ -277,7 +277,7 @@ export function ReviewSidebar({ prNumber, onBack, onSelectPr }: ReviewSidebarPro
       )}
 
       {/* File search */}
-      <div className="px-3 pt-2 pb-1.5">
+      <div className="px-3 pt-2 pb-2">
         <div className="border-border bg-bg-raised flex items-center gap-1.5 rounded-md border px-2 py-1">
           <Search
             size={11}
@@ -309,7 +309,7 @@ export function ReviewSidebar({ prNumber, onBack, onSelectPr }: ReviewSidebarPro
               meta={triageMeta}
             />
           ) : (
-            <div className="p-2">
+            <div className="p-2.5">
               <FileTree
                 files={files}
                 currentFileIndex={currentFileIndex}

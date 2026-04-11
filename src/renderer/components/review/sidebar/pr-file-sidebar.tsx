@@ -119,7 +119,7 @@ export function PrFileSidebar({ prNumber, onBack }: PrFileSidebarProps) {
       {diffQuery.isLoading ? (
         <FileTreeSkeleton />
       ) : (
-        <div className="flex-1 overflow-y-auto p-2">
+        <div className="flex-1 overflow-y-auto p-2.5">
           <FileTree
             files={files}
             currentFileIndex={currentFileIndex}

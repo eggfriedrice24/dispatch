@@ -264,7 +264,7 @@ export function CompactPrHeader({
       </div>
 
       {/* Row 2: PR number + branch + stats — aligned with author name (20px avatar + 8px gap) */}
-      <div className="flex min-w-0 items-center gap-[5px] pt-0.5 pl-7">
+      <div className="flex min-w-0 items-center gap-[5px] pt-1 pl-7">
         <span className="text-text-tertiary shrink-0 font-mono text-[11px]">#{pr.number}</span>
         <span className="text-text-ghost text-[9px]">·</span>
         <span

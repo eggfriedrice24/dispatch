@@ -56,7 +56,7 @@ export function MergeReadinessCard({
   return (
     <div
       className="bg-bg-raised shrink-0 rounded-lg"
-      style={{ margin: "6px", padding: "8px 10px", borderTop: "1px solid var(--border)" }}
+      style={{ margin: "8px", padding: "10px 12px", borderTop: "1px solid var(--border)" }}
     >
       {/* Title */}
       <div className="text-text-tertiary mb-1 text-[10px] font-semibold tracking-[0.06em] uppercase">

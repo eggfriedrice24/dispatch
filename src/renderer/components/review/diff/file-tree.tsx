@@ -429,7 +429,7 @@ function TreeNodeRow({
           type="button"
           onClick={() => onToggle(node.path)}
           onContextMenu={(e) => onContextMenu(e, node)}
-          className={`group hover:bg-bg-raised relative flex w-full cursor-pointer items-center gap-1 py-1 pr-2 text-left transition-colors ${
+          className={`group hover:bg-bg-raised relative flex w-full cursor-pointer items-center gap-1 py-1.5 pr-2 text-left transition-colors ${
             allViewed ? "opacity-70" : ""
           }`}
           style={{ paddingLeft }}
@@ -541,7 +541,7 @@ function TreeNodeRow({
         type="button"
         onClick={() => node.fileIndex !== undefined && onSelectFile(node.fileIndex)}
         onContextMenu={(e) => onContextMenu(e, node)}
-        className={`group relative flex w-full cursor-pointer items-center gap-1.5 py-[3px] pr-2 text-left transition-colors ${
+        className={`group relative flex w-full cursor-pointer items-center gap-1.5 py-1.5 pr-2 text-left transition-colors ${
           isActive ? "bg-accent-muted" : "hover:bg-bg-raised"
         }`}
         style={{ paddingLeft: paddingLeft + 15 }}

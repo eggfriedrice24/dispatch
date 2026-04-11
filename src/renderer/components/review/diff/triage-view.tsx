@@ -108,7 +108,7 @@ function Section({
         type="button"
         onClick={onToggle}
         className="hover:bg-bg-raised flex w-full cursor-pointer items-center gap-[5px] rounded-sm text-[10px] font-semibold tracking-[0.06em] uppercase select-none"
-        style={{ padding: "4px 7px", color: "var(--text-tertiary)" }}
+        style={{ padding: "6px 7px", color: "var(--text-tertiary)" }}
       >
         <span
           className="h-[5px] w-[5px] shrink-0 rounded-full"
@@ -177,7 +177,7 @@ function TriageFileItem({
             : `text-text-secondary hover:bg-bg-raised hover:text-text-primary`
         } ${isViewed ? "opacity-50" : ""}`}
         style={{
-          padding: isActive ? "3px 7px 3px 12px" : "3px 7px 3px 14px",
+          padding: isActive ? "5px 7px 5px 12px" : "5px 7px 5px 14px",
           borderLeft: isActive ? "2px solid var(--accent)" : "2px solid transparent",
           borderRadius: "var(--radius-sm)",
           boxShadow: isActive
