@@ -6,6 +6,7 @@ import type {
   GhPrListItem,
   GhPrListItemCore,
   GhUser,
+  GhUserProfile,
   RepoInfo,
   RepoTarget,
 } from "../../../shared/ipc";
@@ -105,6 +106,48 @@ export async function getAuthenticatedUser(): Promise<GhUser | null> {
   } catch {
     return null;
   }
+}
+
+export async function getUserProfile(login: string): Promise<GhUserProfile> {
+  const jq = [
+    "{",
+    "login: .login,",
+    "name: .name,",
+    "avatarUrl: .avatar_url,",
+    "bio: .bio,",
+    "company: .company,",
+    "location: .location,",
+    "followers: .followers,",
+    "following: .following,",
+    "publicRepos: .public_repos,",
+    "createdAt: .created_at,",
+    "}",
+  ].join(" ");
+
+  const { stdout } = await ghExec(
+    ["api", `users/${encodeURIComponent(login)}`, "--jq", jq],
+    { timeout: 15_000 },
+  );
+  const profile = parseJsonOutput<Omit<GhUserProfile, "organizations">>(stdout);
+
+  // Fetch organizations separately (paginated endpoint)
+  let organizations: GhUserProfile["organizations"] = [];
+  try {
+    const { stdout: orgStdout } = await ghExec(
+      [
+        "api",
+        `users/${encodeURIComponent(login)}/orgs`,
+        "--jq",
+        "[.[] | {login: .login, avatarUrl: .avatar_url}]",
+      ],
+      { timeout: 10_000 },
+    );
+    organizations = parseJsonOutput<GhUserProfile["organizations"]>(orgStdout);
+  } catch {
+    // Org fetch can fail for bots or private orgs — non-critical
+  }
+
+  return { ...profile, organizations };
 }
 
 export async function listAccounts(): Promise<GhAccount[]> {

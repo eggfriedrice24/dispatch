@@ -4,6 +4,7 @@ import type {
   GhAvatarLookup,
   GhRepoAccount,
   GhUser,
+  GhUserProfile,
   RepoInfo,
   RepoTarget,
   Workspace,
@@ -27,6 +28,7 @@ export interface EnvironmentIpcApi {
     result: GhAvatarLookup | null;
   };
   "env.switchAccount": { args: { host: string; login: string }; result: void };
+  "env.userProfile": { args: { login: string }; result: GhUserProfile };
 
   "repo.info": { args: RepoTarget; result: RepoInfo };
 

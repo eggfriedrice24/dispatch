@@ -365,6 +365,20 @@ export interface GhUser {
   name: string | null;
 }
 
+export interface GhUserProfile {
+  login: string;
+  name: string | null;
+  avatarUrl: string;
+  bio: string | null;
+  company: string | null;
+  location: string | null;
+  followers: number;
+  following: number;
+  publicRepos: number;
+  createdAt: string;
+  organizations: Array<{ login: string; avatarUrl: string }>;
+}
+
 export interface GhAccount {
   login: string;
   host: string;

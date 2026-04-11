@@ -4,18 +4,15 @@ import type { GhPrDetail, GhPrReactions, GhReviewThread } from "@/shared/ipc";
 import { Spinner } from "@/components/ui/spinner";
 import { toastManager } from "@/components/ui/toast";
 import { AiReviewSummary } from "@/renderer/components/review/ai/ai-review-summary";
+import { AuthorDossier } from "@/renderer/components/review/author-dossier";
 import { ConversationTab } from "@/renderer/components/review/comments/conversation-tab";
 import { ReactionBar } from "@/renderer/components/review/comments/reaction-bar";
+import { CollapsibleDescription } from "@/renderer/components/shared/collapsible-description";
 import { GitHubAvatar } from "@/renderer/components/shared/github-avatar";
 import { MarkdownBody } from "@/renderer/components/shared/markdown-body";
-import {
-  formatAuthorName,
-  useDisplayNameFormat,
-} from "@/renderer/hooks/preferences/use-display-name";
 import { ipc } from "@/renderer/lib/app/ipc";
 import { queryClient } from "@/renderer/lib/app/query-client";
 import { useWorkspace } from "@/renderer/lib/app/workspace-context";
-import { relativeTime } from "@/shared/format";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Check, GitMerge, Pencil, X, XCircle } from "lucide-react";
 import { useCallback, useRef, useState } from "react";
@@ -175,7 +172,6 @@ function PanelOverviewContent({
   canEdit?: boolean;
 }) {
   const { repoTarget, nwo } = useWorkspace();
-  const nameFormat = useDisplayNameFormat();
   const [editingBody, setEditingBody] = useState(false);
   const [bodyValue, setBodyValue] = useState(pr.body);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -232,24 +228,12 @@ function PanelOverviewContent({
 
   return (
     <>
-      {/* Author + Timestamps */}
-      <div
-        className="flex items-center gap-2"
-        style={{
-          fontSize: "11px",
-          color: "var(--text-secondary)",
-          marginBottom: "10px",
-        }}
-      >
-        <GitHubAvatar
-          login={pr.author.login}
-          size={18}
-        />
-        <span className="font-medium">{formatAuthorName(pr.author, nameFormat)}</span>
-        <span className="text-text-ghost font-mono text-[10px]">
-          opened {relativeTime(new Date(pr.createdAt))}
-        </span>
-      </div>
+      {/* Author dossier */}
+      <AuthorDossier
+        login={pr.author.login}
+        author={pr.author}
+        createdAt={pr.createdAt}
+      />
 
       {/* Description card */}
       <div
@@ -343,10 +327,12 @@ function PanelOverviewContent({
         ) : (
           <div style={{ fontSize: "12px", color: "var(--text-secondary)", lineHeight: 1.5 }}>
             {pr.body ? (
-              <MarkdownBody
-                content={pr.body}
-                repo={repo}
-              />
+              <CollapsibleDescription>
+                <MarkdownBody
+                  content={pr.body}
+                  repo={repo}
+                />
+              </CollapsibleDescription>
             ) : (
               <span
                 onClick={canEdit ? startEditingBody : undefined}
