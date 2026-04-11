@@ -34,7 +34,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 /**
  * PR Inbox sidebar — DISPATCH-DESIGN-SYSTEM.md § 8.4
  *
- * Filter tabs: Review | Mine | All
+ * Filter tabs: Review | Re-review | Mine | All
  * Keyboard-navigable (j/k/Enter), search with /
  */
 
@@ -43,7 +43,7 @@ interface PrInboxProps {
   onSelectPr: (pr: number, title?: string) => void;
 }
 
-type FilterTab = "review" | "mine" | "all";
+type FilterTab = "review" | "reReview" | "mine" | "all";
 
 // ---------------------------------------------------------------------------
 // Status indicator — icon-based state representation
@@ -129,33 +129,72 @@ export function PrInbox({ selectedPr, onSelectPr }: PrInboxProps) {
     [prActivityQuery.data],
   );
 
-  const visiblePrs = useMemo(() => {
-    if (activeFilter === "review") {
-      return reviewPrs;
-    }
-
-    if (activeFilter === "mine") {
-      return authorPrs;
-    }
-
-    return allPrs;
-  }, [activeFilter, allPrs, authorPrs, reviewPrs]);
-
-  const searchablePrs = useMemo<SearchablePrItem[]>(
+  const reviewPrsWithActivity = useMemo<SearchablePrItem[]>(
     () =>
-      visiblePrs.map((pr) => ({
+      reviewPrs.map((pr) => ({
         hasNewActivity: hasNewPrActivity(
           pr.updatedAt,
           prActivityIndex.get(getPrActivityKey(nwo, pr.number)),
         ),
         pr,
       })),
-    [nwo, prActivityIndex, visiblePrs],
+    [nwo, prActivityIndex, reviewPrs],
   );
 
+  const reReviewPrsWithActivity = useMemo(
+    () => reviewPrsWithActivity.filter((item) => item.item.hasNewActivity),
+    [reviewPrsWithActivity],
+  );
+
+  const authorPrsWithActivity = useMemo<SearchablePrItem[]>(
+    () =>
+      authorPrs.map((pr) => ({
+        hasNewActivity: hasNewPrActivity(
+          pr.updatedAt,
+          prActivityIndex.get(getPrActivityKey(nwo, pr.number)),
+        ),
+        pr,
+      })),
+    [nwo, prActivityIndex, authorPrs],
+  );
+
+  const allPrsWithActivity = useMemo<SearchablePrItem[]>(
+    () =>
+      allPrs.map((pr) => ({
+        hasNewActivity: hasNewPrActivity(
+          pr.updatedAt,
+          prActivityIndex.get(getPrActivityKey(nwo, pr.number)),
+        ),
+        pr,
+      })),
+    [nwo, allPrs, prActivityIndex],
+  );
+
+  const visiblePrs = useMemo(() => {
+    if (activeFilter === "review") {
+      return reviewPrsWithActivity;
+    }
+
+    if (activeFilter === "reReview") {
+      return reReviewPrsWithActivity;
+    }
+
+    if (activeFilter === "mine") {
+      return authorPrsWithActivity;
+    }
+
+    return allPrsWithActivity;
+  }, [
+    activeFilter,
+    allPrsWithActivity,
+    authorPrsWithActivity,
+    reReviewPrsWithActivity,
+    reviewPrsWithActivity,
+  ]);
+
   const filteredResults = useMemo(
-    () => searchPrs(searchablePrs, searchQuery),
-    [searchQuery, searchablePrs],
+    () => searchPrs(visiblePrs, searchQuery),
+    [searchQuery, visiblePrs],
   );
   const searchRefreshRequests = useMemo<PrSearchRefreshRequest[]>(
     () => [
@@ -250,6 +289,7 @@ export function PrInbox({ selectedPr, onSelectPr }: PrInboxProps) {
 
   const isLoading =
     (activeFilter === "review" && reviewQuery.isLoading) ||
+    (activeFilter === "reReview" && reviewQuery.isLoading) ||
     (activeFilter === "mine" && authorQuery.isLoading) ||
     (activeFilter === "all" && allQuery.isLoading);
 
@@ -268,6 +308,15 @@ export function PrInbox({ selectedPr, onSelectPr }: PrInboxProps) {
             active={activeFilter === "review"}
             onClick={() => {
               setActiveFilter("review");
+              setFocusIndex(0);
+            }}
+          />
+          <FilterButton
+            label="Re-review"
+            count={reReviewPrsWithActivity.length}
+            active={activeFilter === "reReview"}
+            onClick={() => {
+              setActiveFilter("reReview");
               setFocusIndex(0);
             }}
           />
@@ -328,7 +377,7 @@ export function PrInbox({ selectedPr, onSelectPr }: PrInboxProps) {
               }
             }}
           />
-          {hasSearch ? (
+              {hasSearch ? (
             <button
               type="button"
               onClick={() => {
@@ -373,9 +422,11 @@ export function PrInbox({ selectedPr, onSelectPr }: PrInboxProps) {
               <p className="text-text-tertiary text-center text-xs">
                 {activeFilter === "review"
                   ? "No PRs need your review"
-                  : activeFilter === "mine"
-                    ? "You have no open PRs"
-                    : "No pull requests found"}
+                  : activeFilter === "reReview"
+                    ? "No PRs need re-review"
+                    : activeFilter === "mine"
+                      ? "You have no open PRs"
+                      : "No pull requests found"}
               </p>
             </>
           )}
