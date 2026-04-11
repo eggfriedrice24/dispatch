@@ -39,7 +39,7 @@ import { ArrowLeft, GitCommitHorizontal, GitMerge, XCircle } from "lucide-react"
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { CompactPrHeader } from "./compact-pr-header";
-import { SidePanelOverlay, type PanelTab } from "./side-panel-overlay";
+import { SidePanelOverlay } from "./side-panel-overlay";
 
 /**
  * PR detail view — DISPATCH-DESIGN-SYSTEM.md § 8.5, 8.6, 8.7, 8.8
@@ -68,9 +68,21 @@ export function PrDetailView({ prNumber }: PrDetailViewProps) {
 
 function PrDetail({ prNumber }: { prNumber: number }) {
   const { cwd, nwo, repo, repoTarget } = useWorkspace();
-  const { currentFileIndex, setCurrentFileIndex, selectedCommit, setSelectedCommit } = useFileNav();
+  const {
+    currentFileIndex,
+    currentFilePath: storedCurrentFilePath,
+    setCurrentFileIndex,
+    setCurrentFilePath,
+    selectedCommit,
+    setSelectedCommit,
+    diffMode,
+    setDiffMode,
+    panelOpen,
+    setPanelOpen,
+    panelTab,
+    setPanelTab,
+  } = useFileNav();
   const defaultDiffView = usePreference("defaultDiffView");
-  const [diffMode, setDiffMode] = useState<"all" | "since-review">("all");
   const [viewModeOverride, setViewModeOverride] = useState<DiffMode | null>(null);
   const viewMode: DiffMode =
     viewModeOverride ??
@@ -289,22 +301,73 @@ function PrDetail({ prNumber }: { prNumber: number }) {
     enabled: aiReviewEnabled,
   });
 
-  const currentFile = files[currentFileIndex] ?? null;
-  const currentFilePath = currentFile ? getDiffFilePath(currentFile) : "";
-  const currentLanguage = inferLanguage(currentFilePath);
+  const resolvedCurrentFileIndex = useMemo(() => {
+    if (files.length === 0) {
+      return 0;
+    }
+
+    if (storedCurrentFilePath !== null) {
+      const storedPathIndex = files.findIndex((file) => getDiffFilePath(file) === storedCurrentFilePath);
+      if (storedPathIndex !== -1) {
+        return storedPathIndex;
+      }
+    }
+
+    return Math.min(Math.max(currentFileIndex, 0), files.length - 1);
+  }, [currentFileIndex, files, storedCurrentFilePath]);
+
+  const currentFile = files[resolvedCurrentFileIndex] ?? null;
+  const currentFilePath = currentFile ? getDiffFilePath(currentFile) : null;
+  const currentFilePathForAi = currentFilePath ?? "";
+  const currentLanguage = inferLanguage(currentFilePathForAi);
   const [isPrimingFullFileView, setIsPrimingFullFileView] = useState(false);
+  const setCurrentFileState = useCallback(
+    (index: number) => {
+      setCurrentFileIndex(index);
+      const file = files[index];
+      setCurrentFilePath(file ? getDiffFilePath(file) : null);
+    },
+    [files, setCurrentFileIndex, setCurrentFilePath],
+  );
 
   useEffect(() => {
     if (currentFilePath) {
-      return autoTriggerFile(currentFilePath);
+      autoTriggerFile(currentFilePath);
     }
-  }, [currentFilePath, autoTriggerFile]);
 
-  const aiSuggestionsMap = useMemo(() => {
-    if (!currentFilePath) {
+    if (files.length === 0) {
+      if (currentFileIndex !== 0) {
+        setCurrentFileIndex(0);
+      }
+      if (storedCurrentFilePath !== null) {
+        setCurrentFilePath(null);
+      }
       return;
     }
-    const suggestions = suggestionsForFile(currentFilePath);
+
+    if (currentFileIndex !== resolvedCurrentFileIndex) {
+      setCurrentFileIndex(resolvedCurrentFileIndex);
+    }
+
+    if (storedCurrentFilePath !== currentFilePath) {
+      setCurrentFilePath(currentFilePath);
+    }
+  }, [
+    autoTriggerFile,
+    currentFilePath,
+    currentFileIndex,
+    files.length,
+    resolvedCurrentFileIndex,
+    setCurrentFileIndex,
+    setCurrentFilePath,
+    storedCurrentFilePath,
+  ]);
+
+  const aiSuggestionsMap = useMemo(() => {
+    if (!currentFilePathForAi) {
+      return;
+    }
+    const suggestions = suggestionsForFile(currentFilePathForAi);
     if (suggestions.length === 0) {
       return;
     }
@@ -316,9 +379,10 @@ function PrDetail({ prNumber }: { prNumber: number }) {
       map.set(key, existing);
     }
     return map;
-  }, [currentFilePath, suggestionsForFile]);
+  }, [currentFilePathForAi, suggestionsForFile]);
 
   const { codeTheme } = useTheme();
+  const activeFilePath = currentFilePath ?? "";
 
   // Ensure the language and code theme are loaded (lazy-load non-core langs & themes)
   if (highlighter && currentLanguage !== "text") {
@@ -330,22 +394,22 @@ function PrDetail({ prNumber }: { prNumber: number }) {
 
   // Full file content (for "show full file" mode)
   const fullFileRef = selectedCommit ? selectedCommit.oid : headSha || "HEAD";
-  const fullFileQueryKey = ["gh", "fileAtRef", nwo, fullFileRef, currentFilePath] as const;
+  const fullFileQueryKey = ["gh", "fileAtRef", nwo, fullFileRef, activeFilePath] as const;
   const fetchFullFileContent = useCallback(
-    () => ipc("gh.fileAtRef", { ...repoTarget, ref: fullFileRef, filePath: currentFilePath }),
-    [currentFilePath, fullFileRef, repoTarget],
+    () => ipc("gh.fileAtRef", { ...repoTarget, ref: fullFileRef, filePath: activeFilePath }),
+    [activeFilePath, fullFileRef, repoTarget],
   );
   const fullFileQuery = useQuery({
     queryKey: fullFileQueryKey,
     queryFn: fetchFullFileContent,
-    enabled: showFullFile && Boolean(currentFilePath) && Boolean(fullFileRef),
+    enabled: showFullFile && Boolean(activeFilePath) && Boolean(fullFileRef),
     staleTime: 120_000,
   });
   const isFullFileContentLoading = showFullFile && fullFileQuery.isLoading;
   const isFullFileLoading = isPrimingFullFileView || isFullFileContentLoading;
   const handleViewModeChange = useCallback(
     async (nextViewMode: DiffMode) => {
-      if (nextViewMode !== "full-file" || showFullFile || !currentFilePath || !fullFileRef) {
+      if (nextViewMode !== "full-file" || showFullFile || !activeFilePath || !fullFileRef) {
         setViewMode(nextViewMode);
         return;
       }
@@ -367,11 +431,9 @@ function PrDetail({ prNumber }: { prNumber: number }) {
         setIsPrimingFullFileView(false);
       }
     },
-    [currentFilePath, fetchFullFileContent, fullFileQueryKey, fullFileRef, showFullFile],
+    [activeFilePath, fetchFullFileContent, fullFileQueryKey, fullFileRef, showFullFile],
   );
 
-  const [panelOpen, setPanelOpen] = useState(true);
-  const [panelTab, setPanelTab] = useState<PanelTab>("overview");
   const togglePanel = useCallback(() => setPanelOpen((v) => !v), []);
 
   // State for visually highlighting a comment after navigation
@@ -395,7 +457,7 @@ function PrDetail({ prNumber }: { prNumber: number }) {
         // Find the file index for this comment
         const fileIndex = files.findIndex((f) => getDiffFilePath(f) === firstComment.path);
         if (fileIndex !== -1) {
-          setCurrentFileIndex(fileIndex);
+          setCurrentFileState(fileIndex);
         }
       } else {
         // No inline comments — open the panel and highlight the review
@@ -408,7 +470,7 @@ function PrDetail({ prNumber }: { prNumber: number }) {
         highlightTimerRef.current = setTimeout(() => setHighlightedComment(null), 2000);
       }
     },
-    [commentsQuery.data, files, setCurrentFileIndex],
+    [commentsQuery.data, files, setCurrentFileState],
   );
 
   // Clean up highlight timer on unmount
@@ -426,14 +488,14 @@ function PrDetail({ prNumber }: { prNumber: number }) {
     if (isFullFileLoading) {
       return;
     }
-    setCurrentFileIndex(Math.max(0, currentFileIndex - 1));
-  }, [currentFileIndex, isFullFileLoading, setCurrentFileIndex]);
+    setCurrentFileState(Math.max(0, resolvedCurrentFileIndex - 1));
+  }, [isFullFileLoading, resolvedCurrentFileIndex, setCurrentFileState]);
   const goToNextFile = useCallback(() => {
     if (isFullFileLoading) {
       return;
     }
-    setCurrentFileIndex(Math.min(files.length - 1, currentFileIndex + 1));
-  }, [currentFileIndex, files.length, isFullFileLoading, setCurrentFileIndex]);
+    setCurrentFileState(Math.min(files.length - 1, resolvedCurrentFileIndex + 1));
+  }, [files.length, isFullFileLoading, resolvedCurrentFileIndex, setCurrentFileState]);
 
   // Viewed files (shared query key — React Query dedupes with sidebar)
   const viewedQuery = useQuery({
@@ -443,14 +505,14 @@ function PrDetail({ prNumber }: { prNumber: number }) {
 
   // Toggle viewed state for current file via `v` key
   const handleToggleViewed = useCallback(() => {
-    if (!currentFilePath || selectedCommit || prDetail?.state !== "OPEN" || isFullFileLoading) {
+    if (!activeFilePath || selectedCommit || prDetail?.state !== "OPEN" || isFullFileLoading) {
       return;
     }
-    const isCurrentlyViewed = viewedQuery.data?.includes(currentFilePath) ?? false;
+    const isCurrentlyViewed = viewedQuery.data?.includes(activeFilePath) ?? false;
     ipc("review.setFileViewed", {
       repo: repoName,
       prNumber,
-      filePath: currentFilePath,
+      filePath: activeFilePath,
       viewed: !isCurrentlyViewed,
     })
       .then(() => viewedQuery.refetch())
@@ -458,7 +520,7 @@ function PrDetail({ prNumber }: { prNumber: number }) {
         toastManager.add({ title: "Failed to update viewed state", type: "error" });
       });
   }, [
-    currentFilePath,
+    activeFilePath,
     isFullFileLoading,
     prDetail?.state,
     prNumber,
@@ -490,18 +552,18 @@ function PrDetail({ prNumber }: { prNumber: number }) {
         }
         // Jump to next unviewed file
         const viewed = new Set(viewedQuery.data ?? []);
-        for (let i = currentFileIndex + 1; i < files.length; i++) {
+        for (let i = resolvedCurrentFileIndex + 1; i < files.length; i++) {
           const path = getDiffFilePath(files[i]!);
           if (!viewed.has(path)) {
-            setCurrentFileIndex(i);
+            setCurrentFileState(i);
             return;
           }
         }
         // Wrap around
-        for (let i = 0; i < currentFileIndex; i++) {
+        for (let i = 0; i < resolvedCurrentFileIndex; i++) {
           const path = getDiffFilePath(files[i]!);
           if (!viewed.has(path)) {
-            setCurrentFileIndex(i);
+            setCurrentFileState(i);
             return;
           }
         }
@@ -631,7 +693,7 @@ function PrDetail({ prNumber }: { prNumber: number }) {
         <div className="flex flex-1 flex-col overflow-hidden">
           <DiffToolbar
             currentFile={currentFile}
-            currentIndex={currentFileIndex}
+            currentIndex={resolvedCurrentFileIndex}
             totalFiles={files.length}
             onPrev={goToPrevFile}
             onNext={goToNextFile}
@@ -643,18 +705,18 @@ function PrDetail({ prNumber }: { prNumber: number }) {
             isViewed={
               selectedCommit
                 ? false
-                : currentFilePath
-                  ? (viewedQuery.data?.includes(currentFilePath) ?? false)
+                : activeFilePath
+                  ? (viewedQuery.data?.includes(activeFilePath) ?? false)
                   : false
             }
             onToggleViewed={handleToggleViewed}
             hideReviewControls={!reviewControlsEnabled}
             onAiSuggest={
-              aiReviewEnabled && reviewControlsEnabled && currentFilePath
-                ? () => generateForFile(currentFilePath)
+              aiReviewEnabled && reviewControlsEnabled && activeFilePath
+                ? () => generateForFile(activeFilePath)
                 : undefined
             }
-            isAiSuggesting={currentFilePath ? isAiGenerating(currentFilePath) : false}
+            isAiSuggesting={activeFilePath ? isAiGenerating(activeFilePath) : false}
             aiSuggestEnabled={aiReviewEnabled}
             isFullFileLoading={isFullFileLoading}
           />
@@ -670,7 +732,7 @@ function PrDetail({ prNumber }: { prNumber: number }) {
             </div>
           ) : currentFile ? (
             <DiffViewer
-              key={`${selectedCommit?.oid ?? headSha ?? "head"}:${currentFilePath}:${viewMode}`}
+              key={`${selectedCommit?.oid ?? headSha ?? "head"}:${activeFilePath}:${viewMode}`}
               file={currentFile}
               highlighter={highlighter}
               language={inferLanguage(getDiffFilePath(currentFile))}

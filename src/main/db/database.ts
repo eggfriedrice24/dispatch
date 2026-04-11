@@ -130,6 +130,20 @@ export function initDatabase(): Database.Database {
       name          TEXT    NOT NULL,
       cached_at     TEXT    NOT NULL DEFAULT (datetime('now'))
     );
+
+    CREATE TABLE IF NOT EXISTS review_resume_state (
+      workspace              TEXT    PRIMARY KEY,
+      view                   TEXT    NOT NULL,
+      pr_number              INTEGER,
+      current_file_path      TEXT,
+      current_file_index     INTEGER NOT NULL DEFAULT 0,
+      diff_mode              TEXT    NOT NULL DEFAULT 'all',
+      panel_open             INTEGER NOT NULL DEFAULT 1,
+      panel_tab              TEXT    NOT NULL DEFAULT 'overview',
+      selected_commit_oid     TEXT,
+      selected_commit_message TEXT,
+      updated_at             TEXT    NOT NULL DEFAULT (datetime('now'))
+    );
   `);
 
   // Migrations for existing databases

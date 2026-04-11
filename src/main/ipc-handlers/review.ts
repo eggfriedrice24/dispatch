@@ -6,6 +6,8 @@ export const reviewHandlers: Pick<
   HandlerMap,
   | "review.getLastSha"
   | "review.saveSha"
+  | "review.getResumeState"
+  | "review.saveResumeState"
   | "review.viewedFiles"
   | "review.setFileViewed"
   | "review.setFilesViewed"
@@ -17,6 +19,10 @@ export const reviewHandlers: Pick<
   "review.getLastSha": (args) => repo.getLastReviewedSha(args.repo, args.prNumber),
   "review.saveSha": (args) => {
     repo.saveReviewedSha(args.repo, args.prNumber, args.sha);
+  },
+  "review.getResumeState": (args) => repo.getResumeState(args.workspace),
+  "review.saveResumeState": (args) => {
+    repo.saveResumeState(args);
   },
   "review.viewedFiles": (args) => repo.getViewedFiles(args.repo, args.prNumber),
   "review.setFileViewed": (args) => {

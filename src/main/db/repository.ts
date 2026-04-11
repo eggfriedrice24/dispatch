@@ -1,5 +1,9 @@
 import { getDatabase } from "./database";
 import { splitWorkspaceRows } from "./workspace-state";
+import type {
+  ReviewResumeSelectedCommit,
+  ReviewResumeState,
+} from "../../shared/ipc/contracts/review";
 
 // ---------------------------------------------------------------------------
 // Review State (Incremental Diff)
@@ -20,6 +24,105 @@ export function saveReviewedSha(repo: string, prNumber: number, sha: string): vo
     VALUES (?, ?, ?, datetime('now'))
     ON CONFLICT(repo, pr_number) DO UPDATE SET last_sha = excluded.last_sha, reviewed_at = excluded.reviewed_at
   `).run(repo, prNumber, sha);
+}
+
+export function getResumeState(workspace: string): ReviewResumeState | null {
+  const db = getDatabase();
+  const row = db
+    .prepare(`
+      SELECT
+        workspace,
+        view,
+        pr_number,
+        current_file_path,
+        current_file_index,
+        diff_mode,
+        panel_open,
+        panel_tab,
+        selected_commit_oid,
+        selected_commit_message,
+        updated_at
+      FROM review_resume_state
+      WHERE workspace = ?
+    `)
+    .get(workspace) as
+    | {
+        workspace: string;
+        view: ReviewResumeState["view"];
+        pr_number: number | null;
+        current_file_path: string | null;
+        current_file_index: number;
+        diff_mode: ReviewResumeState["diffMode"];
+        panel_open: number;
+        panel_tab: ReviewResumeState["panelTab"];
+        selected_commit_oid: string | null;
+        selected_commit_message: string | null;
+        updated_at: string;
+      }
+    | undefined;
+
+  if (!row) {
+    return null;
+  }
+
+  const selectedCommit: ReviewResumeSelectedCommit | null =
+    row.selected_commit_oid !== null && row.selected_commit_message !== null
+      ? { oid: row.selected_commit_oid, message: row.selected_commit_message }
+      : null;
+
+  return {
+    workspace: row.workspace,
+    view: row.view,
+    prNumber: row.pr_number,
+    currentFilePath: row.current_file_path,
+    currentFileIndex: row.current_file_index,
+    diffMode: row.diff_mode,
+    panelOpen: row.panel_open === 1,
+    panelTab: row.panel_tab,
+    selectedCommit,
+    updatedAt: row.updated_at,
+  };
+}
+
+export function saveResumeState(state: Omit<ReviewResumeState, "updatedAt">): void {
+  const db = getDatabase();
+  db.prepare(`
+    INSERT INTO review_resume_state (
+      workspace,
+      view,
+      pr_number,
+      current_file_path,
+      current_file_index,
+      diff_mode,
+      panel_open,
+      panel_tab,
+      selected_commit_oid,
+      selected_commit_message,
+      updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+    ON CONFLICT(workspace) DO UPDATE SET
+      view = excluded.view,
+      pr_number = excluded.pr_number,
+      current_file_path = excluded.current_file_path,
+      current_file_index = excluded.current_file_index,
+      diff_mode = excluded.diff_mode,
+      panel_open = excluded.panel_open,
+      panel_tab = excluded.panel_tab,
+      selected_commit_oid = excluded.selected_commit_oid,
+      selected_commit_message = excluded.selected_commit_message,
+      updated_at = excluded.updated_at
+  `).run(
+    state.workspace,
+    state.view,
+    state.prNumber,
+    state.currentFilePath,
+    state.currentFileIndex,
+    state.diffMode,
+    state.panelOpen ? 1 : 0,
+    state.panelTab,
+    state.selectedCommit?.oid ?? null,
+    state.selectedCommit?.message ?? null,
+  );
 }
 
 // ---------------------------------------------------------------------------

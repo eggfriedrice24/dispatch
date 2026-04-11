@@ -1,5 +1,5 @@
 import { trackPage } from "@/renderer/lib/app/posthog";
-import { createContext, type ReactNode, useCallback, useContext, useRef, useState } from "react";
+import { createContext, type ReactNode, useCallback, useContext, useEffect, useRef, useState } from "react";
 
 /**
  * Simple state-based client-side router.
@@ -22,15 +22,22 @@ interface RouterContextValue {
   toggleSettings: () => void;
 }
 
+const ROUTER_INITIAL_ROUTE: Route = { view: "review", prNumber: null };
+
 const RouterContext = createContext<RouterContextValue>({
-  route: { view: "review", prNumber: null },
+  route: ROUTER_INITIAL_ROUTE,
   navigate: () => {},
   toggleSettings: () => {},
 });
 
-export function RouterProvider({ children }: { children: ReactNode }) {
-  const [route, setRoute] = useState<Route>({ view: "review", prNumber: null });
-  const previousRoute = useRef<Route>({ view: "review", prNumber: null });
+interface RouterProviderProps {
+  children: ReactNode;
+  initialRoute?: Route;
+}
+
+export function RouterProvider({ children, initialRoute = ROUTER_INITIAL_ROUTE }: RouterProviderProps) {
+  const [route, setRoute] = useState<Route>(initialRoute);
+  const previousRoute = useRef<Route>(initialRoute);
 
   const navigate = useCallback((next: Route) => {
     setRoute((current) => {
@@ -39,8 +46,11 @@ export function RouterProvider({ children }: { children: ReactNode }) {
       }
       return next;
     });
-    trackPage(next.view);
   }, []);
+
+  useEffect(() => {
+    trackPage(route.view);
+  }, [route.view]);
 
   const toggleSettings = useCallback(() => {
     setRoute((current) => {

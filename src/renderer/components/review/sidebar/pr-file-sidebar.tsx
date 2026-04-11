@@ -3,11 +3,11 @@ import { FileTreeSkeleton } from "@/renderer/components/shared/loading-skeletons
 import { ipc } from "@/renderer/lib/app/ipc";
 import { useWorkspace } from "@/renderer/lib/app/workspace-context";
 import { isCompletedPullRequest } from "@/renderer/lib/review/completed-pr-state";
-import { parseDiff, type DiffFile } from "@/renderer/lib/review/diff-parser";
+import { getDiffFilePath, parseDiff, type DiffFile } from "@/renderer/lib/review/diff-parser";
 import { useFileNav } from "@/renderer/lib/review/file-nav-context";
+import { useCallback, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft } from "lucide-react";
-import { useCallback, useMemo } from "react";
 
 /**
  * PR file sidebar — replaces the PR inbox when a PR is selected.
@@ -23,7 +23,7 @@ interface PrFileSidebarProps {
 
 export function PrFileSidebar({ prNumber, onBack }: PrFileSidebarProps) {
   const { repoTarget, nwo } = useWorkspace();
-  const { currentFileIndex, setCurrentFileIndex } = useFileNav();
+  const { currentFileIndex, setCurrentFileIndex, setCurrentFilePath } = useFileNav();
 
   const detailQuery = useQuery({
     queryKey: ["pr", "detail", nwo, prNumber],
@@ -71,6 +71,15 @@ export function PrFileSidebar({ prNumber, onBack }: PrFileSidebarProps) {
     return counts;
   }, [commentsQuery.data]);
 
+  const handleSelectFile = useCallback(
+    (index: number) => {
+      setCurrentFileIndex(index);
+      const file = files[index];
+      setCurrentFilePath(file ? getDiffFilePath(file) : null);
+    },
+    [files, setCurrentFileIndex, setCurrentFilePath],
+  );
+
   const handleSetFilesViewed = useCallback(
     (filePaths: string[], viewed: boolean) => {
       void ipc("review.setFilesViewed", {
@@ -114,7 +123,7 @@ export function PrFileSidebar({ prNumber, onBack }: PrFileSidebarProps) {
           <FileTree
             files={files}
             currentFileIndex={currentFileIndex}
-            onSelectFile={setCurrentFileIndex}
+            onSelectFile={handleSelectFile}
             viewedFiles={viewedFiles}
             commentCounts={fileCommentCounts}
             nwo={nwo}

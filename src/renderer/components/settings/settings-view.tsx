@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { isAiEnabledPreference } from "@/renderer/hooks/preferences/use-preference";
 import { ipc } from "@/renderer/lib/app/ipc";
 import { queryClient } from "@/renderer/lib/app/query-client";
+import { useRouter } from "@/renderer/lib/app/router";
 import { useTheme } from "@/renderer/lib/app/theme-context";
 import { useKeybindings } from "@/renderer/lib/keyboard/keybinding-context";
 import {
@@ -35,6 +36,7 @@ import {
 } from "@/shared/pr-fetch-limit";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
+  ArrowLeft,
   Bot,
   Check,
   GitMerge,
@@ -130,6 +132,7 @@ interface AiProviderTestState {
 
 export function SettingsView() {
   const { theme, setTheme, resolvedTheme, codeTheme, setCodeTheme } = useTheme();
+  const { toggleSettings } = useRouter();
   const { getBinding, setBinding, resetBinding, resetAll, overrides } = useKeybindings();
   const [activeSection, setActiveSection] = useState<SectionId>("appearance");
 
@@ -322,7 +325,20 @@ export function SettingsView() {
     <div className="flex flex-1 overflow-hidden">
       {/* Side navigation */}
       <nav className="border-border flex w-[200px] shrink-0 flex-col border-r py-6">
-        <h1 className="font-heading text-text-primary px-5 text-2xl font-bold italic">Settings</h1>
+        <div className="px-5">
+          <div className="mb-2 flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={toggleSettings}
+              className="bg-bg-root text-text-tertiary hover:text-text-primary hover:bg-bg-raised inline-flex h-7 w-7 items-center justify-center rounded-md border border-transparent transition-all duration-[--duration-fast] cursor-pointer"
+              aria-label="Back to previous screen"
+              title="Back to previous screen"
+            >
+              <ArrowLeft size={14} />
+            </button>
+            <h1 className="font-heading text-text-primary text-2xl font-bold italic">Settings</h1>
+          </div>
+        </div>
         <div className="mt-4 flex flex-col gap-0.5 px-2">
           {navSections.map(({ id, label, icon: Icon }) => (
             <button

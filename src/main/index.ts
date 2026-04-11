@@ -166,7 +166,10 @@ async function getGhToken(host: string): Promise<string | null> {
     tokenCache.set(host, { token: null, fetchedAt: Date.now() });
     const msg = String((error as Error)?.message ?? "");
     if (!msg.includes("ENOENT")) {
-      trackFromMain("gh_cli_error", { subcommand: "auth", category: "token_fetch" });
+      trackFromMain("gh_cli_error", {
+        subcommand: "auth",
+        category: "token_fetch",
+      });
     }
   }
   return null;
@@ -270,7 +273,11 @@ function setupTray(win: BrowserWindow): void {
     tray.setToolTip("Dispatch");
 
     // Build initial empty menu
-    updateTrayMenu(win, { reviewPrs: [], authorPrs: [], lastUpdated: new Date() });
+    updateTrayMenu(win, {
+      reviewPrs: [],
+      authorPrs: [],
+      lastUpdated: new Date(),
+    });
 
     // Start background polling — updates the menu every 60s
     startPolling((state) => {
