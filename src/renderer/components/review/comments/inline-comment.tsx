@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { toastManager } from "@/components/ui/toast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 import { ReactionBar } from "@/renderer/components/review/comments/reaction-bar";
 import { ReviewMarkdownComposer } from "@/renderer/components/review/comments/review-markdown-composer";
 import { GitHubAvatar } from "@/renderer/components/shared/github-avatar";
@@ -29,6 +30,7 @@ import {
   ExternalLink,
   MessageSquare,
   Reply,
+  Sparkles,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -87,7 +89,7 @@ export function InlineComment({
   const humanRoots = roots.filter((c) => !isBot(c.user.login));
 
   return (
-    <div className="border-border bg-bg-surface/60 mx-3 my-1.5 max-w-xl overflow-hidden rounded-lg border shadow-sm">
+    <div className="border-border mx-3 my-2 max-w-[46rem] overflow-hidden rounded-[10px] border bg-[linear-gradient(180deg,rgba(15,15,18,0.98),rgba(10,10,12,0.94))] shadow-[0_10px_30px_rgba(0,0,0,0.28)]">
       {humanRoots.map((root, i) => {
         const threadReplies = replies.filter((r) => r.in_reply_to_id === root.id);
         return (
@@ -130,6 +132,25 @@ export function InlineComment({
   );
 }
 
+function InlineMetaBadge({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 font-mono text-[10px] leading-none",
+        className,
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Comment thread (root + replies, collapsible, with reply input)
 // ---------------------------------------------------------------------------
@@ -163,25 +184,75 @@ function CommentThread({
   const [showReply, setShowReply] = useState(false);
   const totalCount = 1 + replies.length;
   const canMutateThread = reviewActionsEnabled && Boolean(prNumber);
+  const isResolvedThread = root.node_id ? (resolvedThreadIds?.has(root.node_id) ?? false) : false;
+  const preview = useMemo(() => buildCommentPreview(root.body, 160), [root.body]);
 
   return (
-    <div>
-      {showBorder && <div className="border-border border-t" />}
-
-      {/* Collapse bar — shows when thread has replies */}
-      {replies.length > 0 && (
-        <button
-          type="button"
-          onClick={() => setCollapsed(!collapsed)}
-          className="text-text-ghost hover:bg-bg-raised flex w-full cursor-pointer items-center gap-1.5 px-3 py-1 text-[10px]"
-        >
-          {collapsed ? <ChevronRight size={10} /> : <ChevronDown size={10} />}
-          {collapsed ? `${totalCount} comments (collapsed)` : `${totalCount} comments`}
-        </button>
+    <div
+      className={cn(
+        showBorder && "border-border-subtle border-t",
+        isResolvedThread && "bg-bg-root/30",
       )}
+    >
+      {replies.length > 0 &&
+        (collapsed ? (
+          <button
+            type="button"
+            onClick={() => setCollapsed(false)}
+            className="hover:bg-bg-raised/40 flex w-full cursor-pointer items-start gap-2 px-3 py-2.5 text-left transition-colors"
+          >
+            <ChevronRight
+              size={12}
+              className="text-text-ghost mt-0.5 shrink-0"
+            />
+            <GitHubAvatar
+              login={root.user.login}
+              size={16}
+              avatarUrl={root.user.avatar_url}
+              className="ring-1 ring-[rgba(240,236,230,0.08)]"
+            />
+            <div className="min-w-0 flex-1">
+              <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                <span className="text-text-primary truncate text-[11px] font-medium">
+                  {root.user.login}
+                </span>
+                <span className="text-text-tertiary font-mono text-[10px]">
+                  {relativeTime(new Date(root.created_at))}
+                </span>
+                <InlineMetaBadge className="border-border-subtle bg-bg-root/70 text-text-tertiary">
+                  +{replies.length} {replies.length === 1 ? "reply" : "replies"}
+                </InlineMetaBadge>
+                {isResolvedThread && (
+                  <InlineMetaBadge className="text-success border-[rgba(61,214,140,0.22)] bg-[rgba(61,214,140,0.08)]">
+                    Resolved
+                  </InlineMetaBadge>
+                )}
+              </div>
+              <p className="text-text-secondary mt-1 text-[12px] leading-[1.45]">{preview}</p>
+            </div>
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setCollapsed(true)}
+            className="border-border-subtle text-text-tertiary hover:bg-bg-raised/30 hover:text-text-primary flex w-full cursor-pointer items-center gap-1.5 border-b px-3 py-1.5 text-left text-[10px] transition-colors"
+          >
+            <ChevronDown
+              size={11}
+              className="shrink-0"
+            />
+            <span className="font-mono tracking-[0.08em] uppercase">Thread</span>
+            <span className="text-text-ghost">{totalCount} comments</span>
+            {isResolvedThread && (
+              <InlineMetaBadge className="text-success ml-auto border-[rgba(61,214,140,0.22)] bg-[rgba(61,214,140,0.08)]">
+                Resolved
+              </InlineMetaBadge>
+            )}
+          </button>
+        ))}
 
       {!collapsed && (
-        <>
+        <div className={cn(isResolvedThread && "opacity-80")}>
           <CommentBody
             comment={root}
             isRoot
@@ -218,12 +289,12 @@ function CommentThread({
               />
             </div>
           ))}
-        </>
+        </div>
       )}
 
       {/* Reply input */}
       {showReply && canMutateThread && prNumber && (
-        <div className="border-border border-t">
+        <div className="border-border-subtle border-t">
           <ReplyComposer
             prNumber={prNumber}
             commentId={root.id}
@@ -234,14 +305,19 @@ function CommentThread({
 
       {/* Quick reply button (when not already replying) */}
       {!showReply && !collapsed && canMutateThread && (
-        <button
-          type="button"
-          onClick={() => setShowReply(true)}
-          className="border-border text-text-tertiary hover:text-text-primary hover:bg-bg-raised/50 flex w-full cursor-pointer items-center gap-1 border-t px-3 py-1.5 text-[10px]"
-        >
-          <Reply size={10} />
-          Reply
-        </button>
+        <div className="border-border-subtle flex items-center justify-between gap-2 border-t px-3 py-2">
+          <span className="text-text-ghost font-mono text-[10px]">
+            {totalCount} {totalCount === 1 ? "message" : "messages"}
+          </span>
+          <button
+            type="button"
+            onClick={() => setShowReply(true)}
+            className="border-border-subtle bg-bg-root/60 text-text-tertiary hover:border-border hover:bg-bg-raised hover:text-text-primary inline-flex cursor-pointer items-center gap-1.5 rounded-md border px-2.5 py-1 text-[10px] font-medium transition-colors"
+          >
+            <Reply size={11} />
+            Reply to thread
+          </button>
+        </div>
       )}
     </div>
   );
@@ -262,6 +338,8 @@ function ReplyComposer({
 }) {
   const { repoTarget } = useWorkspace();
   const [body, setBody] = useState("");
+  const isMac = typeof navigator !== "undefined" && navigator.platform.includes("Mac");
+  const modKey = isMac ? "⌘" : "Ctrl";
 
   const replyMutation = useMutation({
     mutationFn: (args: { body: string }) =>
@@ -278,10 +356,19 @@ function ReplyComposer({
   });
 
   return (
-    <div className="px-3 py-2">
+    <div className="bg-bg-root/70 px-3 py-3">
+      <div className="mb-2 flex items-center gap-2">
+        <InlineMetaBadge className="border-[var(--border-accent)] bg-[var(--accent-muted)] text-[var(--accent-text)]">
+          Reply
+        </InlineMetaBadge>
+        <span className="text-text-tertiary text-[10px]">
+          Add context to the current review thread.
+        </span>
+      </div>
       <ReviewMarkdownComposer
         autoFocus
         compact
+        className="border-border-subtle bg-[linear-gradient(180deg,rgba(15,15,18,0.98),rgba(10,10,12,0.88))] shadow-none"
         onChange={setBody}
         onKeyDown={(e) => {
           if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && body.trim()) {
@@ -297,17 +384,19 @@ function ReplyComposer({
         rows={3}
         value={body}
       />
-      <div className="mt-1.5 flex items-center justify-end gap-1.5">
+      <div className="mt-2 flex items-center justify-between gap-2">
+        <span className="text-text-ghost font-mono text-[10px]">{modKey}+Enter to reply</span>
         <Button
           size="sm"
           variant="ghost"
           onClick={onClose}
+          className="text-[11px]"
         >
           Cancel
         </Button>
         <Button
           size="sm"
-          className="bg-primary text-primary-foreground hover:bg-accent-hover"
+          className="bg-primary text-primary-foreground hover:bg-accent-hover text-[11px]"
           disabled={!body.trim() || replyMutation.isPending}
           onClick={() => replyMutation.mutate({ body: body.trim() })}
         >
@@ -344,46 +433,29 @@ function BotCommentGroup({
   const botNames = [...new Set(comments.map((c) => c.user.login))];
 
   return (
-    <div
-      className="border-t border-b"
-      style={{
-        borderColor: "var(--border)",
-        borderLeft: "2px solid var(--accent)",
-        background: "rgba(212,136,58,0.03)",
-      }}
-    >
+    <div className="border-border-subtle border-t bg-[linear-gradient(180deg,rgba(212,136,58,0.09),rgba(212,136,58,0.03))]">
       <button
         type="button"
         onClick={() => setExpanded(!expanded)}
-        className="text-text-secondary hover:bg-bg-raised/50 flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-[11px]"
+        className="flex w-full cursor-pointer items-center gap-2 px-3 py-2.5 text-left text-[11px] transition-colors hover:bg-[rgba(212,136,58,0.04)]"
       >
-        {/* Bot avatar icon */}
-        <span
-          className="bg-accent-muted border-border-accent flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[8px]"
-          style={{ color: "var(--accent-text)" }}
-        >
-          <svg
-            width="8"
-            height="8"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-          >
-            <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
-          </svg>
+        <span className="bg-accent-muted border-border-accent text-accent-text flex h-5 w-5 shrink-0 items-center justify-center rounded-full border">
+          <Sparkles size={10} />
         </span>
-        <span className="text-accent-text font-medium">{botNames.join(", ")}</span>
-        <span className="bg-accent-muted text-accent-text border-border-accent rounded-xs border px-1 text-[9px] font-semibold tracking-[0.04em] uppercase">
-          Bot
-        </span>
-        <span className="text-text-tertiary">
-          {comments.length} comment{comments.length > 1 ? "s" : ""}
-        </span>
-        {allCommentsAutoCollapsed && (
-          <span className="text-text-ghost font-mono text-[10px]">Auto-collapsed</span>
-        )}
-        <span className="ml-auto">
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+            <span className="text-accent-text text-[11px] font-medium">AI review</span>
+            <InlineMetaBadge className="border-[var(--border-accent)] bg-[var(--accent-muted)] text-[var(--accent-text)]">
+              Bot
+            </InlineMetaBadge>
+            <span className="text-text-tertiary truncate text-[10px]">{botNames.join(", ")}</span>
+          </div>
+          <p className="text-text-ghost mt-0.5 text-[10px]">
+            {comments.length} inline {comments.length === 1 ? "comment" : "comments"}
+            {allCommentsAutoCollapsed ? " · auto-collapsed" : ""}
+          </p>
+        </div>
+        <span className="ml-auto shrink-0">
           {expanded ? (
             <ChevronDown
               size={11}
@@ -461,7 +533,12 @@ function ThreadResolveButton({
     <Button
       size="sm"
       variant="ghost"
-      className="text-text-tertiary hover:text-text-primary gap-1 text-[10px]"
+      className={cn(
+        "h-6 gap-1 rounded-md border px-2 font-mono text-[10px] shadow-none",
+        resolved
+          ? "text-success border-[rgba(61,214,140,0.22)] bg-[rgba(61,214,140,0.08)] hover:bg-[rgba(61,214,140,0.12)]"
+          : "border-border-subtle bg-bg-root/60 text-text-tertiary hover:border-border hover:bg-bg-raised hover:text-text-primary",
+      )}
       onClick={() => resolveMutation.mutate()}
       disabled={resolveMutation.isPending}
     >
@@ -655,183 +732,119 @@ function CommentBody({
 
   return (
     <div
-      style={
-        isBotUser
-          ? {
-              background: "rgba(212,136,58,0.03)",
-              borderLeft: "2px solid var(--accent)",
-              borderTop: "1px solid var(--border)",
-              borderBottom: "1px solid var(--border)",
-              padding: "8px 12px 8px 66px",
-            }
-          : { padding: "8px 12px 8px 68px" }
-      }
+      className={cn(
+        "group/comment relative grid grid-cols-[20px_minmax(0,1fr)] gap-x-3 gap-y-1 px-3 py-3",
+        isBotUser &&
+          "bg-[rgba(212,136,58,0.04)] before:absolute before:inset-y-0 before:left-0 before:w-[2px] before:bg-[var(--accent)]",
+      )}
       onContextMenu={(e) => {
         e.preventDefault();
         setContextMenu({ x: e.clientX, y: e.clientY });
       }}
     >
-      {/* Header */}
-      <div className="mb-1 flex items-center gap-1.5">
+      <div className="pt-0.5">
         {isBotUser ? (
-          /* Bot avatar — accent sparkle icon */
-          <span
-            className="flex shrink-0 items-center justify-center rounded-full"
-            style={{
-              width: "20px",
-              height: "20px",
-              background: "var(--accent-muted)",
-              border: "1px solid var(--accent)",
-              fontSize: "8px",
-              fontWeight: 600,
-              color: "var(--accent-text)",
-            }}
-          >
-            <svg
-              width="8"
-              height="8"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
-            </svg>
+          <span className="bg-accent-muted text-accent-text border-border-accent flex h-5 w-5 shrink-0 items-center justify-center rounded-full border">
+            <Sparkles size={10} />
           </span>
         ) : (
           <GitHubAvatar
             login={comment.user.login}
             size={18}
             avatarUrl={comment.user.avatar_url}
+            className="ring-1 ring-[rgba(240,236,230,0.08)]"
           />
         )}
-        <span
-          className="text-xs font-medium"
-          style={{ color: isBotUser ? "var(--accent-text)" : "var(--text-primary)" }}
-        >
-          {comment.user.login}
-        </span>
-        {isBotUser && (
+      </div>
+
+      <div className="min-w-0">
+        <div className="flex min-w-0 items-center gap-1.5">
           <span
-            style={{
-              fontSize: "9px",
-              fontWeight: 600,
-              padding: "0 4px",
-              borderRadius: "2px",
-              background: "var(--accent-muted)",
-              color: "var(--accent-text)",
-              border: "1px solid var(--border-accent)",
-              textTransform: "uppercase",
-              letterSpacing: "0.04em",
-            }}
+            className={cn(
+              "truncate text-[12px] font-medium",
+              isBotUser ? "text-accent-text" : "text-text-primary",
+            )}
           >
-            Bot
+            {comment.user.login}
           </span>
-        )}
-        {severity && (
-          <span
-            style={{
-              fontSize: "9px",
-              fontWeight: 700,
-              padding: "0 5px",
-              borderRadius: "2px",
-              textTransform: "uppercase",
-              letterSpacing: "0.04em",
-              background: severity.bg,
-              color: severity.color,
-            }}
-          >
-            {severity.label}
+          {isBotUser && (
+            <InlineMetaBadge className="border-[var(--border-accent)] bg-[var(--accent-muted)] text-[var(--accent-text)]">
+              Bot
+            </InlineMetaBadge>
+          )}
+          {severity && (
+            <span
+              className="rounded-[4px] px-1.5 py-0.5 text-[9px] font-bold tracking-[0.08em] uppercase"
+              style={{ background: severity.bg, color: severity.color }}
+            >
+              {severity.label}
+            </span>
+          )}
+          <span className="text-text-tertiary font-mono text-[10px]">
+            {relativeTime(new Date(comment.created_at))}
           </span>
-        )}
-        <span
-          className="font-mono text-[10px]"
-          style={{ color: "var(--text-tertiary)" }}
-        >
-          {relativeTime(new Date(comment.created_at))}
-        </span>
-        <div className="ml-auto flex items-center gap-1">
-          {onReply && (
+          <div className="ml-auto flex items-center gap-1">
+            {isRoot && reviewActionsEnabled && (
+              <ThreadResolveButton
+                comment={comment}
+                initialResolved={
+                  comment.node_id ? (resolvedThreadIds?.has(comment.node_id) ?? false) : false
+                }
+              />
+            )}
             <Tooltip>
               <TooltipTrigger
                 render={
                   <button
                     type="button"
-                    onClick={onReply}
-                    className="text-text-ghost hover:text-text-primary cursor-pointer rounded-sm p-0.5 opacity-0 transition-opacity group-hover:opacity-100 hover:opacity-100"
+                    onClick={onToggleMinimized}
+                    className="text-text-ghost hover:text-text-primary cursor-pointer rounded-sm p-0.5 transition-colors"
                   >
-                    <Reply size={12} />
+                    {minimized ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
                   </button>
                 }
               />
-              <TooltipPopup>Reply</TooltipPopup>
+              <TooltipPopup>{minimized ? "Expand comment" : "Minimize comment"}</TooltipPopup>
             </Tooltip>
-          )}
-          {isRoot && reviewActionsEnabled && (
-            <ThreadResolveButton
-              comment={comment}
-              initialResolved={
-                comment.node_id ? (resolvedThreadIds?.has(comment.node_id) ?? false) : false
-              }
-            />
-          )}
-          {/* Minimize toggle */}
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <button
-                  type="button"
-                  onClick={onToggleMinimized}
-                  className="text-text-ghost hover:text-text-primary cursor-pointer rounded-sm p-0.5 transition-colors"
-                >
-                  {minimized ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
-                </button>
-              }
-            />
-            <TooltipPopup>{minimized ? "Expand comment" : "Minimize comment"}</TooltipPopup>
-          </Tooltip>
+          </div>
         </div>
-      </div>
 
-      {/* Body — hidden when minimized */}
-      {!minimized && (
-        <div>
-          {bodyParts.map((part, i) => {
-            if (part.type === "text") {
+        {!minimized && (
+          <div className="mt-1.5 min-w-0 space-y-2 pb-0.5">
+            {bodyParts.map((part, i) => {
+              if (part.type === "text") {
+                return (
+                  <MarkdownBody
+                    key={`text-${i}`}
+                    content={part.content}
+                    className="text-text-secondary text-[12px] leading-[1.55]"
+                  />
+                );
+              }
               return (
-                <MarkdownBody
-                  key={`text-${i}`}
-                  content={part.content}
-                  className="text-xs leading-relaxed"
+                <SuggestionBlock
+                  key={`suggestion-${i}`}
+                  suggestion={part.content}
+                  language={inferLanguage(comment.path)}
                 />
               );
-            }
-            return (
-              <SuggestionBlock
-                key={`suggestion-${i}`}
-                suggestion={part.content}
-                language={inferLanguage(comment.path)}
+            })}
+            {bodyParts.length === 0 && suggestions.length === 0 && (
+              <MarkdownBody
+                content={comment.body}
+                className="text-text-secondary text-[12px] leading-[1.55]"
               />
-            );
-          })}
-          {bodyParts.length === 0 && suggestions.length === 0 && (
-            <MarkdownBody
-              content={comment.body}
-              className="text-xs leading-relaxed"
-            />
-          )}
-          {/* Reactions */}
-          {comment.node_id && prNumber && (
-            <div style={{ marginTop: "4px" }}>
+            )}
+            {comment.node_id && prNumber && (
               <ReactionBar
                 reactions={reactions ?? []}
                 subjectId={comment.node_id}
                 prNumber={prNumber}
               />
-            </div>
-          )}
-        </div>
-      )}
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Context menu */}
       {contextMenu && (
@@ -910,33 +923,19 @@ function SuggestionBlock({ suggestion, language }: { suggestion: string; languag
   }, [highlighter, language, lines]);
 
   return (
-    <div
-      className="my-2 overflow-hidden"
-      style={{
-        background: "rgba(61,214,140,0.06)",
-        border: "1px solid rgba(61,214,140,0.15)",
-        borderRadius: "var(--radius-md)",
-      }}
-    >
-      <div
-        className="flex items-center gap-[5px]"
-        style={{ padding: "5px 8px", fontSize: "10px", fontWeight: 600, color: "var(--success)" }}
-      >
+    <div className="my-2 overflow-hidden rounded-md border border-[rgba(61,214,140,0.15)] bg-[rgba(61,214,140,0.06)]">
+      <div className="flex items-center gap-[5px] px-2 py-1.5 text-[10px] font-semibold text-[var(--success)]">
         <Check size={11} />
         Suggested fix
         <button
           type="button"
-          className="ml-auto cursor-pointer border-none"
-          style={{
-            padding: "3px 12px",
-            borderRadius: "var(--radius-sm)",
-            background: "var(--success)",
-            color: "var(--bg-root)",
-            fontSize: "11px",
-            fontWeight: 600,
+          className="ml-auto cursor-pointer rounded-[4px] bg-[var(--success)] px-2.5 py-1 text-[10px] font-semibold text-[var(--bg-root)] transition-shadow hover:shadow-[0_0_10px_rgba(61,214,140,0.22)]"
+          onClick={() => {
+            void navigator.clipboard.writeText(suggestion);
+            toastManager.add({ title: "Suggestion copied", type: "success" });
           }}
         >
-          Apply
+          Copy fix
         </button>
       </div>
       <pre
@@ -1037,4 +1036,26 @@ function parseSeverity(body: string): { label: string; bg: string; color: string
     return { label: "Nitpick", bg: "var(--bg-raised)", color: "var(--text-tertiary)" };
   }
   return null;
+}
+
+function buildCommentPreview(body: string, maxLength: number): string {
+  const flattened = body
+    .replaceAll(/```suggestion[\s\S]*?```/g, "Suggested change")
+    .replaceAll(/```[\s\S]*?```/g, "Code block")
+    .replaceAll(/\[(.*?)\]\((.*?)\)/g, "$1")
+    .replaceAll(/^>\s?/gm, "")
+    .replaceAll(/^#{1,6}\s+/gm, "")
+    .replaceAll(/[*_`~]/g, "")
+    .replaceAll(/\s+/g, " ")
+    .trim();
+
+  if (flattened.length === 0) {
+    return "Open thread";
+  }
+
+  if (flattened.length <= maxLength) {
+    return flattened;
+  }
+
+  return `${flattened.slice(0, maxLength - 1).trimEnd()}…`;
 }

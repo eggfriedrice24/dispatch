@@ -85,17 +85,29 @@ export function CommentComposer({
 
   const isMac = navigator.platform.includes("Mac");
   const modKey = isMac ? "⌘" : "Ctrl";
+  const isMultiLine = startLine && startLine !== line;
 
   return (
-    <div className="border-border bg-bg-surface mx-3 my-1.5 max-w-xl overflow-hidden rounded-lg border shadow-sm">
-      {startLine && startLine !== line && (
-        <div className="bg-bg-raised border-border text-text-tertiary border-b px-3 py-1.5 font-mono text-[10px]">
-          Lines {startLine}–{line}
+    <div className="border-border mx-3 my-2 max-w-[46rem] overflow-hidden rounded-[10px] border bg-[linear-gradient(180deg,rgba(15,15,18,0.98),rgba(10,10,12,0.94))] shadow-[0_10px_30px_rgba(0,0,0,0.28)]">
+      <div className="border-border-subtle flex flex-wrap items-center gap-2 border-b px-3 py-2">
+        <span className="border-border-accent bg-accent-muted text-accent-text inline-flex items-center rounded-full border px-1.5 py-0.5 font-mono text-[10px]">
+          New comment
+        </span>
+        <span className="text-text-tertiary text-[10px]">
+          {isMultiLine ? `Commenting on lines ${startLine}–${line}` : `Commenting on line ${line}`}
+        </span>
+        <span className="text-text-ghost ml-auto truncate font-mono text-[10px]">{filePath}</span>
+      </div>
+      {isMultiLine && (
+        <div className="bg-bg-root/70 border-border-subtle border-b px-3 py-1.5">
+          <span className="text-text-tertiary font-mono text-[10px]">
+            Range anchored on the {side === "RIGHT" ? "new" : "old"} side of the diff
+          </span>
         </div>
       )}
       <ReviewMarkdownComposer
         autoFocus
-        className="rounded-none border-0 shadow-none"
+        className="rounded-none border-0 bg-transparent shadow-none"
         onChange={setBody}
         onKeyDown={handleKeyDown}
         placeholder="Leave a comment..."
@@ -103,8 +115,8 @@ export function CommentComposer({
         rows={4}
         value={body}
       />
-      <div className="border-border flex items-center justify-between border-t px-3 py-2">
-        <span className="text-text-ghost text-[10px]">
+      <div className="border-border-subtle flex items-center justify-between gap-2 border-t px-3 py-2.5">
+        <span className="text-text-ghost font-mono text-[10px]">
           {modKey}+Enter to submit · Esc to cancel
         </span>
         <div className="flex items-center gap-1.5">
@@ -113,12 +125,13 @@ export function CommentComposer({
             variant="ghost"
             onClick={onClose}
             disabled={createMutation.isPending}
+            className="text-[11px]"
           >
             Cancel
           </Button>
           <Button
             size="sm"
-            className={`gap-1 ${
+            className={`gap-1 text-[11px] ${
               body.trim()
                 ? "bg-primary text-bg-root hover:bg-accent-hover"
                 : "bg-bg-raised text-text-tertiary"
@@ -136,7 +149,7 @@ export function CommentComposer({
         </div>
       </div>
       {createMutation.isError && (
-        <div className="border-border border-t px-3 py-1.5">
+        <div className="border-border-subtle border-t px-3 py-2">
           <p className="text-destructive text-[11px]">
             {String(
               (createMutation.error as unknown as Error)?.message ?? "Failed to create comment",
