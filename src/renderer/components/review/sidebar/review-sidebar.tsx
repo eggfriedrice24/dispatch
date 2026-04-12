@@ -143,13 +143,20 @@ export function ReviewSidebar({ prNumber, onBack, onSelectPr }: ReviewSidebarPro
     [files, fileCommentCounts, annotationPaths, viewedFiles],
   );
 
-  // Queue (review-requested PRs — same query as inbox "Review" tab)
-  const queueQuery = useQuery({
-    queryKey: ["pr", "list", nwo, "reviewRequested"],
-    queryFn: () => ipc("pr.list", { ...repoTarget, filter: "reviewRequested" }),
+  // Reuse the cross-workspace PR list that HomeView already fetches,
+  // filtered to open PRs in the current repo.
+  const allPrsQuery = useQuery({
+    queryKey: ["pr", "listAll", "all", "all"],
+    queryFn: () => ipc("pr.listAll", { filter: "all", state: "all" }),
     refetchInterval: 30_000,
   });
-  const queuePrs = queueQuery.data ?? [];
+  const queuePrs = useMemo(
+    () =>
+      (allPrsQuery.data ?? []).filter(
+        (pr) => pr.pullRequestRepository === nwo && pr.state !== "MERGED" && pr.state !== "CLOSED",
+      ),
+    [allPrsQuery.data, nwo],
+  );
 
   // PR detail for merge readiness
   const detailQuery = useQuery({

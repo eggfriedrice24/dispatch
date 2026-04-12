@@ -77,7 +77,7 @@ export function QueueZone({ queuePrs, activePrNumber, onBack, onSelectPr }: Queu
           <>
             <span className="flex-1" />
             <span className="text-text-ghost text-[10px] font-semibold tracking-[0.06em] uppercase">
-              {queuePrs.length} to review
+              {queuePrs.length} open
             </span>
           </>
         )}
