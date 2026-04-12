@@ -1,5 +1,9 @@
 import type { GhUserProfile } from "@/shared/ipc";
 
+import {
+  computeTrustBreakdown,
+  TrustBreakdownModal,
+} from "@/renderer/components/review/trust-breakdown-modal";
 import { GitHubAvatar } from "@/renderer/components/shared/github-avatar";
 import {
   formatAuthorName,
@@ -9,6 +13,7 @@ import { ipc } from "@/renderer/lib/app/ipc";
 import { relativeTime } from "@/shared/format";
 import { useQuery } from "@tanstack/react-query";
 import { Building2, Calendar, GitPullRequest, MapPin, Users } from "lucide-react";
+import { useState } from "react";
 
 /**
  * Author dossier — lazy-loaded contributor context panel.
@@ -30,6 +35,7 @@ interface AuthorDossierProps {
 
 export function AuthorDossier({ login, author, createdAt }: AuthorDossierProps) {
   const nameFormat = useDisplayNameFormat();
+  const [trustModalOpen, setTrustModalOpen] = useState(false);
 
   const profileQuery = useQuery({
     queryKey: ["env", "userProfile", login],
@@ -40,6 +46,7 @@ export function AuthorDossier({ login, author, createdAt }: AuthorDossierProps) 
 
   const profile = profileQuery.data;
   const { score, label, color } = computeTrustSignal(profile);
+  const breakdown = profile ? computeTrustBreakdown(profile) : null;
 
   return (
     <div
@@ -95,16 +102,18 @@ export function AuthorDossier({ login, author, createdAt }: AuthorDossierProps) 
               {formatAuthorName(author, nameFormat)}
             </span>
             {profile && (
-              <span
-                className="shrink-0 rounded-xs px-1.5 py-px text-[8px] font-bold tracking-[0.04em] uppercase"
+              <button
+                type="button"
+                className="shrink-0 cursor-pointer rounded-xs px-1.5 py-px text-[8px] font-bold tracking-[0.04em] uppercase transition-opacity hover:opacity-80"
                 style={{
                   background: `color-mix(in srgb, ${color} 12%, transparent)`,
                   color,
                   border: `1px solid color-mix(in srgb, ${color} 20%, transparent)`,
                 }}
+                onClick={() => setTrustModalOpen(true)}
               >
                 {label}
-              </span>
+              </button>
             )}
           </div>
           <span className="text-text-ghost font-mono text-[10px]">
@@ -173,6 +182,18 @@ export function AuthorDossier({ login, author, createdAt }: AuthorDossierProps) 
       {/* Error — silent, just don't show profile */}
       {profileQuery.isError && (
         <p className="text-text-ghost mt-2 text-[10px]">Could not load contributor profile</p>
+      )}
+
+      {/* Trust breakdown modal */}
+      {profile && breakdown && (
+        <TrustBreakdownModal
+          open={trustModalOpen}
+          onOpenChange={setTrustModalOpen}
+          profile={profile}
+          breakdown={breakdown}
+          label={label}
+          color={color}
+        />
       )}
     </div>
   );

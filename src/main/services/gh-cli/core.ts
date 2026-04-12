@@ -129,16 +129,20 @@ export async function getUserProfile(login: string): Promise<GhUserProfile> {
   });
   const profile = parseJsonOutput<Omit<GhUserProfile, "organizations">>(stdout);
 
-  // Fetch organizations separately (paginated endpoint)
+  // Fetch organizations separately.
+  // The public endpoint (users/{login}/orgs) only returns public memberships.
+  // For the authenticated user, use the authenticated endpoint (user/orgs)
+  // Which includes private org memberships.
   let organizations: GhUserProfile["organizations"] = [];
   try {
+    const viewer = await getAuthenticatedUser();
+    const orgEndpoint =
+      viewer && viewer.login.toLowerCase() === login.toLowerCase()
+        ? "user/orgs"
+        : `users/${encodeURIComponent(login)}/orgs`;
+
     const { stdout: orgStdout } = await ghExec(
-      [
-        "api",
-        `users/${encodeURIComponent(login)}/orgs`,
-        "--jq",
-        "[.[] | {login: .login, avatarUrl: .avatar_url}]",
-      ],
+      ["api", orgEndpoint, "--jq", "[.[] | {login: .login, avatarUrl: .avatar_url}]"],
       { timeout: 10_000 },
     );
     organizations = parseJsonOutput<GhUserProfile["organizations"]>(orgStdout);
