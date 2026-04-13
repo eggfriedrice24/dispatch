@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 vi.mock("../../../shared/pr-fetch-limit", () => ({
   PR_FETCH_LIMIT_PREFERENCE_KEY: "prFetchLimit",

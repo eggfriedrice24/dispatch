@@ -69,4 +69,85 @@ describe("getGitHubAvatarUrl", () => {
       }),
     ).toBe("https://github.com/octocat.png?size=40");
   });
+
+  it("falls back to avatarUrl when resolvedAvatarUrl is null", () => {
+    expect(
+      getGitHubAvatarUrl({
+        login: "octocat",
+        size: 64,
+        avatarUrl: "https://avatars.githubusercontent.com/u/123?v=4",
+        resolvedAvatarUrl: null,
+      }),
+    ).toBe("https://avatars.githubusercontent.com/u/123?v=4&s=64");
+  });
+
+  it("uses default size of 64", () => {
+    const url = getGitHubAvatarUrl({ login: "octocat" });
+    expect(url).toContain("size=64");
+  });
+
+  it("defaults to github.com host", () => {
+    const url = getGitHubAvatarUrl({ login: "octocat" });
+    expect(url).toContain("github.com");
+  });
+});
+
+describe("buildGitHubAvatarUrl — additional", () => {
+  it("uses default size of 64", () => {
+    expect(buildGitHubAvatarUrl({ login: "octocat" })).toBe(
+      "https://github.com/octocat.png?size=64",
+    );
+  });
+
+  it("encodes special characters in login", () => {
+    const url = buildGitHubAvatarUrl({ login: "user name" });
+    expect(url).toContain("user%20name");
+  });
+
+  it("normalizes empty host to github.com", () => {
+    expect(buildGitHubAvatarUrl({ login: "test", host: "" })).toContain("github.com");
+  });
+
+  it("strips protocol from host", () => {
+    expect(buildGitHubAvatarUrl({ login: "test", host: "https://gh.corp.com/" })).toContain(
+      "gh.corp.com",
+    );
+  });
+});
+
+describe("isEnterpriseManagedUserLogin — additional", () => {
+  it("requires underscore followed by 3-8 char suffix", () => {
+    expect(isEnterpriseManagedUserLogin("user_abc")).toBeTruthy();
+    expect(isEnterpriseManagedUserLogin("user_abcdefgh")).toBeTruthy();
+  });
+
+  it("rejects suffix too short", () => {
+    expect(isEnterpriseManagedUserLogin("user_ab")).toBeFalsy();
+  });
+
+  it("rejects suffix too long", () => {
+    expect(isEnterpriseManagedUserLogin("user_abcdefghi")).toBeFalsy();
+  });
+
+  it("ignores bot suffixes", () => {
+    expect(isEnterpriseManagedUserLogin("renovate[bot]")).toBeFalsy();
+  });
+
+  it("rejects logins starting with underscore", () => {
+    expect(isEnterpriseManagedUserLogin("_user_abc")).toBeFalsy();
+  });
+});
+
+describe("resizeGitHubAvatarUrl — additional", () => {
+  it("replaces existing size param", () => {
+    expect(resizeGitHubAvatarUrl("https://github.com/test.png?size=32", 128)).toBe(
+      "https://github.com/test.png?size=128",
+    );
+  });
+
+  it("replaces existing s param on CDN URL", () => {
+    expect(
+      resizeGitHubAvatarUrl("https://avatars.githubusercontent.com/u/1?s=32&v=4", 96),
+    ).toBe("https://avatars.githubusercontent.com/u/1?v=4&s=96");
+  });
 });

@@ -96,4 +96,56 @@ describe("summarizePrChecks", () => {
     expect(result.passed).toBe(1);
     expect(result.failed).toBe(1);
   });
+
+  it("handles whitespace in conclusion values", () => {
+    const result = summarizePrChecks([
+      { status: "COMPLETED", conclusion: "  success  " },
+    ]);
+    expect(result.passed).toBe(1);
+  });
+
+  it("total always equals sum of categories", () => {
+    const result = summarizePrChecks([
+      { status: "COMPLETED", conclusion: "success" },
+      { status: "COMPLETED", conclusion: "failure" },
+      { status: "queued", conclusion: null },
+      { status: "COMPLETED", conclusion: "skipped" },
+    ]);
+    expect(result.total).toBe(result.passed + result.failed + result.pending + result.neutral);
+  });
+
+  it("handles single passing check", () => {
+    const result = summarizePrChecks([{ status: "COMPLETED", conclusion: "success" }]);
+    expect(result.state).toBe("passing");
+    expect(result.total).toBe(1);
+  });
+
+  it("handles single failing check", () => {
+    const result = summarizePrChecks([{ status: "COMPLETED", conclusion: "failure" }]);
+    expect(result.state).toBe("failing");
+  });
+
+  it("handles null status with null conclusion as pending", () => {
+    const result = summarizePrChecks([{ conclusion: null }]);
+    expect(result.pending).toBe(1);
+    expect(result.state).toBe("pending");
+  });
+
+  it("neutral + passing = neutral", () => {
+    const result = summarizePrChecks([
+      { status: "COMPLETED", conclusion: "success" },
+      { status: "COMPLETED", conclusion: "skipped" },
+    ]);
+    expect(result.state).toBe("neutral");
+  });
+
+  it("handles large number of checks", () => {
+    const checks = Array.from({ length: 50 }, () => ({
+      status: "COMPLETED",
+      conclusion: "success",
+    }));
+    const result = summarizePrChecks(checks);
+    expect(result.passed).toBe(50);
+    expect(result.state).toBe("passing");
+  });
 });

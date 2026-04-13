@@ -181,4 +181,25 @@ describe("searchPrs", () => {
         .slice(0, 3),
     ).toEqual([240, 120, 42]);
   });
+
+  it("returns empty for query with no matches", () => {
+    expect(searchPrs(items, "zzzznonexistentzzzz")).toEqual([]);
+  });
+
+  it("returns all items for empty query", () => {
+    expect(searchPrs(items, "").length).toBe(items.length);
+  });
+
+  it("matches PR number", () => {
+    const result = searchPrs(items, "#42");
+    expect(result.some(({ item }) => item.pr.number === 42)).toBe(true);
+  });
+
+  it("is case insensitive", () => {
+    const upper = searchPrs(items, "SEARCH");
+    const lower = searchPrs(items, "search");
+    expect(upper.map(({ item }) => item.pr.number)).toEqual(
+      lower.map(({ item }) => item.pr.number),
+    );
+  });
 });
