@@ -10,6 +10,7 @@ import {
   formatAuthorName,
   useDisplayNameFormat,
 } from "@/renderer/hooks/preferences/use-display-name";
+import { getErrorMessage } from "@/renderer/lib/app/error-message";
 import { ipc } from "@/renderer/lib/app/ipc";
 import { queryClient } from "@/renderer/lib/app/query-client";
 import { useWorkspace } from "@/renderer/lib/app/workspace-context";
@@ -67,7 +68,7 @@ export function OverviewTab({
       toastManager.add({ title: `PR #${prNumber} closed`, type: "success" });
     },
     onError: (err) => {
-      toastManager.add({ title: "Close failed", description: String(err.message), type: "error" });
+      toastManager.add({ title: "Close failed", description: getErrorMessage(err), type: "error" });
     },
   });
 

@@ -291,7 +291,7 @@ export async function rerunWorkflowRun(
   invalidateWorkflowCaches(resolved.nwo);
 }
 
-export async function getWorkflowYaml(
+async function getWorkflowYaml(
   cwdOrTarget: string | RepoTarget,
   workflowId: string,
 ): Promise<string> {
@@ -320,7 +320,7 @@ interface WorkflowYamlDocument {
  * Parse job dependency edges from a workflow YAML definition.
  * Returns each job ID with the list of job IDs it depends on (`needs`).
  */
-export function parseJobGraphFromYaml(yaml: string): GhWorkflowJobGraph {
+function parseJobGraphFromYaml(yaml: string): GhWorkflowJobGraph {
   let doc: WorkflowYamlDocument;
   try {
     doc = parseYaml(yaml) as WorkflowYamlDocument;

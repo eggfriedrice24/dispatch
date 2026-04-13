@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { useAiTaskConfig } from "@/renderer/hooks/ai/use-ai-task-config";
+import { getErrorMessage } from "@/renderer/lib/app/error-message";
 import { ipc } from "@/renderer/lib/app/ipc";
 import { useWorkspace } from "@/renderer/lib/app/workspace-context";
 import { useMutation } from "@tanstack/react-query";
@@ -92,7 +93,7 @@ export function AiExplanation({ filePath, codeSnippet, language, onDismiss }: Ai
           </div>
         ) : explainMutation.isError ? (
           <p className="text-destructive text-xs">
-            {String((explainMutation.error as Error)?.message ?? "Failed to get explanation")}
+            {getErrorMessage(explainMutation.error)}
           </p>
         ) : (
           <Button

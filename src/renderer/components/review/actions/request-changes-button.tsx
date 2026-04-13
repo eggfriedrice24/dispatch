@@ -15,6 +15,7 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { toastManager } from "@/components/ui/toast";
 import { ReviewMarkdownComposer } from "@/renderer/components/review/comments/review-markdown-composer";
+import { getErrorMessage } from "@/renderer/lib/app/error-message";
 import { ipc } from "@/renderer/lib/app/ipc";
 import { queryClient } from "@/renderer/lib/app/query-client";
 import { useMutation } from "@tanstack/react-query";
@@ -47,7 +48,7 @@ export function RequestChangesButton({
     onError: (err) => {
       toastManager.add({
         title: "Review failed",
-        description: String(err.message),
+        description: getErrorMessage(err),
         type: "error",
       });
     },

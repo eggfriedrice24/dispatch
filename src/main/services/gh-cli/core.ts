@@ -379,7 +379,7 @@ export function getRepoInfo(cwdOrTarget: string | RepoTarget): Promise<RepoInfo>
           data?: { repository?: { mergeQueue?: { id: string } | null } };
         };
         const mergeQueue = gql.data?.repository?.mergeQueue;
-        hasMergeQueue = mergeQueue !== null && mergeQueue !== undefined;
+        hasMergeQueue = mergeQueue != null;
       } catch {
         // Merge queue query failed (e.g. GHES without merge queue support).
       }
@@ -510,7 +510,7 @@ export const prFullCache = createCacheStore<GhPrListItem[]>();
 export const genericCache = createCacheStore<unknown>();
 const repoInfoCache = createCacheStore<RepoInfo>();
 
-export const CACHE_TTL_MS = 15_000;
+const CACHE_TTL_MS = 15_000;
 export const CACHE_TTL_LONG_MS = 60_000;
 
 export function cacheKey({

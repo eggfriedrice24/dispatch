@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { toastManager } from "@/components/ui/toast";
 import { ReviewMarkdownComposer } from "@/renderer/components/review/comments/review-markdown-composer";
+import { getErrorMessage } from "@/renderer/lib/app/error-message";
 import { ipc } from "@/renderer/lib/app/ipc";
 import { queryClient } from "@/renderer/lib/app/query-client";
 import { useWorkspace } from "@/renderer/lib/app/workspace-context";
@@ -151,9 +152,7 @@ export function CommentComposer({
       {createMutation.isError && (
         <div className="border-border-subtle border-t px-3 py-2">
           <p className="text-destructive text-[11px]">
-            {String(
-              (createMutation.error as unknown as Error)?.message ?? "Failed to create comment",
-            )}
+            {getErrorMessage(createMutation.error)}
           </p>
         </div>
       )}

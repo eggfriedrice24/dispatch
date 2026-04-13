@@ -14,6 +14,7 @@ import {
   formatAuthorName,
   useDisplayNameFormat,
 } from "@/renderer/hooks/preferences/use-display-name";
+import { getErrorMessage } from "@/renderer/lib/app/error-message";
 import { ipc } from "@/renderer/lib/app/ipc";
 import { openExternal } from "@/renderer/lib/app/open-external";
 import { queryClient } from "@/renderer/lib/app/query-client";
@@ -442,13 +443,12 @@ export function PrInbox({ selectedPr, onSelectPr }: PrInboxProps) {
                 className="text-text-ghost"
               />
               <p className="text-text-tertiary text-center text-xs">
-                {activeFilter === "review"
-                  ? "No PRs need your review"
-                  : activeFilter === "reReview"
-                    ? "No PRs need re-review"
-                    : activeFilter === "mine"
-                      ? "You have no open PRs"
-                      : "No pull requests found"}
+                {{
+                  review: "No PRs need your review",
+                  reReview: "No PRs need re-review",
+                  mine: "You have no open PRs",
+                  all: "No pull requests found",
+                }[activeFilter]}
               </p>
             </>
           )}
@@ -565,7 +565,7 @@ function PrItem({
     onError: (err) => {
       toastManager.add({
         title: "Approve failed",
-        description: String(err.message),
+        description: getErrorMessage(err),
         type: "error",
       });
     },
@@ -589,7 +589,7 @@ function PrItem({
       }
     },
     onError: (err) => {
-      toastManager.add({ title: "Merge failed", description: String(err.message), type: "error" });
+      toastManager.add({ title: "Merge failed", description: getErrorMessage(err), type: "error" });
     },
   });
 
@@ -600,7 +600,7 @@ function PrItem({
       toastManager.add({ title: `PR #${pr.number} closed`, type: "success" });
     },
     onError: (err) => {
-      toastManager.add({ title: "Close failed", description: String(err.message), type: "error" });
+      toastManager.add({ title: "Close failed", description: getErrorMessage(err), type: "error" });
     },
   });
 

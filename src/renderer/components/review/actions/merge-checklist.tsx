@@ -2,6 +2,7 @@ import type { RepoTarget } from "@/shared/ipc";
 
 import { Spinner } from "@/components/ui/spinner";
 import { toastManager } from "@/components/ui/toast";
+import { getErrorMessage } from "@/renderer/lib/app/error-message";
 import { ipc } from "@/renderer/lib/app/ipc";
 import { queryClient } from "@/renderer/lib/app/query-client";
 import { summarizePrChecks } from "@/renderer/lib/review/pr-check-status";
@@ -49,7 +50,7 @@ export function MergeChecklist({
     onError: (err) => {
       toastManager.add({
         title: "Update failed",
-        description: String(err.message),
+        description: getErrorMessage(err),
         type: "error",
       });
     },

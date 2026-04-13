@@ -6,6 +6,7 @@ import { toastManager } from "@/components/ui/toast";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { ReviewMarkdownComposer } from "@/renderer/components/review/comments/review-markdown-composer";
 import { useKeyboardShortcuts } from "@/renderer/hooks/app/use-keyboard-shortcuts";
+import { getErrorMessage } from "@/renderer/lib/app/error-message";
 import { ipc } from "@/renderer/lib/app/ipc";
 import { queryClient } from "@/renderer/lib/app/query-client";
 import { useKeybindings } from "@/renderer/lib/keyboard/keybinding-context";
@@ -286,7 +287,7 @@ function RequestChangesBarButton({
       setOpen(false);
     },
     onError: (err) => {
-      toastManager.add({ title: "Review failed", description: String(err.message), type: "error" });
+      toastManager.add({ title: "Review failed", description: getErrorMessage(err), type: "error" });
     },
   });
 
@@ -431,7 +432,7 @@ function ApproveBarButton({
       toastManager.add({ title: "PR approved", type: "success" });
     },
     onError: (err) => {
-      toastManager.add({ title: "Review failed", description: String(err.message), type: "error" });
+      toastManager.add({ title: "Review failed", description: getErrorMessage(err), type: "error" });
     },
   });
 
@@ -594,7 +595,7 @@ function MergeBarButton({
       }
     },
     onError: (err) => {
-      toastManager.add({ title: "Merge failed", description: String(err.message), type: "error" });
+      toastManager.add({ title: "Merge failed", description: getErrorMessage(err), type: "error" });
     },
   });
 
@@ -851,7 +852,7 @@ function UpdateBranchPill({
     onError: (err) => {
       toastManager.add({
         title: "Update failed",
-        description: String(err.message),
+        description: getErrorMessage(err),
         type: "error",
       });
     },

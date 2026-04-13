@@ -5,6 +5,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { toastManager } from "@/components/ui/toast";
 import { AiFailureExplainer } from "@/renderer/components/review/ai/ai-failure-explainer";
 import { LogViewer } from "@/renderer/components/workflows/log-viewer";
+import { getErrorMessage } from "@/renderer/lib/app/error-message";
 import { ipc } from "@/renderer/lib/app/ipc";
 import { queryClient } from "@/renderer/lib/app/query-client";
 import { useWorkspace } from "@/renderer/lib/app/workspace-context";
@@ -176,7 +177,7 @@ function RerunButton({ repoTarget, runId }: { repoTarget: RepoTarget; runId: num
       });
     },
     onError: (err) => {
-      toastManager.add({ title: "Re-run failed", description: String(err.message), type: "error" });
+      toastManager.add({ title: "Re-run failed", description: getErrorMessage(err), type: "error" });
     },
   });
 

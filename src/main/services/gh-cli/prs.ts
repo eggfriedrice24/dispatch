@@ -20,7 +20,6 @@ import {
   invalidatePersistedPrCaches,
   savePrDetail,
   savePrListCache,
-  savePrListItems,
 } from "../../db/repository";
 import {
   PR_LIST_CORE_FIELDS,
@@ -38,12 +37,9 @@ import {
   invalidatePrListCaches,
   parseJsonOutput,
   prEnrichmentCache,
-  prFullCache,
   prListCache,
   resolveRepoCwd,
   resolvePrListLimit,
-  setCache,
-  PR_LIST_SLIM,
 } from "./core";
 
 const MAX_BROAD_ENRICHMENT_LIMIT = 100;
@@ -75,11 +71,6 @@ function resolvePersistedPrListTtlMs(state: "closed" | "merged"): number {
 
 function resolvePersistedPrDetailTtlMs(state: "CLOSED" | "MERGED"): number {
   return state === "MERGED" ? PERSISTED_MERGED_PR_DETAIL_TTL_MS : PERSISTED_CLOSED_PR_DETAIL_TTL_MS;
-}
-
-function primePrCaches(key: string, data: GhPrListItem[]): void {
-  setCache(prListCache, key, { data: data.map((pr) => toCorePrListItem(pr)) });
-  setCache(prEnrichmentCache, key, { data: data.map((pr) => toPrEnrichment(pr)) });
 }
 
 function getCachedTerminalPrListData<T>(args: {
@@ -131,14 +122,6 @@ function persistTerminalPrListData<T>(args: {
     }
   } catch {
     // Cache persistence is best-effort so it never blocks live PR reads.
-  }
-}
-
-function persistFullPrListItems(repoKey: string, data: GhPrListItem[]): void {
-  try {
-    savePrListItems(repoKey, data);
-  } catch {
-    // Full PR snapshots are best-effort and should never block the caller.
   }
 }
 
@@ -346,32 +329,6 @@ function mapStatusCheckRollup(
   });
 }
 
-function mapRawPullRequest(pr: RawPullRequestNode): GhPrListItem {
-  return {
-    number: pr.number,
-    title: pr.title,
-    state: pr.state,
-    author: mapPullRequestAuthor(pr.author),
-    headRefName: pr.headRefName,
-    baseRefName: pr.baseRefName,
-    reviewDecision: pr.reviewDecision ?? "",
-    statusCheckRollup: mapStatusCheckRollup(pr.statusCheckRollup),
-    updatedAt: pr.updatedAt,
-    url: pr.url,
-    isDraft: pr.isDraft,
-    additions: pr.additions ?? 0,
-    deletions: pr.deletions ?? 0,
-    mergeable: pr.mergeable ?? "UNKNOWN",
-    autoMergeRequest:
-      pr.autoMergeRequest && pr.autoMergeRequest.enabledBy
-        ? {
-            enabledBy: { login: pr.autoMergeRequest.enabledBy.login },
-            mergeMethod: pr.autoMergeRequest.mergeMethod,
-          }
-        : null,
-  };
-}
-
 function mapRawPullRequestCore(pr: RawPullRequestCoreNode): GhPrListItemCore {
   return {
     number: pr.number,
@@ -403,33 +360,6 @@ function mapRawPullRequestEnrichment(pr: RawPullRequestEnrichmentNode): GhPrEnri
             mergeMethod: pr.autoMergeRequest.mergeMethod,
           }
         : null,
-  };
-}
-
-function toCorePrListItem({
-  statusCheckRollup: _statusCheckRollup,
-  mergeable: _mergeable,
-  autoMergeRequest: _autoMergeRequest,
-  ...core
-}: GhPrListItem): GhPrListItemCore {
-  return core;
-}
-
-function toPrEnrichment({
-  number,
-  statusCheckRollup,
-  additions,
-  deletions,
-  mergeable,
-  autoMergeRequest,
-}: GhPrListItem): GhPrEnrichment {
-  return {
-    number,
-    statusCheckRollup,
-    additions,
-    deletions,
-    mergeable,
-    autoMergeRequest,
   };
 }
 
@@ -606,61 +536,6 @@ async function fetchUnlimitedFilteredPullRequests(
   return nodes;
 }
 
-function listUnlimitedPrs(
-  cwdOrTarget: string | RepoTarget,
-  filter: "reviewRequested" | "authored" | "all",
-  state: "open" | "closed" | "merged" | "all",
-  forceRefresh = false,
-): Promise<GhPrListItem[]> {
-  const resolved =
-    typeof cwdOrTarget === "string"
-      ? { cwd: cwdOrTarget, repoFlag: [] as string[], nwo: cwdOrTarget }
-      : resolveRepoCwd(cwdOrTarget);
-  const key = cacheKey({ nwo: resolved.nwo, filter, state, limit: PR_FETCH_LIMIT_UNLIMITED });
-
-  if (forceRefresh) {
-    invalidateCacheKey(prFullCache, key);
-  }
-
-  return getOrLoadCached({
-    cache: prFullCache,
-    key,
-    loader: async () => {
-      if (!forceRefresh) {
-        const cached = getCachedTerminalPrListData<GhPrListItem[]>({
-          repoKey: resolved.nwo,
-          filter,
-          state,
-          cacheKey: `${PR_FETCH_LIMIT_UNLIMITED}::full`,
-        });
-        if (cached) {
-          cacheAuthorDisplayNames(cached);
-          primePrCaches(key, cached);
-          return cached;
-        }
-      }
-
-      const rawPullRequests =
-        filter === "all"
-          ? await fetchUnlimitedRepositoryPullRequests(cwdOrTarget, state)
-          : await fetchUnlimitedFilteredPullRequests(cwdOrTarget, filter, state);
-      const data = rawPullRequests.map((pr) => mapRawPullRequest(pr));
-
-      cacheAuthorDisplayNames(data);
-      primePrCaches(key, data);
-      persistTerminalPrListData({
-        repoKey: resolved.nwo,
-        filter,
-        state,
-        cacheKey: `${PR_FETCH_LIMIT_UNLIMITED}::full`,
-        data,
-      });
-      persistFullPrListItems(resolved.nwo, data);
-
-      return data;
-    },
-  });
-}
 
 function resolvePrEnrichmentLimit(
   filter: "reviewRequested" | "authored" | "all",
@@ -847,46 +722,6 @@ export function listPrsEnrichment(
         cacheKey: `${limit}::enrichment`,
         data,
       });
-      return data;
-    },
-  });
-}
-
-export function listPrs(
-  cwdOrTarget: string | RepoTarget,
-  filter: "reviewRequested" | "authored" | "all" = "reviewRequested",
-  state: "open" | "closed" | "merged" | "all" = "open",
-): Promise<GhPrListItem[]> {
-  const resolved =
-    typeof cwdOrTarget === "string"
-      ? { cwd: cwdOrTarget, repoFlag: [] as string[], nwo: cwdOrTarget }
-      : resolveRepoCwd(cwdOrTarget);
-  const limit = resolvePrListLimit();
-
-  if (limit === PR_FETCH_LIMIT_UNLIMITED) {
-    return listUnlimitedPrs(cwdOrTarget, filter, state);
-  }
-
-  const key = cacheKey({ nwo: resolved.nwo, filter, state, limit });
-  return getOrLoadCached({
-    cache: prFullCache,
-    key,
-    loader: async () => {
-      const repoArgs =
-        resolved.repoFlag.length > 0 ? resolved.repoFlag : await getUpstreamArgs(cwdOrTarget);
-      const args = buildFilterArgs({
-        filter,
-        jsonFields: PR_LIST_SLIM,
-        repoArgs,
-        state,
-        limit,
-      });
-      const { stdout } = await ghExec(args, { cwd: resolved.cwd, timeout: 60_000 });
-      const data = parseJsonOutput<GhPrListItem[]>(stdout);
-
-      cacheAuthorDisplayNames(data);
-      primePrCaches(key, data);
-
       return data;
     },
   });
@@ -1663,7 +1498,7 @@ export async function getPrReviewRequests(
   return nodes
     .filter(
       (node): node is RawNode & { requestedReviewer: NonNullable<RawNode["requestedReviewer"]> } =>
-        node.requestedReviewer !== null && node.requestedReviewer !== undefined,
+        node.requestedReviewer != null,
     )
     .map((node) => {
       const reviewer = node.requestedReviewer;

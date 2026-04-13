@@ -3,6 +3,7 @@ import type { GhRepoSearchResult } from "@/shared/ipc/contracts/environment";
 
 import { Button } from "@/components/ui/button";
 import { DispatchLogo } from "@/renderer/components/shared/dispatch-logo";
+import { getErrorMessage } from "@/renderer/lib/app/error-message";
 import { ipc } from "@/renderer/lib/app/ipc";
 import { queryClient } from "@/renderer/lib/app/query-client";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -139,14 +140,9 @@ export function Onboarding({ onComplete }: OnboardingProps) {
         {(addMutation.isError || addFromFolderMutation.isError || pickFolderMutation.isError) && (
           <p className="text-destructive mt-2 text-xs">
             {addMutation.isError
-              ? String(
-                  (addMutation.error as unknown as Error)?.message ?? "Failed to add repository",
-                )
+              ? getErrorMessage(addMutation.error)
               : addFromFolderMutation.isError
-                ? String(
-                    (addFromFolderMutation.error as unknown as Error)?.message ??
-                      "Not a valid git repository",
-                  )
+                ? getErrorMessage(addFromFolderMutation.error)
                 : "Failed to open folder picker"}
           </p>
         )}

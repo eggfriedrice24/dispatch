@@ -120,7 +120,7 @@ export function PullRequestGroup({ onSelect }: { onSelect: () => void }) {
   const visible = useMemo(() => {
     let filtered = prs;
 
-    if (filters.pr !== null && filters.pr !== undefined) {
+    if (filters.pr != null) {
       filtered = filtered.filter((pr) => pr.number === filters.pr);
     }
 

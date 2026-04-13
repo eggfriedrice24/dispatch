@@ -11,6 +11,7 @@ import { CollapsibleDescription } from "@/renderer/components/shared/collapsible
 import { GitHubAvatar } from "@/renderer/components/shared/github-avatar";
 import { MarkdownBody } from "@/renderer/components/shared/markdown-body";
 import { UserProfileTooltip } from "@/renderer/components/shared/user-profile-tooltip";
+import { getErrorMessage } from "@/renderer/lib/app/error-message";
 import { ipc } from "@/renderer/lib/app/ipc";
 import { queryClient } from "@/renderer/lib/app/query-client";
 import { useWorkspace } from "@/renderer/lib/app/workspace-context";
@@ -210,7 +211,7 @@ function PanelOverviewContent({
       toastManager.add({ title: `PR #${prNumber} closed`, type: "success" });
     },
     onError: (err) => {
-      toastManager.add({ title: "Close failed", description: String(err.message), type: "error" });
+      toastManager.add({ title: "Close failed", description: getErrorMessage(err), type: "error" });
     },
   });
 
