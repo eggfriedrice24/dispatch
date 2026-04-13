@@ -7,7 +7,6 @@ import type { WindowState } from "../shared/ipc";
 declare global {
   interface ElectronApi {
     invoke(method: string, args: unknown): Promise<unknown>;
-    openExternal(url: string): Promise<void>;
     setBadgeCount(count: number): void;
     onNavigate(
       callback: (route: { view: string; prNumber?: number; workspacePath?: string }) => void,

@@ -14,6 +14,7 @@ import {
   mapWithConcurrency,
   parseJsonOutput,
   resolveRepoCwd,
+  resolveTarget,
 } from "./core";
 import { listPrsCore, listPrsEnrichment } from "./prs";
 
@@ -163,10 +164,7 @@ export function getPrCycleTime(
     deletions: number;
   }>
 > {
-  const resolved =
-    typeof cwdOrTarget === "string"
-      ? { cwd: cwdOrTarget, repoFlag: [] as string[], nwo: cwdOrTarget }
-      : resolveRepoCwd(cwdOrTarget);
+  const resolved = resolveTarget(cwdOrTarget);
   const key = `cycleTime::${resolved.nwo}::${since}`;
   type CycleTimeResult = Array<{
     prNumber: number;
@@ -249,10 +247,7 @@ export function getReviewLoad(
   cwdOrTarget: string | RepoTarget,
   since: string,
 ): Promise<Array<{ reviewer: string; reviewCount: number; avgResponseTime: number }>> {
-  const resolved =
-    typeof cwdOrTarget === "string"
-      ? { cwd: cwdOrTarget, repoFlag: [] as string[], nwo: cwdOrTarget }
-      : resolveRepoCwd(cwdOrTarget);
+  const resolved = resolveTarget(cwdOrTarget);
   const key = `reviewLoad::${resolved.nwo}::${since}`;
   type ReviewLoadResult = Array<{ reviewer: string; reviewCount: number; avgResponseTime: number }>;
   return getOrLoadCached({
@@ -325,10 +320,7 @@ export function listReleases(
     author: { login: string };
   }>
 > {
-  const resolved =
-    typeof cwdOrTarget === "string"
-      ? { cwd: cwdOrTarget, repoFlag: [] as string[], nwo: cwdOrTarget }
-      : resolveRepoCwd(cwdOrTarget);
+  const resolved = resolveTarget(cwdOrTarget);
   const key = `releases::${resolved.nwo}::${limit}`;
   type ReleaseResult = Array<{
     tagName: string;
@@ -429,10 +421,7 @@ export async function generateChangelog(
   cwdOrTarget: string | RepoTarget,
   sinceTag: string,
 ): Promise<string> {
-  const resolved =
-    typeof cwdOrTarget === "string"
-      ? { cwd: cwdOrTarget, repoFlag: [] as string[], nwo: cwdOrTarget }
-      : resolveRepoCwd(cwdOrTarget);
+  const resolved = resolveTarget(cwdOrTarget);
   const { stdout: tagDate } = await ghExec(
     [
       ...resolved.repoFlag,

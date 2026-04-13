@@ -95,6 +95,21 @@ export function resolveRepoCwd(target: RepoTarget): {
   return { repoFlag: ["-R", nwo], nwo };
 }
 
+/**
+ * Resolve a string path or RepoTarget to gh CLI execution options.
+ * When given a plain string (local repo path), uses it as cwd with no -R flag.
+ * When given a RepoTarget, delegates to resolveRepoCwd.
+ */
+export function resolveTarget(cwdOrTarget: string | RepoTarget): {
+  cwd?: string;
+  repoFlag: string[];
+  nwo: string;
+} {
+  return typeof cwdOrTarget === "string"
+    ? { cwd: cwdOrTarget, repoFlag: [] as string[], nwo: cwdOrTarget }
+    : resolveRepoCwd(cwdOrTarget);
+}
+
 export { type RepoTarget } from "../../../shared/ipc";
 
 export async function getAuthenticatedUser(): Promise<GhUser | null> {
@@ -322,10 +337,7 @@ export async function getRepoHost(cwdOrTarget: string | RepoTarget): Promise<str
 }
 
 export function getRepoInfo(cwdOrTarget: string | RepoTarget): Promise<RepoInfo> {
-  const resolved =
-    typeof cwdOrTarget === "string"
-      ? { cwd: cwdOrTarget, repoFlag: [] as string[], nwo: cwdOrTarget }
-      : resolveRepoCwd(cwdOrTarget);
+  const resolved = resolveTarget(cwdOrTarget);
   const cacheKey = `repoInfo::${resolved.cwd ?? resolved.nwo}`;
 
   return getOrLoadCached({

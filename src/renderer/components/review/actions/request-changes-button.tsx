@@ -13,12 +13,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
-import { toastManager } from "@/components/ui/toast";
 import { ReviewMarkdownComposer } from "@/renderer/components/review/comments/review-markdown-composer";
-import { getErrorMessage } from "@/renderer/lib/app/error-message";
-import { ipc } from "@/renderer/lib/app/ipc";
-import { queryClient } from "@/renderer/lib/app/query-client";
-import { useMutation } from "@tanstack/react-query";
+import { useReviewMutation } from "@/renderer/hooks/review/use-review-mutation";
 import { MessageSquare } from "lucide-react";
 import { useState } from "react";
 
@@ -36,21 +32,13 @@ export function RequestChangesButton({
   const [open, setOpen] = useState(false);
   const [body, setBody] = useState("");
 
-  const reviewMutation = useMutation({
-    mutationFn: (args: { event: "APPROVE" | "REQUEST_CHANGES" | "COMMENT"; body?: string }) =>
-      ipc("pr.submitReview", { ...repoTarget, prNumber, ...args }),
+  const reviewMutation = useReviewMutation({
+    repoTarget,
+    prNumber,
+    successTitle: "Changes requested",
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["pr"] });
-      toastManager.add({ title: "Changes requested", type: "success" });
       setBody("");
       setOpen(false);
-    },
-    onError: (err) => {
-      toastManager.add({
-        title: "Review failed",
-        description: getErrorMessage(err),
-        type: "error",
-      });
     },
   });
 

@@ -116,19 +116,22 @@ const FALLBACK_AI_CONFIG: AiResolvedConfig = {
 };
 
 export function useAiConfig(): AiResolvedConfig {
-  const configQuery = useQuery({
-    queryKey: ["ai", "config"],
-    queryFn: () => ipc("ai.config"),
-    staleTime: 60_000,
-  });
-
   const enabledQuery = useQuery({
     queryKey: ["preferences", "aiEnabled"],
     queryFn: () => ipc("preferences.get", { key: "aiEnabled" }),
     staleTime: 30_000,
   });
 
-  if (!isAiEnabledPreference(enabledQuery.data)) {
+  const isEnabled = isAiEnabledPreference(enabledQuery.data);
+
+  const configQuery = useQuery({
+    queryKey: ["ai", "config"],
+    queryFn: () => ipc("ai.config"),
+    staleTime: 60_000,
+    enabled: isEnabled,
+  });
+
+  if (!isEnabled) {
     return FALLBACK_AI_CONFIG;
   }
 

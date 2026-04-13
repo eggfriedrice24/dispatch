@@ -1,3 +1,5 @@
+import { ipc } from "@/renderer/lib/app/ipc";
+
 export async function openExternal(url: string): Promise<void> {
-  await globalThis.api.openExternal(url);
+  await ipc("app.openExternal", { url });
 }

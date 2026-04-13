@@ -13,11 +13,22 @@ import {
 } from "@/renderer/components/review/comments/inline-comment";
 import { BlameButton } from "@/renderer/components/review/diff/blame-popover";
 import { CiAnnotation, type Annotation } from "@/renderer/components/review/diff/ci-annotation";
+import {
+  buildFullFileRows,
+  buildRows,
+  buildSplitRows,
+  getCommentTarget,
+  type CommentRange,
+  type CommentSide,
+  type CommentTarget,
+  type FlatLine,
+  type FlatRow,
+  type NonLineFlatRow,
+} from "@/renderer/components/review/diff/diff-row-builder";
 import { useTheme } from "@/renderer/lib/app/theme-context";
 import {
   getDiffFilePath,
   type DiffFile,
-  type DiffLine,
   type Segment,
 } from "@/renderer/lib/review/diff-parser";
 import {
@@ -27,7 +38,6 @@ import {
   type ShikiToken,
   type ThemeMode,
 } from "@/renderer/lib/review/highlighter";
-import { getReviewPositionKey } from "@/renderer/lib/review/review-position";
 import { ChevronDown, ChevronUp, Plus, Search, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -39,18 +49,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
  * - Split/side-by-side diff mode
  */
 
-type CommentSide = "LEFT" | "RIGHT";
-
-interface CommentTarget {
-  line: number;
-  side: CommentSide;
-}
-
-export interface CommentRange {
-  startLine: number;
-  endLine: number;
-  side: CommentSide;
-}
+export type { CommentRange, CommentSide } from "@/renderer/components/review/diff/diff-row-builder";
 
 export type DiffMode = "unified" | "split" | "full-file";
 
@@ -82,389 +81,10 @@ interface DiffViewerProps {
   onScrollToLineComplete?: () => void;
 }
 
-// ---------------------------------------------------------------------------
-// Flat row model
-// ---------------------------------------------------------------------------
-
-type FlatLine = DiffLine & { pairKey: string | null };
-
-type FlatRow =
-  | { kind: "line"; key: string; line: FlatLine }
-  | { kind: "comment"; key: string; comments: ReviewComment[] }
-  | { kind: "annotation"; key: string; annotations: Annotation[] }
-  | { kind: "composer"; key: string; startLine: number; endLine: number; side: CommentSide }
-  | { kind: "ai-suggestion"; key: string; suggestions: AiSuggestion[] };
-
-type NonLineFlatRow = Exclude<FlatRow, { kind: "line" }>;
-
-type SplitRow =
-  | { kind: "pair"; key: string; left: FlatLine | null; right: FlatLine | null }
-  | NonLineFlatRow;
-
-interface FlatLineEntry {
-  key: string;
-  line: FlatLine;
-}
-
 const DEFAULT_SHIKI_THEME_PAIR = {
   light: DEFAULT_CODE_THEME_LIGHT,
   dark: DEFAULT_CODE_THEME_DARK,
 } as const;
-
-function getCommentTarget(line: DiffLine): CommentTarget | null {
-  if (line.type === "del" && line.oldLineNumber !== null) {
-    return { line: line.oldLineNumber, side: "LEFT" };
-  }
-
-  if (line.type !== "hunk-header" && line.newLineNumber !== null) {
-    return { line: line.newLineNumber, side: "RIGHT" };
-  }
-
-  return null;
-}
-
-function appendLineRows(
-  rows: FlatRow[],
-  filePath: string,
-  lineEntry: FlatLineEntry,
-  comments: Map<string, ReviewComment[]>,
-  annotations: Map<string, Annotation[]>,
-  composerRange: CommentRange | null,
-  aiSuggestions?: Map<string, AiSuggestion[]>,
-) {
-  rows.push({ kind: "line", key: lineEntry.key, line: lineEntry.line });
-
-  const commentTarget = getCommentTarget(lineEntry.line);
-  if (!commentTarget) {
-    return;
-  }
-
-  const lineNum = commentTarget.line;
-  const commentKey = getReviewPositionKey(filePath, lineNum, commentTarget.side);
-  const lineComments = comments.get(commentKey);
-  if (lineComments && lineComments.length > 0) {
-    rows.push({ kind: "comment", key: `cmt-${commentKey}`, comments: lineComments });
-  }
-
-  if (commentTarget.side === "RIGHT") {
-    const positionKey = `${filePath}:${lineNum}`;
-
-    const lineAnnotations = annotations.get(positionKey);
-    if (lineAnnotations && lineAnnotations.length > 0) {
-      rows.push({ kind: "annotation", key: `ann-${positionKey}`, annotations: lineAnnotations });
-    }
-
-    const lineSuggestions = aiSuggestions?.get(positionKey);
-    if (lineSuggestions && lineSuggestions.length > 0) {
-      rows.push({
-        kind: "ai-suggestion",
-        key: `ai-${positionKey}`,
-        suggestions: lineSuggestions,
-      });
-    }
-  }
-
-  if (
-    composerRange &&
-    commentTarget.side === composerRange.side &&
-    commentTarget.line === composerRange.endLine
-  ) {
-    rows.push({
-      kind: "composer",
-      key: `composer-${composerRange.side}-${composerRange.startLine}-${composerRange.endLine}`,
-      startLine: composerRange.startLine,
-      endLine: composerRange.endLine,
-      side: composerRange.side,
-    });
-  }
-}
-
-function buildRows(
-  file: DiffFile,
-  comments: Map<string, ReviewComment[]>,
-  annotations: Map<string, Annotation[]>,
-  composerRange: CommentRange | null,
-  aiSuggestions?: Map<string, AiSuggestion[]>,
-): FlatRow[] {
-  const rows: FlatRow[] = [];
-  const filePath = getDiffFilePath(file);
-
-  let hunkIndex = 0;
-  for (const hunk of file.hunks) {
-    rows.push({
-      kind: "line",
-      key: `hunk-${hunkIndex}`,
-      line: {
-        type: "hunk-header",
-        content: hunk.header,
-        oldLineNumber: null,
-        newLineNumber: null,
-        pairKey: null,
-      },
-    });
-
-    for (let i = 0; i < hunk.lines.length; i++) {
-      const line = hunk.lines[i];
-      if (!line) {
-        break;
-      }
-
-      if (line.type !== "hunk-header") {
-        const lineKey = `line-${hunkIndex}-${i}-${line.type}-${line.oldLineNumber ?? "x"}-${line.newLineNumber ?? "x"}`;
-
-        appendLineRows(
-          rows,
-          filePath,
-          {
-            key: lineKey,
-            line: {
-              ...line,
-              pairKey: line.pairId === undefined ? null : `pair-${hunkIndex}-${line.pairId}`,
-            },
-          },
-          comments,
-          annotations,
-          composerRange,
-          aiSuggestions,
-        );
-      }
-    }
-    hunkIndex++;
-  }
-
-  return rows;
-}
-
-function buildSplitRows(rows: FlatRow[]): SplitRow[] {
-  const splitRows: SplitRow[] = [];
-  const pendingDeleted: Array<{
-    row: Extract<FlatRow, { kind: "line" }>;
-    auxiliaryRows: NonLineFlatRow[];
-  }> = [];
-  let lastLineDestination:
-    | { kind: "direct" }
-    | { kind: "pending-deleted"; entry: (typeof pendingDeleted)[number] }
-    | null = null;
-
-  const flushPendingDeletedAtIndex = (index: number) => {
-    const pendingEntry = pendingDeleted[index];
-    if (!pendingEntry) {
-      return;
-    }
-
-    splitRows.push({
-      kind: "pair",
-      key: pendingEntry.row.key,
-      left: pendingEntry.row.line,
-      right: null,
-    });
-    splitRows.push(...pendingEntry.auxiliaryRows);
-    pendingDeleted.splice(index, 1);
-  };
-
-  const flushLeadingUnpairedDeleted = () => {
-    while (pendingDeleted[0]?.row.line.pairKey === null) {
-      flushPendingDeletedAtIndex(0);
-    }
-  };
-
-  const flushAllPendingDeleted = () => {
-    while (pendingDeleted.length > 0) {
-      flushPendingDeletedAtIndex(0);
-    }
-  };
-
-  for (const row of rows) {
-    if (row.kind !== "line") {
-      if (lastLineDestination?.kind === "pending-deleted") {
-        lastLineDestination.entry.auxiliaryRows.push(row);
-      } else {
-        splitRows.push(row);
-      }
-    } else if (row.line.type === "hunk-header") {
-      flushAllPendingDeleted();
-      splitRows.push({ kind: "pair", key: row.key, left: row.line, right: null });
-      lastLineDestination = { kind: "direct" };
-    } else {
-      if (row.line.type === "del") {
-        const pendingEntry = { row, auxiliaryRows: [] as NonLineFlatRow[] };
-        pendingDeleted.push(pendingEntry);
-        lastLineDestination = { kind: "pending-deleted", entry: pendingEntry };
-      } else if (row.line.type === "add") {
-        const matchedPendingIndex =
-          row.line.pairKey === null
-            ? -1
-            : pendingDeleted.findIndex(
-                (pendingEntry) => pendingEntry.row.line.pairKey === row.line.pairKey,
-              );
-
-        if (matchedPendingIndex >= 0) {
-          while (pendingDeleted[0]?.row.line.pairKey !== row.line.pairKey) {
-            flushPendingDeletedAtIndex(0);
-          }
-
-          const matchedPending = pendingDeleted.shift();
-          if (matchedPending) {
-            splitRows.push({
-              kind: "pair",
-              key: `${matchedPending.row.key}-${row.key}`,
-              left: matchedPending.row.line,
-              right: row.line,
-            });
-            splitRows.push(...matchedPending.auxiliaryRows);
-          }
-          lastLineDestination = { kind: "direct" };
-        } else {
-          flushLeadingUnpairedDeleted();
-          splitRows.push({
-            kind: "pair",
-            key: row.key,
-            left: null,
-            right: row.line,
-          });
-          lastLineDestination = { kind: "direct" };
-        }
-      } else {
-        flushLeadingUnpairedDeleted();
-        splitRows.push({
-          kind: "pair",
-          key: row.key,
-          left: row.line,
-          right: row.line,
-        });
-        lastLineDestination = { kind: "direct" };
-      }
-    }
-  }
-
-  flushAllPendingDeleted();
-
-  return splitRows;
-}
-
-function splitFileContentLines(content: string): string[] {
-  if (content.length === 0) {
-    return [""];
-  }
-
-  const lines = content.split("\n");
-  if (content.endsWith("\n")) {
-    lines.pop();
-  }
-  return lines;
-}
-
-function buildFullFileRows(
-  file: DiffFile,
-  fullFileContent: string | null | undefined,
-  comments: Map<string, ReviewComment[]>,
-  annotations: Map<string, Annotation[]>,
-  composerRange: CommentRange | null,
-  aiSuggestions?: Map<string, AiSuggestion[]>,
-): FlatRow[] | null {
-  if (fullFileContent === null || fullFileContent === undefined) {
-    return null;
-  }
-
-  const rows: FlatRow[] = [];
-  const filePath = getDiffFilePath(file);
-  const fileLines = splitFileContentLines(fullFileContent);
-  const renderedNewLines = new Map<number, FlatLineEntry>();
-  const removedBeforeNewLine = new Map<number, FlatLineEntry[]>();
-
-  const appendRemovedLines = (anchorLine: number, removedLines: FlatLineEntry[]) => {
-    if (removedLines.length === 0) {
-      return;
-    }
-    const existing = removedBeforeNewLine.get(anchorLine) ?? [];
-    existing.push(...removedLines);
-    removedBeforeNewLine.set(anchorLine, existing);
-  };
-
-  for (let hunkIndex = 0; hunkIndex < file.hunks.length; hunkIndex++) {
-    const hunk = file.hunks[hunkIndex];
-    if (hunk) {
-      let newLineTracker = hunk.newStart;
-      let pendingRemoved: FlatLineEntry[] = [];
-
-      for (let lineIndex = 0; lineIndex < hunk.lines.length; lineIndex++) {
-        const line = hunk.lines[lineIndex];
-        if (line && line.type !== "hunk-header") {
-          const lineKey = `full-${hunkIndex}-${lineIndex}-${line.type}-${line.oldLineNumber ?? "x"}-${line.newLineNumber ?? "x"}`;
-          const lineEntry: FlatLineEntry = {
-            key: lineKey,
-            line: {
-              ...line,
-              pairKey: line.pairId === undefined ? null : `pair-${hunkIndex}-${line.pairId}`,
-            },
-          };
-
-          if (line.type === "del") {
-            pendingRemoved.push(lineEntry);
-          } else {
-            appendRemovedLines(newLineTracker, pendingRemoved);
-            pendingRemoved = [];
-            renderedNewLines.set(newLineTracker, lineEntry);
-            newLineTracker++;
-          }
-        }
-      }
-
-      appendRemovedLines(newLineTracker, pendingRemoved);
-    }
-  }
-
-  for (let lineIndex = 0; lineIndex < fileLines.length; lineIndex++) {
-    const lineNumber = lineIndex + 1;
-    const removedLines = removedBeforeNewLine.get(lineNumber);
-    if (removedLines) {
-      for (const removedLine of removedLines) {
-        appendLineRows(
-          rows,
-          filePath,
-          removedLine,
-          comments,
-          annotations,
-          composerRange,
-          aiSuggestions,
-        );
-      }
-    }
-
-    const existingLine = renderedNewLines.get(lineNumber);
-    const lineEntry =
-      existingLine ??
-      ({
-        key: `full-context-${lineNumber}`,
-        line: {
-          type: "context",
-          content: fileLines[lineIndex] ?? "",
-          oldLineNumber: lineNumber,
-          newLineNumber: lineNumber,
-          pairKey: null,
-        },
-      } satisfies FlatLineEntry);
-
-    appendLineRows(rows, filePath, lineEntry, comments, annotations, composerRange, aiSuggestions);
-  }
-
-  const trailingRemoved = removedBeforeNewLine.get(fileLines.length + 1);
-  if (trailingRemoved) {
-    for (const removedLine of trailingRemoved) {
-      appendLineRows(
-        rows,
-        filePath,
-        removedLine,
-        comments,
-        annotations,
-        composerRange,
-        aiSuggestions,
-      );
-    }
-  }
-
-  return rows;
-}
 
 // ---------------------------------------------------------------------------
 // Search helpers
@@ -565,15 +185,17 @@ export function DiffViewer({
   // --- Drag-to-select state ---
   const selectingFromRef = useRef<CommentTarget | null>(null);
   const hoverLineRef = useRef<CommentTarget | null>(null);
-  const [selectingFrom, setSelectingFrom] = useState<CommentTarget | null>(null);
-  const [hoverLine, setHoverLine] = useState<CommentTarget | null>(null);
+  const [dragState, setDragState] = useState<{
+    from: CommentTarget | null;
+    hover: CommentTarget | null;
+  }>({ from: null, hover: null });
 
   const selectionRange = useMemo<{ side: CommentSide; start: number; end: number } | null>(() => {
-    if (selectingFrom !== null && hoverLine !== null && selectingFrom.side === hoverLine.side) {
+    if (dragState.from !== null && dragState.hover !== null && dragState.from.side === dragState.hover.side) {
       return {
-        side: selectingFrom.side,
-        start: Math.min(selectingFrom.line, hoverLine.line),
-        end: Math.max(selectingFrom.line, hoverLine.line),
+        side: dragState.from.side,
+        start: Math.min(dragState.from.line, dragState.hover.line),
+        end: Math.max(dragState.from.line, dragState.hover.line),
       };
     }
     if (activeComposer) {
@@ -584,7 +206,7 @@ export function DiffViewer({
       };
     }
     return null;
-  }, [selectingFrom, hoverLine, activeComposer]);
+  }, [dragState, activeComposer]);
 
   // Global mouseUp to commit selection
   useEffect(() => {
@@ -594,8 +216,7 @@ export function DiffViewer({
         const to = hoverLineRef.current ?? from;
         selectingFromRef.current = null;
         hoverLineRef.current = null;
-        setSelectingFrom(null);
-        setHoverLine(null);
+        setDragState({ from: null, hover: null });
         if (from.side === to.side) {
           onCommentRange?.({
             startLine: Math.min(from.line, to.line),
@@ -614,14 +235,13 @@ export function DiffViewer({
   const handleStartSelect = useCallback((target: CommentTarget) => {
     selectingFromRef.current = target;
     hoverLineRef.current = target;
-    setSelectingFrom(target);
-    setHoverLine(target);
+    setDragState({ from: target, hover: target });
   }, []);
 
   const handleLineHover = useCallback((target: CommentTarget) => {
     if (selectingFromRef.current !== null && selectingFromRef.current.side === target.side) {
       hoverLineRef.current = target;
-      setHoverLine(target);
+      setDragState((prev) => ({ ...prev, hover: target }));
     }
   }, []);
 
@@ -712,7 +332,7 @@ export function DiffViewer({
   }
 
   const filePath = getDiffFilePath(file);
-  const isDragging = selectingFrom !== null;
+  const isDragging = dragState.from !== null;
 
   return (
     <div

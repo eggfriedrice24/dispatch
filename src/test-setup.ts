@@ -12,7 +12,6 @@ vi.mock("./renderer/lib/ipc", () => ({
 // Mock window.api for Electron preload bridge
 const apiMock = {
   invoke: vi.fn(),
-  openExternal: vi.fn(),
   setBadgeCount: vi.fn(),
   onNavigate: vi.fn(() => () => {}),
   onAnalyticsTrack: vi.fn(() => () => {}),

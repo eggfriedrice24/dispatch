@@ -2,6 +2,8 @@ import { join } from "node:path";
 
 import { BrowserWindow, Notification } from "electron";
 
+import { showAndFocusWindow } from "./window";
+
 /**
  * Main-process notification service.
  *
@@ -13,16 +15,6 @@ import { BrowserWindow, Notification } from "electron";
  */
 
 const NOTIFICATION_ICON = join(__dirname, "../../resources/notification-icon.png");
-
-function showAndFocusWindow(win: BrowserWindow): void {
-  if (win.isMinimized()) {
-    win.restore();
-  }
-  if (!win.isVisible()) {
-    win.show();
-  }
-  win.focus();
-}
 
 export function showDesktopNotification(args: {
   title: string;

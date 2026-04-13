@@ -38,8 +38,8 @@ import {
   parseJsonOutput,
   prEnrichmentCache,
   prListCache,
-  resolveRepoCwd,
   resolvePrListLimit,
+  resolveTarget,
 } from "./core";
 
 const MAX_BROAD_ENRICHMENT_LIMIT = 100;
@@ -160,10 +160,7 @@ async function resolveOpenPullRequest(
   cwdOrTarget: string | RepoTarget,
   prNumber: number,
 ): Promise<{ cwd?: string; repoFlag: string[]; nwo: string }> {
-  const resolved =
-    typeof cwdOrTarget === "string"
-      ? { cwd: cwdOrTarget, repoFlag: [] as string[], nwo: cwdOrTarget }
-      : resolveRepoCwd(cwdOrTarget);
+  const resolved = resolveTarget(cwdOrTarget);
   const { stdout } = await ghExec(
     ["pr", "view", String(prNumber), "--json", "state", "--jq", ".state", ...resolved.repoFlag],
     { cwd: resolved.cwd, timeout: 10_000 },
@@ -419,10 +416,7 @@ async function fetchUnlimitedRepositoryPullRequests(
   state: "open" | "closed" | "merged" | "all",
   fields = UNLIMITED_PULL_REQUEST_FIELDS,
 ): Promise<RawPullRequestNode[]> {
-  const resolved =
-    typeof cwdOrTarget === "string"
-      ? { cwd: cwdOrTarget, repoFlag: [] as string[], nwo: cwdOrTarget }
-      : resolveRepoCwd(cwdOrTarget);
+  const resolved = resolveTarget(cwdOrTarget);
   const { owner, repo } = await getPullRequestRepo(cwdOrTarget);
   const stateArgument = buildPullRequestStateArgument(state);
   const query = `query($owner: String!, $repo: String!, $after: String) {
@@ -486,10 +480,7 @@ async function fetchUnlimitedFilteredPullRequests(
   state: "open" | "closed" | "merged" | "all",
   fields = UNLIMITED_PULL_REQUEST_FIELDS,
 ): Promise<RawPullRequestNode[]> {
-  const resolved =
-    typeof cwdOrTarget === "string"
-      ? { cwd: cwdOrTarget, repoFlag: [] as string[], nwo: cwdOrTarget }
-      : resolveRepoCwd(cwdOrTarget);
+  const resolved = resolveTarget(cwdOrTarget);
   const repoFullName = await getPullRequestRepoFullName(cwdOrTarget);
   const searchQuery = buildUnlimitedPullRequestSearchQuery(repoFullName, filter, state);
   const query = `query($searchQuery: String!, $after: String) {
@@ -564,10 +555,7 @@ export function listPrsCore(
   state: "open" | "closed" | "merged" | "all" = "open",
   forceRefresh = false,
 ): Promise<GhPrListItemCore[]> {
-  const resolved =
-    typeof cwdOrTarget === "string"
-      ? { cwd: cwdOrTarget, repoFlag: [] as string[], nwo: cwdOrTarget }
-      : resolveRepoCwd(cwdOrTarget);
+  const resolved = resolveTarget(cwdOrTarget);
   const limit = resolvePrListLimit();
   const key = cacheKey({ nwo: resolved.nwo, filter, state, limit });
   if (forceRefresh) {
@@ -648,10 +636,7 @@ export function listPrsEnrichment(
   state: "open" | "closed" | "merged" | "all" = "open",
   forceRefresh = false,
 ): Promise<GhPrEnrichment[]> {
-  const resolved =
-    typeof cwdOrTarget === "string"
-      ? { cwd: cwdOrTarget, repoFlag: [] as string[], nwo: cwdOrTarget }
-      : resolveRepoCwd(cwdOrTarget);
+  const resolved = resolveTarget(cwdOrTarget);
   const configuredLimit = resolvePrListLimit();
   const limit =
     configuredLimit === PR_FETCH_LIMIT_UNLIMITED
@@ -759,10 +744,7 @@ export async function getPrDetail(
   cwdOrTarget: string | RepoTarget,
   prNumber: number,
 ): Promise<GhPrDetail> {
-  const resolved =
-    typeof cwdOrTarget === "string"
-      ? { cwd: cwdOrTarget, repoFlag: [] as string[], nwo: cwdOrTarget }
-      : resolveRepoCwd(cwdOrTarget);
+  const resolved = resolveTarget(cwdOrTarget);
   const cachedDetail = getCachedTerminalPrDetail(resolved.nwo, prNumber);
   if (cachedDetail) {
     return cachedDetail;
@@ -808,10 +790,7 @@ export async function getPrDiff(
   cwdOrTarget: string | RepoTarget,
   prNumber: number,
 ): Promise<string> {
-  const resolved =
-    typeof cwdOrTarget === "string"
-      ? { cwd: cwdOrTarget, repoFlag: [] as string[], nwo: cwdOrTarget }
-      : resolveRepoCwd(cwdOrTarget);
+  const resolved = resolveTarget(cwdOrTarget);
   try {
     const { stdout } = await ghExec(["pr", "diff", String(prNumber), ...resolved.repoFlag], {
       cwd: resolved.cwd,
@@ -832,10 +811,7 @@ export async function getFileAtRef(
   ref: string,
   filePath: string,
 ): Promise<string | null> {
-  const resolved =
-    typeof cwdOrTarget === "string"
-      ? { cwd: cwdOrTarget, repoFlag: [] as string[], nwo: cwdOrTarget }
-      : resolveRepoCwd(cwdOrTarget);
+  const resolved = resolveTarget(cwdOrTarget);
   try {
     const { owner, repo } = await getPullRequestRepo(cwdOrTarget);
     const { stdout } = await ghExec(
@@ -887,10 +863,7 @@ function listPullRequestFiles(
   cwdOrTarget: string | RepoTarget,
   prNumber: number,
 ): Promise<PullRequestFileApiItem[]> {
-  const resolved =
-    typeof cwdOrTarget === "string"
-      ? { cwd: cwdOrTarget, repoFlag: [] as string[], nwo: cwdOrTarget }
-      : resolveRepoCwd(cwdOrTarget);
+  const resolved = resolveTarget(cwdOrTarget);
   const key = `prFiles::${resolved.nwo}::${prNumber}`;
 
   return getOrLoadCached({
@@ -963,10 +936,7 @@ export async function getPrCommits(
   cwdOrTarget: string | RepoTarget,
   prNumber: number,
 ): Promise<Array<{ oid: string; message: string; author: string; committedDate: string }>> {
-  const resolved =
-    typeof cwdOrTarget === "string"
-      ? { cwd: cwdOrTarget, repoFlag: [] as string[], nwo: cwdOrTarget }
-      : resolveRepoCwd(cwdOrTarget);
+  const resolved = resolveTarget(cwdOrTarget);
   const { stdout } = await ghExec(
     [
       "pr",
@@ -992,10 +962,7 @@ export async function updatePrTitle(
   prNumber: number,
   title: string,
 ): Promise<void> {
-  const resolved =
-    typeof cwdOrTarget === "string"
-      ? { cwd: cwdOrTarget, repoFlag: [] as string[], nwo: cwdOrTarget }
-      : resolveRepoCwd(cwdOrTarget);
+  const resolved = resolveTarget(cwdOrTarget);
   await ghExec(["pr", "edit", String(prNumber), "--title", title, ...resolved.repoFlag], {
     cwd: resolved.cwd,
     timeout: 15_000,
@@ -1008,10 +975,7 @@ export async function updatePrBody(
   prNumber: number,
   body: string,
 ): Promise<void> {
-  const resolved =
-    typeof cwdOrTarget === "string"
-      ? { cwd: cwdOrTarget, repoFlag: [] as string[], nwo: cwdOrTarget }
-      : resolveRepoCwd(cwdOrTarget);
+  const resolved = resolveTarget(cwdOrTarget);
   await ghExec(["pr", "edit", String(prNumber), "--body", body, ...resolved.repoFlag], {
     cwd: resolved.cwd,
     timeout: 15_000,
@@ -1022,10 +986,7 @@ export async function updatePrBody(
 export async function listRepoLabels(
   cwdOrTarget: string | RepoTarget,
 ): Promise<Array<{ name: string; color: string; description: string }>> {
-  const resolved =
-    typeof cwdOrTarget === "string"
-      ? { cwd: cwdOrTarget, repoFlag: [] as string[], nwo: cwdOrTarget }
-      : resolveRepoCwd(cwdOrTarget);
+  const resolved = resolveTarget(cwdOrTarget);
   const { stdout } = await ghExec(
     ["label", "list", "--json", "name,color,description", "--limit", "200", ...resolved.repoFlag],
     { cwd: resolved.cwd, timeout: 15_000 },
@@ -1038,10 +999,7 @@ export async function addPrLabel(
   prNumber: number,
   label: string,
 ): Promise<void> {
-  const resolved =
-    typeof cwdOrTarget === "string"
-      ? { cwd: cwdOrTarget, repoFlag: [] as string[], nwo: cwdOrTarget }
-      : resolveRepoCwd(cwdOrTarget);
+  const resolved = resolveTarget(cwdOrTarget);
   await ghExec(["pr", "edit", String(prNumber), "--add-label", label, ...resolved.repoFlag], {
     cwd: resolved.cwd,
     timeout: 15_000,
@@ -1054,10 +1012,7 @@ export async function removePrLabel(
   prNumber: number,
   label: string,
 ): Promise<void> {
-  const resolved =
-    typeof cwdOrTarget === "string"
-      ? { cwd: cwdOrTarget, repoFlag: [] as string[], nwo: cwdOrTarget }
-      : resolveRepoCwd(cwdOrTarget);
+  const resolved = resolveTarget(cwdOrTarget);
   await ghExec(["pr", "edit", String(prNumber), "--remove-label", label, ...resolved.repoFlag], {
     cwd: resolved.cwd,
     timeout: 15_000,
@@ -1073,10 +1028,7 @@ export async function mergePr(
   auto = false,
   hasMergeQueue = false,
 ): Promise<{ queued: boolean }> {
-  const resolved =
-    typeof cwdOrTarget === "string"
-      ? { cwd: cwdOrTarget, repoFlag: [] as string[], nwo: cwdOrTarget }
-      : resolveRepoCwd(cwdOrTarget);
+  const resolved = resolveTarget(cwdOrTarget);
   const args = ["pr", "merge", String(prNumber), `--${strategy}`];
   if (!hasMergeQueue) {
     args.push("--delete-branch");
@@ -1098,10 +1050,7 @@ export async function updatePrBranch(
   cwdOrTarget: string | RepoTarget,
   prNumber: number,
 ): Promise<void> {
-  const resolved =
-    typeof cwdOrTarget === "string"
-      ? { cwd: cwdOrTarget, repoFlag: [] as string[], nwo: cwdOrTarget }
-      : resolveRepoCwd(cwdOrTarget);
+  const resolved = resolveTarget(cwdOrTarget);
   const repoFullName = await getPullRequestRepoFullName(cwdOrTarget);
   await ghExec(["api", `repos/${repoFullName}/pulls/${prNumber}/update-branch`, "-X", "PUT"], {
     cwd: resolved.cwd,
@@ -1111,10 +1060,7 @@ export async function updatePrBranch(
 }
 
 export async function closePr(cwdOrTarget: string | RepoTarget, prNumber: number): Promise<void> {
-  const resolved =
-    typeof cwdOrTarget === "string"
-      ? { cwd: cwdOrTarget, repoFlag: [] as string[], nwo: cwdOrTarget }
-      : resolveRepoCwd(cwdOrTarget);
+  const resolved = resolveTarget(cwdOrTarget);
   await ghExec(["pr", "close", String(prNumber), ...resolved.repoFlag], { cwd: resolved.cwd });
   invalidatePrCaches(resolved.nwo, prNumber);
 }
@@ -1128,10 +1074,7 @@ export async function getMergeQueueStatus(
   state: string | null;
   estimatedTimeToMerge: number | null;
 } | null> {
-  const resolved =
-    typeof cwdOrTarget === "string"
-      ? { cwd: cwdOrTarget, repoFlag: [] as string[], nwo: cwdOrTarget }
-      : resolveRepoCwd(cwdOrTarget);
+  const resolved = resolveTarget(cwdOrTarget);
   try {
     const { owner, repo } = await getPullRequestRepo(cwdOrTarget);
     const { stdout } = await ghExec(
@@ -1179,10 +1122,7 @@ export async function getPrReviewComments(
   cwdOrTarget: string | RepoTarget,
   prNumber: number,
 ): Promise<GhReviewComment[]> {
-  const resolved =
-    typeof cwdOrTarget === "string"
-      ? { cwd: cwdOrTarget, repoFlag: [] as string[], nwo: cwdOrTarget }
-      : resolveRepoCwd(cwdOrTarget);
+  const resolved = resolveTarget(cwdOrTarget);
   const { owner, repo } = await getPullRequestRepo(cwdOrTarget);
   const { stdout } = await ghExec(
     ["api", `repos/${owner}/${repo}/pulls/${prNumber}/comments`, "--paginate"],
@@ -1220,10 +1160,7 @@ export async function createPrComment(
   prNumber: number,
   body: string,
 ): Promise<void> {
-  const resolved =
-    typeof cwdOrTarget === "string"
-      ? { cwd: cwdOrTarget, repoFlag: [] as string[], nwo: cwdOrTarget }
-      : resolveRepoCwd(cwdOrTarget);
+  const resolved = resolveTarget(cwdOrTarget);
   await ghExec(["pr", "comment", String(prNumber), "--body", body, ...resolved.repoFlag], {
     cwd: resolved.cwd,
     timeout: 15_000,
@@ -1235,10 +1172,7 @@ export async function getIssueComments(
   cwdOrTarget: string | RepoTarget,
   prNumber: number,
 ): Promise<Array<{ id: string; body: string; author: { login: string }; createdAt: string }>> {
-  const resolved =
-    typeof cwdOrTarget === "string"
-      ? { cwd: cwdOrTarget, repoFlag: [] as string[], nwo: cwdOrTarget }
-      : resolveRepoCwd(cwdOrTarget);
+  const resolved = resolveTarget(cwdOrTarget);
   const { stdout } = await ghExec(
     [
       "pr",
@@ -1261,10 +1195,7 @@ export async function getPrContributors(
   cwdOrTarget: string | RepoTarget,
   prNumber: number,
 ): Promise<string[]> {
-  const resolved =
-    typeof cwdOrTarget === "string"
-      ? { cwd: cwdOrTarget, repoFlag: [] as string[], nwo: cwdOrTarget }
-      : resolveRepoCwd(cwdOrTarget);
+  const resolved = resolveTarget(cwdOrTarget);
   const { owner, repo } = await getPullRequestRepo(cwdOrTarget);
   const { stdout } = await ghExec(
     [
@@ -1298,10 +1229,7 @@ export async function searchUsers(
   cwdOrTarget: string | RepoTarget,
   query: string,
 ): Promise<Array<{ login: string; name: string | null }>> {
-  const resolved =
-    typeof cwdOrTarget === "string"
-      ? { cwd: cwdOrTarget, repoFlag: [] as string[], nwo: cwdOrTarget }
-      : resolveRepoCwd(cwdOrTarget);
+  const resolved = resolveTarget(cwdOrTarget);
   if (!query || query.length < 2) {
     return [];
   }
@@ -1329,10 +1257,7 @@ export function listIssuesAndPrs(
   cwdOrTarget: string | RepoTarget,
   limit = 50,
 ): Promise<Array<{ number: number; title: string; state: string; isPr: boolean }>> {
-  const resolved =
-    typeof cwdOrTarget === "string"
-      ? { cwd: cwdOrTarget, repoFlag: [] as string[], nwo: cwdOrTarget }
-      : resolveRepoCwd(cwdOrTarget);
+  const resolved = resolveTarget(cwdOrTarget);
   const key = `issuesPrs::${resolved.nwo}::${limit}`;
   return getOrLoadCached({
     cache: genericCache,
@@ -1402,10 +1327,7 @@ export async function resolveReviewThread(
   cwdOrTarget: string | RepoTarget,
   threadId: string,
 ): Promise<void> {
-  const resolved =
-    typeof cwdOrTarget === "string"
-      ? { cwd: cwdOrTarget, repoFlag: [] as string[], nwo: cwdOrTarget }
-      : resolveRepoCwd(cwdOrTarget);
+  const resolved = resolveTarget(cwdOrTarget);
   await ghExec(
     [
       "api",
@@ -1422,10 +1344,7 @@ export async function unresolveReviewThread(
   cwdOrTarget: string | RepoTarget,
   threadId: string,
 ): Promise<void> {
-  const resolved =
-    typeof cwdOrTarget === "string"
-      ? { cwd: cwdOrTarget, repoFlag: [] as string[], nwo: cwdOrTarget }
-      : resolveRepoCwd(cwdOrTarget);
+  const resolved = resolveTarget(cwdOrTarget);
   await ghExec(
     [
       "api",
@@ -1449,10 +1368,7 @@ export async function getPrReviewRequests(
     asCodeOwner: boolean;
   }>
 > {
-  const resolved =
-    typeof cwdOrTarget === "string"
-      ? { cwd: cwdOrTarget, repoFlag: [] as string[], nwo: cwdOrTarget }
-      : resolveRepoCwd(cwdOrTarget);
+  const resolved = resolveTarget(cwdOrTarget);
   const { owner, repo } = await getPullRequestRepo(cwdOrTarget);
   const query = `query($owner: String!, $repo: String!) {
     repository(owner: $owner, name: $repo) {
@@ -1515,10 +1431,7 @@ export async function getPrReviewThreads(
   cwdOrTarget: string | RepoTarget,
   prNumber: number,
 ): Promise<GhReviewThread[]> {
-  const resolved =
-    typeof cwdOrTarget === "string"
-      ? { cwd: cwdOrTarget, repoFlag: [] as string[], nwo: cwdOrTarget }
-      : resolveRepoCwd(cwdOrTarget);
+  const resolved = resolveTarget(cwdOrTarget);
   const { owner, repo } = await getPullRequestRepo(cwdOrTarget);
   const query = `query($owner: String!, $repo: String!) {
     repository(owner: $owner, name: $repo) {
@@ -1690,10 +1603,7 @@ export async function getPrReactions(
   cwdOrTarget: string | RepoTarget,
   prNumber: number,
 ): Promise<GhPrReactions> {
-  const resolved =
-    typeof cwdOrTarget === "string"
-      ? { cwd: cwdOrTarget, repoFlag: [] as string[], nwo: cwdOrTarget }
-      : resolveRepoCwd(cwdOrTarget);
+  const resolved = resolveTarget(cwdOrTarget);
   const { owner, repo } = await getPullRequestRepo(cwdOrTarget);
   const query = `query($owner: String!, $repo: String!) {
     repository(owner: $owner, name: $repo) {
@@ -1797,10 +1707,7 @@ export async function addReaction(
   subjectId: string,
   content: GhReactionContent,
 ): Promise<void> {
-  const resolved =
-    typeof cwdOrTarget === "string"
-      ? { cwd: cwdOrTarget, repoFlag: [] as string[], nwo: cwdOrTarget }
-      : resolveRepoCwd(cwdOrTarget);
+  const resolved = resolveTarget(cwdOrTarget);
   await ghExec(
     [
       "api",
@@ -1817,10 +1724,7 @@ export async function removeReaction(
   subjectId: string,
   content: GhReactionContent,
 ): Promise<void> {
-  const resolved =
-    typeof cwdOrTarget === "string"
-      ? { cwd: cwdOrTarget, repoFlag: [] as string[], nwo: cwdOrTarget }
-      : resolveRepoCwd(cwdOrTarget);
+  const resolved = resolveTarget(cwdOrTarget);
   await ghExec(
     [
       "api",

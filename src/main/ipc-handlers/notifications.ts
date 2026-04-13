@@ -11,7 +11,6 @@ export const notificationHandlers: Pick<
   | "notifications.clearRead"
   | "notifications.clearAll"
   | "notifications.dismiss"
-  | "notifications.insert"
   | "notifications.show"
 > = {
   "notifications.list": (args) => repo.getNotifications(args.limit),
@@ -29,9 +28,6 @@ export const notificationHandlers: Pick<
   },
   "notifications.dismiss": (args) => {
     repo.dismissNotification(args.id);
-  },
-  "notifications.insert": (args) => {
-    repo.insertNotification(args);
   },
   "notifications.show": (args) => {
     repo.insertNotification(args);

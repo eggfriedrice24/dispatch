@@ -22,6 +22,7 @@ import { getExternalUrl, openExternalUrl } from "./services/external-links";
 import { fixPath } from "./services/fix-path";
 import { execFile } from "./services/shell";
 import { type TrayState, startPolling, stopPolling } from "./services/tray-poller";
+import { showAndFocusWindow } from "./services/window";
 
 // Resolve the user's full shell PATH so spawned tools (gh, git) are found.
 // Must run before any child process spawning.
@@ -432,16 +433,6 @@ function getTrayMenuSignature(state: TrayState): string {
       reviewDecision: pr.reviewDecision,
     })),
   });
-}
-
-function showAndFocusWindow(win: BrowserWindow): void {
-  if (win.isMinimized()) {
-    win.restore();
-  }
-  if (!win.isVisible()) {
-    win.show();
-  }
-  win.focus();
 }
 
 function openPrInApp(win: BrowserWindow, prNumber: number): void {
