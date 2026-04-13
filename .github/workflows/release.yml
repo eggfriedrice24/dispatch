@@ -3,12 +3,12 @@ name: Release
 on:
   push:
     tags:
-      - "v*.*.*"
+      - "v????-??-??*"
   workflow_dispatch:
     inputs:
       version:
-        description: "Release version (e.g. 1.2.3 or v1.2.3)"
-        required: true
+        description: "Release version (optional: 2026-04-13, 2026-04-13.1, or with v prefix)"
+        required: false
         type: string
 
 permissions:
@@ -32,27 +32,80 @@ jobs:
         name: Resolve release version
         shell: bash
         run: |
+          set -euo pipefail
+
+          git fetch --tags --force
+
+          # Release versioning rules:
+          # - Canonical format is YYYY-MM-DD (UTC), with optional numeric suffix for same-day releases.
+          # - Accepted manual inputs:
+          #     2026-04-13
+          #     2026-04-13.1
+          #     v2026-04-13
+          #     v2026-04-13.1
+          # - If workflow_dispatch input is empty, auto-resolve to today's date in UTC.
+          # - If today's base tag already exists, auto-increment suffix (.1, .2, ...).
+          resolve_auto_version() {
+            local base_date
+            local has_base=false
+            local max_suffix=0
+            local suffix
+            local tag
+
+            base_date="$(date -u +%Y-%m-%d)"
+
+            while IFS= read -r tag; do
+              if [[ "$tag" == "v$base_date" ]]; then
+                has_base=true
+              elif [[ "$tag" =~ ^v${base_date}\.([0-9]+)$ ]]; then
+                suffix="${BASH_REMATCH[1]}"
+                if (( suffix > max_suffix )); then
+                  max_suffix="$suffix"
+                fi
+              fi
+            done < <(git tag -l "v${base_date}*")
+
+            if [[ "$has_base" == "false" && "$max_suffix" -eq 0 ]]; then
+              printf "%s\n" "$base_date"
+            else
+              printf "%s.%d\n" "$base_date" "$((max_suffix + 1))"
+            fi
+          }
+
           if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
-            raw="${{ github.event.inputs.version }}"
+            raw="${{ github.event.inputs.version || '' }}"
+            if [[ -z "$raw" ]]; then
+              version="$(resolve_auto_version)"
+            else
+              version="${raw#v}"
+            fi
           else
             raw="${GITHUB_REF_NAME}"
+            version="${raw#v}"
           fi
 
-          version="${raw#v}"
-          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+          if [[ ! "$version" =~ ^([0-9]{4}-[0-9]{2}-[0-9]{2})(\.([0-9]+))?$ ]]; then
             echo "Invalid release version: $raw" >&2
+            echo "Expected format: YYYY-MM-DD or YYYY-MM-DD.N (optionally prefixed with v)." >&2
+            exit 1
+          fi
+
+          base_date="${BASH_REMATCH[1]}"
+          if ! date -d "$base_date" "+%Y-%m-%d" >/dev/null 2>&1; then
+            echo "Invalid calendar date: $base_date" >&2
+            exit 1
+          fi
+
+          tag="v$version"
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]] && git rev-parse --verify --quiet "refs/tags/${tag}" >/dev/null; then
+            echo "Release tag already exists: $tag" >&2
             exit 1
           fi
 
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "tag=v$version" >> "$GITHUB_OUTPUT"
-          if [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
-            echo "make_latest=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
-            echo "make_latest=false" >> "$GITHUB_OUTPUT"
-          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
+          echo "make_latest=true" >> "$GITHUB_OUTPUT"
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -215,6 +268,20 @@ jobs:
             release-assets/latest-mac.yml \
             release-assets/latest-mac-x64.yml
           rm -f release-assets/latest-mac-x64.yml
+
+      - name: Ensure release tag exists
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          RELEASE_TAG: ${{ needs.preflight.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if git rev-parse --verify --quiet "refs/tags/${RELEASE_TAG}" >/dev/null; then
+            echo "Tag already exists: ${RELEASE_TAG}"
+            exit 0
+          fi
+
+          git tag "${RELEASE_TAG}" "${{ needs.preflight.outputs.ref }}"
+          git push origin "refs/tags/${RELEASE_TAG}"
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
