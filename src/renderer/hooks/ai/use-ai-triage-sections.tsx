@@ -15,9 +15,19 @@ import {
   buildAiTriageSnapshotKey,
   parseAiTriagePayload,
 } from "@/shared/ai-triage";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Sparkles } from "lucide-react";
-import { startTransition, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
+
+type AiTriageRunStatus = "idle" | "running" | "error";
+
+type AiTriageRunState = {
+  status: AiTriageRunStatus;
+  runId: number;
+  startedAt: number;
+  snapshotKey: string;
+  errorMessage?: string;
+};
 
 export interface UseAiTriageSectionsArgs {
   nwo: string;
@@ -35,6 +45,128 @@ export interface UseAiTriageSectionsArgs {
 interface UseAiTriageSectionsResult {
   sections: TriageSection[];
   meta: React.ReactNode;
+}
+
+function aiTriageRunStateQueryKey(nwo: string, prNumber: number) {
+  return ["ai", "triage", "runState", nwo, prNumber] as const;
+}
+
+function startAiTriageGeneration({
+  aiTriageInput,
+  aiTriageSnapshotKey,
+  nwo,
+  prNumber,
+  queryClient,
+  runStateQueryKey,
+  triageQueryKey,
+  taskConfigured,
+}: {
+  aiTriageInput: {
+    prNumber: number;
+    prTitle: string;
+    prBody: string;
+    author: string;
+    files: {
+      path: string;
+      status: string;
+      additions: number;
+      deletions: number;
+      commentCount: number;
+      hasAnnotation: boolean;
+      fallbackBucket: string;
+      note?: string;
+    }[];
+  };
+  aiTriageSnapshotKey: string;
+  nwo: string;
+  prNumber: number;
+  queryClient: ReturnType<typeof useQueryClient>;
+  runStateQueryKey: readonly ["ai", "triage", "runState", string, number];
+  triageQueryKey: readonly ["ai", "triage", string, number];
+  taskConfigured: boolean;
+}) {
+  if (!taskConfigured) {
+    return Promise.resolve();
+  }
+
+  const previousState = queryClient.getQueryData<AiTriageRunState>(runStateQueryKey);
+  if (
+    previousState?.status === "running" &&
+    previousState.snapshotKey === aiTriageSnapshotKey
+  ) {
+    return Promise.resolve();
+  }
+
+  const runId = (previousState?.runId ?? 0) + 1;
+  const runState: AiTriageRunState = {
+    status: "running",
+    runId,
+    startedAt: Date.now(),
+    snapshotKey: aiTriageSnapshotKey,
+  };
+  queryClient.setQueryData(runStateQueryKey, runState);
+
+  const task = (async () => {
+    try {
+      const { systemPrompt, userPrompt } = buildAiTriagePrompt(aiTriageInput);
+      const response = await ipc("ai.complete", {
+        task: "triage",
+        messages: [
+          {
+            role: "system",
+            content: systemPrompt,
+          },
+          {
+            role: "user",
+            content: userPrompt,
+          },
+        ],
+        maxTokens: 768,
+      });
+      const parsed = parseAiTriagePayload(response);
+      if (!parsed) {
+        throw new Error("AI triage output is invalid.");
+      }
+
+      const entry = await ipc("ai.triage.set", {
+        nwo,
+        prNumber,
+        snapshotKey: aiTriageSnapshotKey,
+        payload: JSON.stringify(parsed),
+      });
+
+      const currentState = queryClient.getQueryData<AiTriageRunState>(runStateQueryKey);
+      if (
+        currentState?.status === "running" &&
+        currentState.runId === runId &&
+        currentState.snapshotKey === aiTriageSnapshotKey
+      ) {
+        queryClient.setQueryData(triageQueryKey, entry);
+        queryClient.setQueryData(runStateQueryKey, {
+          ...runState,
+          status: "idle",
+          errorMessage: undefined,
+          startedAt: Date.now(),
+        });
+      }
+    } catch (error) {
+      const currentState = queryClient.getQueryData<AiTriageRunState>(runStateQueryKey);
+      if (
+        currentState?.status === "running" &&
+        currentState.runId === runId &&
+        currentState.snapshotKey === aiTriageSnapshotKey
+      ) {
+        queryClient.setQueryData(runStateQueryKey, {
+          ...runState,
+          status: "error",
+          errorMessage: error instanceof Error ? error.message : "Failed to generate AI triage.",
+          startedAt: Date.now(),
+        });
+      }
+    }
+  })();
+
+  return task;
 }
 
 export function useAiTriageSections({
@@ -123,52 +255,36 @@ export function useAiTriageSections({
     () => (aiTriageQuery.data?.payload ? parseAiTriagePayload(aiTriageQuery.data.payload) : null),
     [aiTriageQuery.data?.payload],
   );
-  const [requestedAiTriageSnapshotKey, setRequestedAiTriageSnapshotKey] = useState<string | null>(
-    null,
-  );
-  const aiTriageMutation = useMutation({
-    mutationFn: async () => {
-      if (!aiTriageInput || !aiTriageSnapshotKey) {
-        throw new Error("Triage data is not ready yet.");
-      }
-
-      const { systemPrompt, userPrompt } = buildAiTriagePrompt(aiTriageInput);
-      const response = await ipc("ai.complete", {
-        task: "triage",
-        messages: [
-          {
-            role: "system",
-            content: systemPrompt,
-          },
-          {
-            role: "user",
-            content: userPrompt,
-          },
-        ],
-        maxTokens: 768,
-      });
-      const parsed = parseAiTriagePayload(response);
-      if (!parsed) {
-        return null;
-      }
-
-      return ipc("ai.triage.set", {
-        nwo,
-        prNumber,
-        snapshotKey: aiTriageSnapshotKey,
-        payload: JSON.stringify(parsed),
-      });
+  const triageRunStateQueryKey = aiTriageRunStateQueryKey(nwo, prNumber);
+  const runState = useQuery({
+    queryKey: triageRunStateQueryKey,
+    queryFn: () =>
+      queryClient.getQueryData<AiTriageRunState>(triageRunStateQueryKey) ?? {
+        status: "idle",
+        runId: 0,
+        startedAt: Date.now(),
+        snapshotKey: aiTriageSnapshotKey ?? "",
+      },
+    initialData: {
+      status: "idle",
+      runId: 0,
+      startedAt: Date.now(),
+      snapshotKey: aiTriageSnapshotKey ?? "",
     },
-    onSuccess: (entry) => {
-      startTransition(() => {
-        queryClient.setQueryData(aiTriageQueryKey, entry);
-      });
-    },
+    enabled: config.isConfigured,
+    gcTime: Number.POSITIVE_INFINITY,
+    staleTime: Number.POSITIVE_INFINITY,
   });
+  const activeRunState =
+    aiTriageSnapshotKey && runState.data.snapshotKey === aiTriageSnapshotKey
+      ? runState.data
+      : null;
+  const isTriageRunning = activeRunState?.status === "running";
+  const shouldShowTriageError = activeRunState?.status === "error";
   const aiTriageNeedsRefresh = Boolean(
     aiTriageSnapshotKey &&
-    aiTriageQuery.data &&
-    aiTriageQuery.data.snapshotKey !== aiTriageSnapshotKey,
+      aiTriageQuery.data &&
+      aiTriageQuery.data.snapshotKey !== aiTriageSnapshotKey,
   );
   const activeAiTriage = aiTriageNeedsRefresh ? null : parsedAiTriage;
   const sections = useMemo(() => {
@@ -178,6 +294,23 @@ export function useAiTriageSections({
 
     return buildAiTriageSections(triageGroups, activeAiTriage);
   }, [activeAiTriage, heuristicTriageSections, triageGroups]);
+
+  const startAiTriageGenerationInBackground = () => {
+    if (!aiTriageInput || !aiTriageSnapshotKey || isTriageRunning) {
+      return;
+    }
+
+    void startAiTriageGeneration({
+      aiTriageInput,
+      aiTriageSnapshotKey,
+      nwo,
+      prNumber,
+      queryClient,
+      runStateQueryKey: triageRunStateQueryKey,
+      triageQueryKey: aiTriageQueryKey,
+      taskConfigured: config.isConfigured,
+    });
+  };
 
   useEffect(() => {
     if (
@@ -190,21 +323,20 @@ export function useAiTriageSections({
       !hasAiCandidateFiles ||
       files.length === 0 ||
       aiTriageQuery.isLoading ||
-      aiTriageMutation.isPending
+      isTriageRunning
     ) {
       return;
     }
 
     const needsGeneration = !activeAiTriage || aiTriageNeedsRefresh;
-    if (!needsGeneration || requestedAiTriageSnapshotKey === aiTriageSnapshotKey) {
+    if (!needsGeneration || runState.data.snapshotKey === aiTriageSnapshotKey) {
       return;
     }
 
-    setRequestedAiTriageSnapshotKey(aiTriageSnapshotKey);
-    aiTriageMutation.mutate();
+    startAiTriageGenerationInBackground();
   }, [
+    activeAiTriage,
     aiTriageInput,
-    aiTriageMutation,
     aiTriageNeedsRefresh,
     aiTriageQuery.isLoading,
     aiTriageSnapshotKey,
@@ -212,20 +344,10 @@ export function useAiTriageSections({
     files.length,
     hasAiCandidateFiles,
     isCommitView,
-    activeAiTriage,
-    pr,
-    requestedAiTriageSnapshotKey,
+    isTriageRunning,
+    runState.data.snapshotKey,
     viewMode,
   ]);
-
-  function refreshAiTriage() {
-    if (!aiTriageInput || !aiTriageSnapshotKey || aiTriageMutation.isPending) {
-      return;
-    }
-
-    setRequestedAiTriageSnapshotKey(aiTriageSnapshotKey);
-    aiTriageMutation.mutate();
-  }
 
   const meta =
     viewMode === "triage" && !isCommitView && config.isConfigured && files.length > 0 ? (
@@ -235,7 +357,7 @@ export function useAiTriageSections({
           className="text-accent-text shrink-0"
         />
         <span className="text-text-secondary min-w-0 flex-1 text-[10px] leading-none">
-          {aiTriageMutation.isPending
+          {isTriageRunning
             ? activeAiTriage
               ? "Refreshing AI grouping..."
               : "Generating AI grouping..."
@@ -244,18 +366,18 @@ export function useAiTriageSections({
                 ? "PR changed. Using stable triage until AI is refreshed."
                 : activeAiTriage
                   ? "AI aligned files to the triage sections."
-                  : aiTriageMutation.isError
+                  : shouldShowTriageError
                     ? "AI grouping failed. Using default buckets."
                     : "Using default buckets while AI grouping warms up."
               : "Using stable triage buckets for this PR."}
         </span>
-        {(aiTriageNeedsRefresh || aiTriageMutation.isError) && !aiTriageMutation.isPending ? (
+        {(aiTriageNeedsRefresh || shouldShowTriageError) && !isTriageRunning ? (
           <button
             type="button"
-            onClick={refreshAiTriage}
+            onClick={startAiTriageGenerationInBackground}
             className="text-accent-text hover:text-text-primary shrink-0 cursor-pointer text-[10px] font-medium transition-colors"
           >
-            {aiTriageMutation.isError ? "Retry" : "Refresh"}
+            {shouldShowTriageError ? "Retry" : "Refresh"}
           </button>
         ) : null}
       </div>
