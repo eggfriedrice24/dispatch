@@ -1,7 +1,12 @@
 import {
   appendAiReviewMarker,
   buildAiSuggestionsSnapshotKey,
+  buildExistingCommentFingerprints,
   buildSuggestionPrompt,
+  collectValidLines,
+  extractFileDiff,
+  getSeverityStyle,
+  isSuggestionDuplicate,
   parseSuggestionsResponse,
 } from "@/renderer/lib/review/ai-suggestions";
 import { describe, expect, it } from "vite-plus/test";
@@ -108,5 +113,125 @@ describe("buildSuggestionPrompt", () => {
     );
 
     expect(prompt[1]?.content).toContain("… 3 more changed files");
+  });
+});
+
+describe("getSeverityStyle", () => {
+  it("returns critical style", () => {
+    const style = getSeverityStyle("critical");
+    expect(style.label).toBe("Critical");
+    expect(style.color).toContain("danger");
+  });
+
+  it("returns warning style", () => {
+    expect(getSeverityStyle("warning").label).toBe("Warning");
+  });
+
+  it("returns suggestion style", () => {
+    expect(getSeverityStyle("suggestion").label).toBe("Suggestion");
+  });
+});
+
+describe("extractFileDiff", () => {
+  const fullDiff = [
+    "diff --git a/src/a.ts b/src/a.ts",
+    "--- a/src/a.ts",
+    "+++ b/src/a.ts",
+    "@@ -1,3 +1,3 @@",
+    " line1",
+    "-old",
+    "+new",
+    "diff --git a/src/b.ts b/src/b.ts",
+    "--- a/src/b.ts",
+    "+++ b/src/b.ts",
+    "@@ -1,1 +1,1 @@",
+    "-b-old",
+    "+b-new",
+  ].join("\n");
+
+  it("extracts diff for a specific file", () => {
+    const result = extractFileDiff(fullDiff, "src/a.ts");
+    expect(result).toContain("+new");
+    expect(result).not.toContain("+b-new");
+  });
+
+  it("returns null for non-existent file", () => {
+    expect(extractFileDiff(fullDiff, "src/c.ts")).toBeNull();
+  });
+});
+
+describe("collectValidLines", () => {
+  it("collects non-null new line numbers", () => {
+    const result = collectValidLines([
+      { lines: [{ newLineNumber: 1 }, { newLineNumber: null }, { newLineNumber: 3 }] },
+    ]);
+    expect(result).toEqual(new Set([1, 3]));
+  });
+
+  it("returns empty set for empty hunks", () => {
+    expect(collectValidLines([])).toEqual(new Set());
+  });
+});
+
+describe("parseSuggestionsResponse — additional cases", () => {
+  const validLines = new Set([1, 2, 3, 10]);
+
+  it("strips markdown code fences", () => {
+    const raw = "```json\n" + JSON.stringify([
+      { line: 1, severity: "warning", title: "Perf", body: "Optimize" },
+    ]) + "\n```";
+    expect(parseSuggestionsResponse(raw, "f.ts", validLines)).toHaveLength(1);
+  });
+
+  it("returns empty for invalid JSON", () => {
+    expect(parseSuggestionsResponse("not json", "f.ts", validLines)).toEqual([]);
+  });
+
+  it("returns empty for non-array JSON", () => {
+    expect(parseSuggestionsResponse('{"key": "val"}', "f.ts", validLines)).toEqual([]);
+  });
+
+  it("skips entries with invalid line numbers", () => {
+    const raw = JSON.stringify([{ line: 999, severity: "warning", title: "T", body: "B" }]);
+    expect(parseSuggestionsResponse(raw, "f.ts", validLines)).toEqual([]);
+  });
+
+  it("skips entries missing required fields", () => {
+    const raw = JSON.stringify([
+      { line: 1, severity: "warning" },
+      { line: 1, title: "T", body: "B" },
+    ]);
+    expect(parseSuggestionsResponse(raw, "f.ts", validLines)).toEqual([]);
+  });
+
+  it("caps at 5 suggestions", () => {
+    const items = Array.from({ length: 10 }, (_, i) => ({
+      line: 1, severity: "suggestion", title: `T${i}`, body: `B${i}`,
+    }));
+    expect(parseSuggestionsResponse(JSON.stringify(items), "f.ts", validLines)).toHaveLength(5);
+  });
+});
+
+describe("buildExistingCommentFingerprints", () => {
+  it("returns empty set for no comments", () => {
+    expect(buildExistingCommentFingerprints([])).toEqual(new Set());
+  });
+
+  it("extracts marker fingerprint when present", () => {
+    const body = "Comment\n\n<!-- dispatch-ai-review:abcd1234 -->";
+    const fp = buildExistingCommentFingerprints([{ path: "a.ts", line: 1, body }]);
+    expect(fp.has("abcd1234")).toBe(true);
+  });
+});
+
+describe("isSuggestionDuplicate", () => {
+  it("returns true when fingerprint matches", () => {
+    const fp = buildExistingCommentFingerprints([{ path: "a.ts", line: 1, body: "Fix" }]);
+    expect(isSuggestionDuplicate({ path: "a.ts", body: "Fix" }, fp)).toBe(true);
+  });
+
+  it("returns false for different body", () => {
+    const fp = buildExistingCommentFingerprints([{ path: "a.ts", line: 1, body: "Fix" }]);
+    expect(isSuggestionDuplicate({ path: "a.ts", body: "Other" }, fp)).toBe(false);
   });
 });
