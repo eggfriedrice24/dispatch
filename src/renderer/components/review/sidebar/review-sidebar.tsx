@@ -355,13 +355,15 @@ export function ReviewSidebar({ prNumber, onBack, onSelectPr }: ReviewSidebarPro
             hasApproval = [...latestByAuthor.values()].some((s) => s === "APPROVED");
           }
 
+          const hasConflicts = (pr.mergeable?.toUpperCase?.() ?? "") === "CONFLICTING";
+
           return (
             <MergeReadinessCard
               hasApproval={hasApproval}
               allChecksPassing={
                 checkSummary.failed === 0 && checkSummary.pending === 0 && checkSummary.total > 0
               }
-              noConflicts={pr.mergeable === "MERGEABLE"}
+              noConflicts={!hasConflicts}
               hasChecks={checkSummary.total > 0}
               isBehind={pr.mergeStateStatus === "BEHIND"}
               repoTarget={repoTarget}
