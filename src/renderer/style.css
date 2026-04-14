@@ -12,7 +12,7 @@
  * before paint to prevent a flash-of-wrong-theme.
  * --------------------------------------------------------------------------- */
 
-@custom-variant dark (&:is(.dark *, .oled *));
+@custom-variant dark (&:is(.dark *, .oled *, .neo-brutal-dark *, .neo-brutal-oled *));
 
 /* ---------------------------------------------------------------------------
  * 1. Font stacks
@@ -380,15 +380,15 @@
 .oled {
   --background: #000000;
   --foreground: #f6efe7;
-  --card: rgba(14, 14, 17, 0.96);
+  --card: rgba(11, 11, 13, 0.96);
   --card-foreground: #f6efe7;
-  --popover: rgba(16, 16, 20, 0.94);
+  --popover: rgba(13, 13, 16, 0.94);
   --popover-foreground: #f6efe7;
   --primary: #d4883a;
   --primary-foreground: #050403;
-  --secondary: rgba(16, 16, 20, 0.92);
+  --secondary: rgba(13, 13, 16, 0.92);
   --secondary-foreground: #f6efe7;
-  --muted: rgba(10, 10, 13, 0.90);
+  --muted: rgba(8, 8, 10, 0.88);
   --muted-foreground: #b0a69a;
   --accent: rgba(212, 136, 58, 0.16);
   --accent-foreground: #f1b36d;
@@ -403,7 +403,7 @@
   --border: #221f18;
   --input: #2d2720;
   --ring: #e5a764;
-  --sidebar: rgba(9, 9, 11, 0.90);
+  --sidebar: rgba(6, 6, 8, 0.88);
   --sidebar-foreground: #b0a69a;
   --sidebar-primary: #d4883a;
   --sidebar-primary-foreground: #050403;
@@ -419,9 +419,9 @@
   --chart-4: #b398ff;
   --chart-5: #ff7a71;
   --bg-root: #000000;
-  --bg-surface: rgba(9, 9, 11, 0.88);
-  --bg-raised: rgba(14, 14, 17, 0.92);
-  --bg-elevated: rgba(20, 20, 24, 0.96);
+  --bg-surface: rgba(6, 6, 8, 0.86);
+  --bg-raised: rgba(11, 11, 13, 0.90);
+  --bg-elevated: rgba(17, 17, 21, 0.96);
   --bg-overlay: rgba(0, 0, 0, 0.88);
   --text-primary: #f6efe7;
   --text-secondary: #b0a69a;
@@ -446,8 +446,8 @@
   --info-muted: rgba(107, 182, 255, 0.14);
   --purple: #b398ff;
   --purple-muted: rgba(179, 152, 255, 0.14);
-  --comment-card-from: rgba(14, 14, 17, 0.96);
-  --comment-card-to: rgba(6, 6, 8, 0.94);
+  --comment-card-from: rgba(12, 12, 14, 0.96);
+  --comment-card-to: rgba(4, 4, 5, 0.94);
   --comment-card-shadow: 0 22px 56px rgba(0, 0, 0, 0.56), inset 0 1px 0 rgba(255, 255, 255, 0.03);
   --avatar-ring: rgba(246, 239, 231, 0.11);
   --scrollbar-thumb: #2e2820;
@@ -460,7 +460,7 @@
   --noise-opacity: 0.025;
   --accent-bar-opacity: 0.62;
   --chrome-backdrop-filter: blur(24px) saturate(145%);
-  --bar-glass: rgba(16, 16, 20, 0.84);
+  --bar-glass: rgba(13, 13, 16, 0.82);
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   --duration-fast: 120ms;
@@ -603,6 +603,425 @@
 }
 
 /* ---------------------------------------------------------------------------
+ * 3d. Neo-Brutalism Dark — "Ink & Iron"
+ *
+ * Bold, graphic, unapologetically structured. Thick visible borders,
+ * hard-offset shadows, saturated accent on dark canvas. The border
+ * color is warm off-white so edges POP against the dark fill.
+ * --------------------------------------------------------------------------- */
+.neo-brutal-dark {
+  /* ---- Surfaces ---- */
+  --background: #1a1a1a;
+  --foreground: #f5f0e8;
+  --card: #242424;
+  --card-foreground: #f5f0e8;
+  --popover: #2a2a2a;
+  --popover-foreground: #f5f0e8;
+
+  /* ---- Primary = hot copper ---- */
+  --primary: #e8943e;
+  --primary-foreground: #1a1a1a;
+
+  /* ---- Secondary ---- */
+  --secondary: #2e2e2e;
+  --secondary-foreground: #f5f0e8;
+
+  /* ---- Muted ---- */
+  --muted: #222222;
+  --muted-foreground: #a39e96;
+
+  /* ---- Accent = copper ---- */
+  --accent: rgba(232, 148, 62, 0.14);
+  --accent-foreground: #f0a850;
+
+  /* ---- Semantic (saturated for punch) ---- */
+  --destructive: #ff5c5c;
+  --destructive-foreground: #ff5c5c;
+  --info: #4da6ff;
+  --info-foreground: #4da6ff;
+  --success: #3de88c;
+  --success-foreground: #3de88c;
+  --warning: #ffbe3d;
+  --warning-foreground: #ffbe3d;
+
+  /* ---- Borders & Input (the defining feature — thick, visible) ---- */
+  --border: #4a4540;
+  --input: #4a4540;
+  --ring: #e8943e;
+
+  /* ---- Sidebar ---- */
+  --sidebar: #1e1e1e;
+  --sidebar-foreground: #a39e96;
+  --sidebar-primary: #e8943e;
+  --sidebar-primary-foreground: #1a1a1a;
+  --sidebar-accent: rgba(232, 148, 62, 0.14);
+  --sidebar-accent-foreground: #f5f0e8;
+  --sidebar-border: #4a4540;
+  --sidebar-ring: #e8943e;
+
+  /* ---- Code ---- */
+  --code: #1e1e1e;
+  --code-highlight: rgba(232, 148, 62, 0.1);
+
+  /* ---- Charts ---- */
+  --chart-1: #e8943e;
+  --chart-2: #3de88c;
+  --chart-3: #4da6ff;
+  --chart-4: #b48cff;
+  --chart-5: #ff5c5c;
+
+  /* ---- Dispatch surface tokens ---- */
+  --bg-root: #1a1a1a;
+  --bg-surface: #1e1e1e;
+  --bg-raised: #282828;
+  --bg-elevated: #323232;
+  --bg-overlay: rgba(0, 0, 0, 0.78);
+
+  /* ---- Dispatch text hierarchy ---- */
+  --text-primary: #f5f0e8;
+  --text-secondary: #a39e96;
+  --text-tertiary: #787068;
+  --text-ghost: #5c564e;
+
+  /* ---- Dispatch accent variants ---- */
+  --accent-hover: #f0a850;
+  --accent-muted: rgba(232, 148, 62, 0.14);
+  --accent-text: #f0a850;
+
+  /* ---- Dispatch border variants ---- */
+  --border-subtle: #3a3530;
+  --border-strong: #5c564e;
+  --border-accent: rgba(232, 148, 62, 0.35);
+
+  /* ---- Dispatch diff colors ---- */
+  --diff-add-bg: rgba(61, 232, 140, 0.1);
+  --diff-add-bar: #3de88c;
+  --diff-add-word: rgba(61, 232, 140, 0.25);
+  --diff-del-bg: rgba(255, 92, 92, 0.1);
+  --diff-del-bar: #ff5c5c;
+  --diff-del-word: rgba(255, 92, 92, 0.25);
+  --diff-hunk-bg: rgba(77, 166, 255, 0.08);
+
+  /* ---- Dispatch semantic muted ---- */
+  --success-muted: rgba(61, 232, 140, 0.12);
+  --danger-muted: rgba(255, 92, 92, 0.12);
+  --warning-muted: rgba(255, 190, 61, 0.12);
+  --info-muted: rgba(77, 166, 255, 0.12);
+  --purple: #b48cff;
+  --purple-muted: rgba(180, 140, 255, 0.12);
+
+  /* ---- Comment card ---- */
+  --comment-card-from: rgba(30, 30, 30, 0.98);
+  --comment-card-to: rgba(24, 24, 24, 0.95);
+  --comment-card-shadow: 4px 4px 0 rgba(0, 0, 0, 0.5);
+  --avatar-ring: rgba(245, 240, 232, 0.1);
+
+  /* ---- Scrollbar ---- */
+  --scrollbar-thumb: #3a3530;
+  --scrollbar-hover: #4a4540;
+  --selection-bg: rgba(232, 148, 62, 0.28);
+  --app-shell-background: #1a1a1a;
+  --noise-opacity: 0;
+  --accent-bar-opacity: 0.7;
+  --chrome-backdrop-filter: none;
+  --bar-glass: #1e1e1e;
+
+  /* ---- Neo-brutal specific ---- */
+  --neo-brutal-border-width: 2px;
+  --neo-brutal-shadow: 3px 3px 0 #000000;
+  --neo-brutal-shadow-accent: 3px 3px 0 #c47520;
+  --neo-brutal-shadow-hover: 4px 4px 0 #000000;
+  --neo-brutal-radius: 8px;
+
+  /* ---- Transitions ---- */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --duration-fast: 80ms;
+  --duration-normal: 150ms;
+  --duration-slow: 300ms;
+  --radius: 8px;
+}
+
+/* ---------------------------------------------------------------------------
+ * 3e. Neo-Brutalism Light — "Cut Paper"
+ *
+ * Warm cream canvas with bold black borders and hard shadows.
+ * Feels like a well-designed zine or risograph print.
+ * --------------------------------------------------------------------------- */
+.neo-brutal-light {
+  /* ---- Surfaces ---- */
+  --background: #faf5ed;
+  --foreground: #1a1815;
+  --card: #ffffff;
+  --card-foreground: #1a1815;
+  --popover: #ffffff;
+  --popover-foreground: #1a1815;
+
+  /* ---- Primary = copper ---- */
+  --primary: #d4883a;
+  --primary-foreground: #ffffff;
+
+  /* ---- Secondary ---- */
+  --secondary: #f0ebe3;
+  --secondary-foreground: #1a1815;
+
+  /* ---- Muted ---- */
+  --muted: #f0ebe3;
+  --muted-foreground: #5c564e;
+
+  /* ---- Accent = copper ---- */
+  --accent: rgba(212, 136, 58, 0.1);
+  --accent-foreground: #a86d25;
+
+  /* ---- Semantic (bold, saturated) ---- */
+  --destructive: #e03e3e;
+  --destructive-foreground: #e03e3e;
+  --info: #2b7fd4;
+  --info-foreground: #2b7fd4;
+  --success: #18944e;
+  --success-foreground: #18944e;
+  --warning: #c78a1a;
+  --warning-foreground: #c78a1a;
+
+  /* ---- Borders & Input (BOLD black borders — the signature) ---- */
+  --border: #2a2520;
+  --input: #2a2520;
+  --ring: #d4883a;
+
+  /* ---- Sidebar ---- */
+  --sidebar: #f0ebe3;
+  --sidebar-foreground: #5c564e;
+  --sidebar-primary: #d4883a;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgba(212, 136, 58, 0.1);
+  --sidebar-accent-foreground: #1a1815;
+  --sidebar-border: #2a2520;
+  --sidebar-ring: #d4883a;
+
+  /* ---- Code ---- */
+  --code: #f0ebe3;
+  --code-highlight: rgba(212, 136, 58, 0.08);
+
+  /* ---- Charts ---- */
+  --chart-1: #d4883a;
+  --chart-2: #18944e;
+  --chart-3: #2b7fd4;
+  --chart-4: #7a58c2;
+  --chart-5: #e03e3e;
+
+  /* ---- Dispatch surface tokens ---- */
+  --bg-root: #faf5ed;
+  --bg-surface: #f0ebe3;
+  --bg-raised: #ffffff;
+  --bg-elevated: #ffffff;
+  --bg-overlay: rgba(0, 0, 0, 0.45);
+
+  /* ---- Dispatch text hierarchy ---- */
+  --text-primary: #1a1815;
+  --text-secondary: #5c564e;
+  --text-tertiary: #787068;
+  --text-ghost: #a39e96;
+
+  /* ---- Dispatch accent variants ---- */
+  --accent-hover: #c47a2e;
+  --accent-muted: rgba(212, 136, 58, 0.1);
+  --accent-text: #a86d25;
+
+  /* ---- Dispatch border variants ---- */
+  --border-subtle: #3a3530;
+  --border-strong: #1a1815;
+  --border-accent: rgba(212, 136, 58, 0.35);
+
+  /* ---- Dispatch diff colors ---- */
+  --diff-add-bg: rgba(24, 148, 78, 0.08);
+  --diff-add-bar: #18944e;
+  --diff-add-word: rgba(24, 148, 78, 0.2);
+  --diff-del-bg: rgba(224, 62, 62, 0.08);
+  --diff-del-bar: #e03e3e;
+  --diff-del-word: rgba(224, 62, 62, 0.2);
+  --diff-hunk-bg: rgba(43, 127, 212, 0.06);
+
+  /* ---- Dispatch semantic muted ---- */
+  --success-muted: rgba(24, 148, 78, 0.1);
+  --danger-muted: rgba(224, 62, 62, 0.1);
+  --warning-muted: rgba(199, 138, 26, 0.1);
+  --info-muted: rgba(43, 127, 212, 0.1);
+  --purple: #7a58c2;
+  --purple-muted: rgba(122, 88, 194, 0.1);
+
+  /* ---- Comment card ---- */
+  --comment-card-from: rgba(255, 255, 255, 0.98);
+  --comment-card-to: rgba(250, 245, 237, 0.95);
+  --comment-card-shadow: 3px 3px 0 rgba(0, 0, 0, 0.2);
+  --avatar-ring: rgba(26, 24, 21, 0.1);
+
+  /* ---- Scrollbar ---- */
+  --scrollbar-thumb: #c4bfb5;
+  --scrollbar-hover: #a39e96;
+  --selection-bg: rgba(212, 136, 58, 0.22);
+  --app-shell-background: #faf5ed;
+  --noise-opacity: 0;
+  --accent-bar-opacity: 0.5;
+  --chrome-backdrop-filter: none;
+  --bar-glass: rgba(255, 255, 255, 0.92);
+
+  /* ---- Neo-brutal specific ---- */
+  --neo-brutal-border-width: 2px;
+  --neo-brutal-shadow: 3px 3px 0 #1a1815;
+  --neo-brutal-shadow-accent: 3px 3px 0 #a86d25;
+  --neo-brutal-shadow-hover: 4px 4px 0 #1a1815;
+  --neo-brutal-radius: 8px;
+
+  /* ---- Transitions ---- */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --duration-fast: 80ms;
+  --duration-normal: 150ms;
+  --duration-slow: 300ms;
+  --radius: 8px;
+}
+
+/* ---------------------------------------------------------------------------
+ * 3f. Neo-Brutalism OLED — "Blackout Press"
+ *
+ * True-black neo-brutalism. The hard shadows become even more dramatic
+ * against the void. Borders glow warm against pure black.
+ * Ties into the OLED experiment for maximum contrast.
+ * --------------------------------------------------------------------------- */
+.neo-brutal-oled {
+  /* ---- Surfaces ---- */
+  --background: #000000;
+  --foreground: #f6efe7;
+  --card: rgba(14, 14, 14, 0.96);
+  --card-foreground: #f6efe7;
+  --popover: rgba(18, 18, 18, 0.96);
+  --popover-foreground: #f6efe7;
+
+  /* ---- Primary = bright copper for OLED pop ---- */
+  --primary: #f0a040;
+  --primary-foreground: #000000;
+
+  /* ---- Secondary ---- */
+  --secondary: rgba(18, 18, 18, 0.92);
+  --secondary-foreground: #f6efe7;
+
+  /* ---- Muted ---- */
+  --muted: rgba(10, 10, 10, 0.9);
+  --muted-foreground: #b0a69a;
+
+  /* ---- Accent = bright copper ---- */
+  --accent: rgba(240, 160, 64, 0.16);
+  --accent-foreground: #f5b860;
+
+  /* ---- Semantic (vivid for OLED) ---- */
+  --destructive: #ff6b6b;
+  --destructive-foreground: #ff6b6b;
+  --info: #5cb8ff;
+  --info-foreground: #5cb8ff;
+  --success: #44f098;
+  --success-foreground: #44f098;
+  --warning: #ffc842;
+  --warning-foreground: #ffc842;
+
+  /* ---- Borders & Input (warm edges on void) ---- */
+  --border: #3d3830;
+  --input: #3d3830;
+  --ring: #f0a040;
+
+  /* ---- Sidebar ---- */
+  --sidebar: rgba(6, 6, 6, 0.88);
+  --sidebar-foreground: #b0a69a;
+  --sidebar-primary: #f0a040;
+  --sidebar-primary-foreground: #000000;
+  --sidebar-accent: rgba(240, 160, 64, 0.16);
+  --sidebar-accent-foreground: #f6efe7;
+  --sidebar-border: #3d3830;
+  --sidebar-ring: #f0a040;
+
+  /* ---- Code ---- */
+  --code: #0a0a0a;
+  --code-highlight: rgba(240, 160, 64, 0.12);
+
+  /* ---- Charts ---- */
+  --chart-1: #f0a040;
+  --chart-2: #44f098;
+  --chart-3: #5cb8ff;
+  --chart-4: #c09eff;
+  --chart-5: #ff6b6b;
+
+  /* ---- Dispatch surface tokens ---- */
+  --bg-root: #000000;
+  --bg-surface: rgba(8, 8, 8, 0.86);
+  --bg-raised: rgba(16, 16, 16, 0.92);
+  --bg-elevated: rgba(24, 24, 24, 0.96);
+  --bg-overlay: rgba(0, 0, 0, 0.88);
+
+  /* ---- Dispatch text hierarchy ---- */
+  --text-primary: #f6efe7;
+  --text-secondary: #b0a69a;
+  --text-tertiary: #8a7f74;
+  --text-ghost: #5e564e;
+
+  /* ---- Dispatch accent variants ---- */
+  --accent-hover: #f5b860;
+  --accent-muted: rgba(240, 160, 64, 0.16);
+  --accent-text: #f5b860;
+
+  /* ---- Dispatch border variants ---- */
+  --border-subtle: #2a2520;
+  --border-strong: #4a4540;
+  --border-accent: rgba(240, 160, 64, 0.4);
+
+  /* ---- Dispatch diff colors ---- */
+  --diff-add-bg: rgba(68, 240, 152, 0.1);
+  --diff-add-bar: #44f098;
+  --diff-add-word: rgba(68, 240, 152, 0.26);
+  --diff-del-bg: rgba(255, 107, 107, 0.1);
+  --diff-del-bar: #ff6b6b;
+  --diff-del-word: rgba(255, 107, 107, 0.26);
+  --diff-hunk-bg: rgba(92, 184, 255, 0.1);
+
+  /* ---- Dispatch semantic muted ---- */
+  --success-muted: rgba(68, 240, 152, 0.14);
+  --danger-muted: rgba(255, 107, 107, 0.14);
+  --warning-muted: rgba(255, 200, 66, 0.14);
+  --info-muted: rgba(92, 184, 255, 0.14);
+  --purple: #c09eff;
+  --purple-muted: rgba(192, 158, 255, 0.14);
+
+  /* ---- Comment card ---- */
+  --comment-card-from: rgba(12, 12, 12, 0.97);
+  --comment-card-to: rgba(4, 4, 4, 0.95);
+  --comment-card-shadow: 4px 4px 0 rgba(0, 0, 0, 0.7);
+  --avatar-ring: rgba(246, 239, 231, 0.12);
+
+  /* ---- Scrollbar ---- */
+  --scrollbar-thumb: #2a2520;
+  --scrollbar-hover: #3d3830;
+  --selection-bg: rgba(240, 160, 64, 0.3);
+  --app-shell-background: #000000;
+  --noise-opacity: 0;
+  --accent-bar-opacity: 0.8;
+  --chrome-backdrop-filter: none;
+  --bar-glass: rgba(10, 10, 10, 0.82);
+
+  /* ---- Neo-brutal specific ---- */
+  --neo-brutal-border-width: 2px;
+  --neo-brutal-shadow: 3px 3px 0 rgba(0, 0, 0, 0.8);
+  --neo-brutal-shadow-accent: 3px 3px 0 #c07820;
+  --neo-brutal-shadow-hover: 4px 4px 0 rgba(0, 0, 0, 0.9);
+  --neo-brutal-radius: 8px;
+
+  /* ---- Transitions ---- */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --duration-fast: 80ms;
+  --duration-normal: 150ms;
+  --duration-slow: 300ms;
+  --radius: 8px;
+}
+
+/* ---------------------------------------------------------------------------
  * 4. Base layer
  * --------------------------------------------------------------------------- */
 @layer base {
@@ -616,10 +1035,13 @@
 
   html,
   html.dark,
-  html.oled {
+  html.oled,
+  html.neo-brutal-dark,
+  html.neo-brutal-oled {
     color-scheme: dark;
   }
-  html.light {
+  html.light,
+  html.neo-brutal-light {
     color-scheme: light;
   }
 
@@ -865,4 +1287,182 @@ button.bg-primary:hover {
   box-shadow:
     0 0 0 1px rgba(212, 136, 58, 0.24),
     0 0 28px rgba(212, 136, 58, 0.18);
+}
+
+/* ---------------------------------------------------------------------------
+ * 6. Neo-Brutalism component overrides
+ *
+ * The signature neo-brutal look: thick borders, hard offset shadows,
+ * slightly larger radius, no blur on shadows, no gradients on surfaces.
+ * These selectors target coss ui data-slot attributes for consistency.
+ * --------------------------------------------------------------------------- */
+
+/* Shared selector for all three neo-brutal variants */
+:is(.neo-brutal-dark, .neo-brutal-light, .neo-brutal-oled) {
+  /* ---- Buttons: thick border + hard shadow ---- */
+  & [data-slot="button"],
+  & button:not([data-slot]) {
+    border-width: var(--neo-brutal-border-width);
+    border-color: var(--border);
+    box-shadow: var(--neo-brutal-shadow);
+    border-radius: var(--neo-brutal-radius);
+    transition: transform 80ms ease, box-shadow 80ms ease;
+  }
+
+  & [data-slot="button"]:hover,
+  & button:not([data-slot]):hover {
+    box-shadow: var(--neo-brutal-shadow-hover);
+    transform: translate(-1px, -1px);
+  }
+
+  & [data-slot="button"]:active,
+  & button:not([data-slot]):active {
+    box-shadow: 1px 1px 0 var(--border);
+    transform: translate(1px, 1px);
+  }
+
+  & [data-slot="button"].bg-primary {
+    border-color: var(--primary);
+    box-shadow: var(--neo-brutal-shadow-accent);
+  }
+
+  & [data-slot="button"].bg-primary:hover {
+    box-shadow: 4px 4px 0 var(--ring);
+    transform: translate(-1px, -1px);
+  }
+
+  & [data-slot="button"].bg-primary:active {
+    box-shadow: 1px 1px 0 var(--ring);
+    transform: translate(1px, 1px);
+  }
+
+  /* ---- Cards: thick border + offset shadow ---- */
+  & [data-slot="card"] {
+    border-width: var(--neo-brutal-border-width);
+    border-color: var(--border);
+    box-shadow: var(--neo-brutal-shadow);
+    border-radius: var(--neo-brutal-radius);
+  }
+
+  /* ---- Inputs: thick border, flat ---- */
+  & [data-slot="input"],
+  & [data-slot="textarea"],
+  & input:not([type="checkbox"]):not([type="radio"]),
+  & textarea {
+    border-width: var(--neo-brutal-border-width);
+    border-color: var(--border);
+    border-radius: var(--neo-brutal-radius);
+    box-shadow: 2px 2px 0 var(--border-subtle);
+  }
+
+  & [data-slot="input"]:focus,
+  & [data-slot="textarea"]:focus,
+  & input:not([type="checkbox"]):not([type="radio"]):focus,
+  & textarea:focus {
+    box-shadow: var(--neo-brutal-shadow-accent);
+    border-color: var(--ring);
+  }
+
+  /* ---- Popovers, menus, dialogs: thick border + hard shadow ---- */
+  & [data-slot="menu-popup"],
+  & [data-slot="popover-popup"],
+  & [data-slot="tooltip-popup"],
+  & [data-slot="dialog-popup"],
+  & [data-slot="alert-dialog-popup"],
+  & [data-slot="sheet-popup"],
+  & [data-slot="command-dialog-popup"],
+  & [data-slot="select-popup"] > div {
+    border-width: var(--neo-brutal-border-width);
+    border-color: var(--border);
+    box-shadow: 5px 5px 0 rgba(0, 0, 0, 0.35);
+    border-radius: var(--neo-brutal-radius);
+    backdrop-filter: none;
+  }
+
+  /* ---- Badges: thick border, flat fill ---- */
+  & [data-slot="badge"] {
+    border-width: var(--neo-brutal-border-width);
+    border-color: var(--border);
+    box-shadow: 1px 1px 0 var(--border-subtle);
+    border-radius: var(--neo-brutal-radius);
+    font-weight: 600;
+  }
+
+  /* ---- Switch: thick border treatment ---- */
+  & [data-slot="switch"] {
+    border: var(--neo-brutal-border-width) solid var(--border);
+    box-shadow: 2px 2px 0 var(--border-subtle);
+  }
+
+  /* ---- Tabs: bold indicator ---- */
+  & .tab-indicator {
+    height: 3px;
+    border-radius: 0;
+  }
+
+  /* ---- Sidebar PR items: bold left border on active ---- */
+  & [data-active="true"] {
+    border-left-width: 3px;
+  }
+
+  /* ---- Scrollbar: chunkier ---- */
+  & ::-webkit-scrollbar {
+    width: 7px;
+    height: 7px;
+  }
+
+  & ::-webkit-scrollbar-thumb {
+    border-radius: 4px;
+    border: 1px solid var(--border-subtle);
+  }
+
+  /* ---- Prose: thicker code borders ---- */
+  & .prose-dispatch code {
+    border-width: var(--neo-brutal-border-width);
+    border-radius: 4px;
+    box-shadow: 1px 1px 0 var(--border-subtle);
+  }
+
+  & .prose-dispatch pre {
+    border-width: var(--neo-brutal-border-width);
+    border-radius: var(--neo-brutal-radius);
+    box-shadow: var(--neo-brutal-shadow);
+  }
+
+  /* ---- Keyboard shortcut display: bold ---- */
+  & kbd {
+    border-width: var(--neo-brutal-border-width);
+    box-shadow: 2px 2px 0 var(--border-subtle);
+    border-radius: 4px;
+  }
+
+  /* ---- Primary button: no glow, use hard shadow instead ---- */
+  & [data-slot="button"].bg-primary:hover,
+  & button.bg-primary:hover {
+    box-shadow: 4px 4px 0 var(--ring);
+  }
+}
+
+/* ---- Neo-Brutal Light: shadows use dark color ---- */
+.neo-brutal-light {
+  & [data-slot="menu-popup"],
+  & [data-slot="popover-popup"],
+  & [data-slot="tooltip-popup"],
+  & [data-slot="dialog-popup"],
+  & [data-slot="alert-dialog-popup"],
+  & [data-slot="sheet-popup"],
+  & [data-slot="command-dialog-popup"],
+  & [data-slot="select-popup"] > div {
+    box-shadow: 4px 4px 0 #1a1815;
+  }
+}
+
+/* ---- Neo-Brutal OLED: extra contrast on popups ---- */
+.neo-brutal-oled {
+  & [data-slot="dialog-backdrop"],
+  & [data-slot="alert-dialog-backdrop"],
+  & [data-slot="sheet-backdrop"],
+  & [data-slot="command-dialog-backdrop"] {
+    background: rgba(0, 0, 0, 0.6);
+  }
 }
