@@ -5,7 +5,14 @@ import {
 } from "@/renderer/lib/review/highlighter";
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 
-type Theme = "dark" | "light" | "oled" | "system";
+export type Theme =
+  | "dark"
+  | "light"
+  | "oled"
+  | "neo-brutal-dark"
+  | "neo-brutal-light"
+  | "neo-brutal-oled"
+  | "system";
 type ResolvedTheme = "dark" | "light";
 const LEGACY_SINGLE_CODE_THEME_STORAGE_KEY = "dispatch-code-theme";
 const LEGACY_SINGLE_CODE_THEME_PREFERENCE_KEY = "codeTheme";
@@ -43,12 +50,21 @@ function resolveTheme(theme: Theme): ResolvedTheme {
     return getSystemTheme();
   }
 
-  return theme === "light" ? "light" : "dark";
+  return theme === "light" || theme === "neo-brutal-light" ? "light" : "dark";
 }
+
+const ALL_THEME_CLASSES = [
+  "dark",
+  "light",
+  "oled",
+  "neo-brutal-dark",
+  "neo-brutal-light",
+  "neo-brutal-oled",
+];
 
 function applyTheme(theme: Theme, resolved: ResolvedTheme) {
   const root = document.documentElement;
-  root.classList.remove("dark", "light", "oled");
+  root.classList.remove(...ALL_THEME_CLASSES);
   root.classList.add(theme === "system" ? resolved : theme);
   root.style.colorScheme = resolved;
 }

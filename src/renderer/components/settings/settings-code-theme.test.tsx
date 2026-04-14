@@ -19,4 +19,27 @@ describe("getThemeOptions", () => {
       "system",
     ]);
   });
+
+  it("includes neo-brutalism themes when the experiment is enabled", () => {
+    expect(getThemeOptions(false, true).map((option) => option.value)).toEqual([
+      "dark",
+      "light",
+      "neo-brutal-dark",
+      "neo-brutal-light",
+      "neo-brutal-oled",
+      "system",
+    ]);
+  });
+
+  it("includes both oled and neo-brutalism when both are enabled", () => {
+    expect(getThemeOptions(true, true).map((option) => option.value)).toEqual([
+      "dark",
+      "oled",
+      "light",
+      "neo-brutal-dark",
+      "neo-brutal-light",
+      "neo-brutal-oled",
+      "system",
+    ]);
+  });
 });

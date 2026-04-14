@@ -165,7 +165,11 @@ export function SettingsView() {
   const aiConfig = aiConfigQuery.data;
   const aiEnabled = isAiEnabledPreference(prefs.aiEnabled);
   const oledThemeEnabled = isExperimentalFeatureEnabled(prefs.experimentalOledTheme);
-  const themeOptions = useMemo(() => getThemeOptions(oledThemeEnabled), [oledThemeEnabled]);
+  const neoBrutalismEnabled = isExperimentalFeatureEnabled(prefs.experimentalNeoBrutalismTheme);
+  const themeOptions = useMemo(
+    () => getThemeOptions(oledThemeEnabled, neoBrutalismEnabled),
+    [oledThemeEnabled, neoBrutalismEnabled],
+  );
   const aiProvidersQuery = useQuery({
     queryKey: ["ai", "providersStatus"],
     queryFn: () => ipc("ai.providersStatus"),

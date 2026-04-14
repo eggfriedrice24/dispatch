@@ -3,21 +3,40 @@ import type { Highlighter } from "shiki";
 
 import { Spinner } from "@/components/ui/spinner";
 import { ensureTheme, getHighlighter } from "@/renderer/lib/review/highlighter";
-import { Check, Monitor, Moon, Sun } from "lucide-react";
+import { Check, Diamond, Monitor, Moon, Sun } from "lucide-react";
 import { memo, useEffect, useState } from "react";
 
-export const THEME_OPTIONS = [
-  { value: "dark", label: "Dark", icon: Moon },
-  { value: "light", label: "Light", icon: Sun },
-  { value: "system", label: "System", icon: Monitor },
-] as const;
+import type { Theme } from "@/renderer/lib/app/theme-context";
 
-export const OLED_THEME_OPTION = { value: "oled", label: "OLED", icon: Moon } as const;
+export interface ThemeOptionEntry {
+  value: Theme;
+  label: string;
+  icon: typeof Moon;
+}
 
-export function getThemeOptions(includeOled: boolean) {
-  return includeOled
-    ? [THEME_OPTIONS[0], OLED_THEME_OPTION, ...THEME_OPTIONS.slice(1)]
-    : THEME_OPTIONS;
+const DARK_OPTION: ThemeOptionEntry = { value: "dark", label: "Dark", icon: Moon };
+const LIGHT_OPTION: ThemeOptionEntry = { value: "light", label: "Light", icon: Sun };
+const SYSTEM_OPTION: ThemeOptionEntry = { value: "system", label: "System", icon: Monitor };
+
+export const THEME_OPTIONS: ThemeOptionEntry[] = [DARK_OPTION, LIGHT_OPTION, SYSTEM_OPTION];
+
+export const OLED_THEME_OPTION: ThemeOptionEntry = { value: "oled", label: "OLED", icon: Moon };
+
+export const NEO_BRUTAL_THEME_OPTIONS: ThemeOptionEntry[] = [
+  { value: "neo-brutal-dark", label: "Neo-Brutal Dark", icon: Diamond },
+  { value: "neo-brutal-light", label: "Neo-Brutal Light", icon: Diamond },
+  { value: "neo-brutal-oled", label: "Neo-Brutal OLED", icon: Diamond },
+];
+
+export function getThemeOptions(includeOled: boolean, includeNeoBrutalism = false): ThemeOptionEntry[] {
+  const base: ThemeOptionEntry[] = includeOled
+    ? [DARK_OPTION, OLED_THEME_OPTION, LIGHT_OPTION, SYSTEM_OPTION]
+    : [DARK_OPTION, LIGHT_OPTION, SYSTEM_OPTION];
+  if (includeNeoBrutalism) {
+    const systemIndex = base.findIndex((o) => o.value === "system");
+    base.splice(systemIndex, 0, ...NEO_BRUTAL_THEME_OPTIONS);
+  }
+  return base;
 }
 
 export interface CodeThemeOption {

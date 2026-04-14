@@ -34,11 +34,11 @@
             ? window.matchMedia("(prefers-color-scheme: light)").matches
               ? "light"
               : "dark"
-            : t === "light"
+            : t === "light" || t === "neo-brutal-light"
               ? "light"
               : "dark";
         var d = document.documentElement;
-        d.classList.remove("dark", "light", "oled");
+        d.classList.remove("dark", "light", "oled", "neo-brutal-dark", "neo-brutal-light", "neo-brutal-oled");
         d.classList.add(t === "system" ? r : t);
         d.style.colorScheme = r;
       })();
