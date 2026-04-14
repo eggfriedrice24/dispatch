@@ -50,7 +50,7 @@ export function ReplyComposer({
       <ReviewMarkdownComposer
         autoFocus
         compact
-        className="border-border-subtle bg-[linear-gradient(180deg,rgba(15,15,18,0.98),rgba(10,10,12,0.88))] shadow-none"
+        className="border-border-subtle bg-[linear-gradient(180deg,var(--comment-card-from),var(--comment-card-to))] shadow-none"
         onChange={setBody}
         onKeyDown={(e) => {
           if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && body.trim()) {

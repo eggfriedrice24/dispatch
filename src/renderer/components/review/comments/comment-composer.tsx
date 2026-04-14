@@ -89,7 +89,7 @@ export function CommentComposer({
   const isMultiLine = startLine && startLine !== line;
 
   return (
-    <div className="border-border mx-3 my-2 max-w-[46rem] overflow-hidden rounded-[10px] border bg-[linear-gradient(180deg,rgba(15,15,18,0.98),rgba(10,10,12,0.94))] shadow-[0_10px_30px_rgba(0,0,0,0.28)]">
+    <div className="border-border mx-3 my-2 max-w-[46rem] overflow-hidden rounded-[10px] border bg-[linear-gradient(180deg,var(--comment-card-from),var(--comment-card-to))] shadow-[var(--comment-card-shadow)]">
       <div className="border-border-subtle flex flex-wrap items-center gap-2 border-b px-3 py-2">
         <span className="border-border-accent bg-accent-muted text-accent-text inline-flex items-center rounded-full border px-1.5 py-0.5 font-mono text-[10px]">
           New comment

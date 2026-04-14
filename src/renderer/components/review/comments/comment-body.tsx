@@ -105,7 +105,7 @@ export function CommentBody({
             login={comment.user.login}
             size={18}
             avatarUrl={comment.user.avatar_url}
-            className="ring-1 ring-[rgba(240,236,230,0.08)]"
+            className="ring-1 ring-[var(--avatar-ring)]"
           />
         )}
       </div>

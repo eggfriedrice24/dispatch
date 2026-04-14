@@ -254,6 +254,12 @@
   --purple: #a78bfa;
   --purple-muted: rgba(167, 139, 250, 0.1);
 
+  /* ---- Comment card ---- */
+  --comment-card-from: rgba(15, 15, 18, 0.98);
+  --comment-card-to: rgba(10, 10, 12, 0.94);
+  --comment-card-shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
+  --avatar-ring: rgba(240, 236, 230, 0.08);
+
   /* ---- Dispatch scrollbar (§ 2.7) ---- */
   --scrollbar-thumb: #2a2824;
   --scrollbar-hover: #3a3632;
@@ -340,6 +346,10 @@
   --info-muted: rgba(91, 164, 230, 0.1);
   --purple: #a78bfa;
   --purple-muted: rgba(167, 139, 250, 0.1);
+  --comment-card-from: rgba(15, 15, 18, 0.98);
+  --comment-card-to: rgba(10, 10, 12, 0.94);
+  --comment-card-shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
+  --avatar-ring: rgba(240, 236, 230, 0.08);
   --scrollbar-thumb: #2a2824;
   --scrollbar-hover: #3a3632;
   --bar-glass: rgba(28, 28, 34, 0.85);
@@ -458,6 +468,12 @@
   --info-muted: rgba(49, 117, 190, 0.1);
   --purple: #7c5cc2;
   --purple-muted: rgba(124, 92, 194, 0.1);
+
+  /* ---- Comment card ---- */
+  --comment-card-from: rgba(255, 255, 255, 0.98);
+  --comment-card-to: rgba(245, 241, 235, 0.94);
+  --comment-card-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
+  --avatar-ring: rgba(26, 24, 21, 0.08);
 
   /* ---- Scrollbar ---- */
   --scrollbar-thumb: #ccc7c0;

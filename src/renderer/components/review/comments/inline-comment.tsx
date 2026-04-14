@@ -70,7 +70,7 @@ export function InlineComment({
   const botEntries = [...botRoots, ...orphanBotReplies];
 
   return (
-    <div className="border-border mx-4 my-3 max-w-[52rem] overflow-hidden rounded-[10px] border bg-[linear-gradient(180deg,rgba(15,15,18,0.98),rgba(10,10,12,0.94))] shadow-[0_10px_30px_rgba(0,0,0,0.28)]">
+    <div className="border-border mx-4 my-3 max-w-[52rem] overflow-hidden rounded-[10px] border bg-[linear-gradient(180deg,var(--comment-card-from),var(--comment-card-to))] shadow-[var(--comment-card-shadow)]">
       {humanEntries.map((root, i) => {
         const threadReplies = replies.filter((r) => r.in_reply_to_id === root.id);
         return (

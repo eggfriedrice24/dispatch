@@ -100,7 +100,7 @@ export function CommentThread({
               login={root.user.login}
               size={16}
               avatarUrl={root.user.avatar_url}
-              className="ring-1 ring-[rgba(240,236,230,0.08)]"
+              className="ring-1 ring-[var(--avatar-ring)]"
             />
             <div className="min-w-0 flex-1">
               <div className="flex min-w-0 flex-wrap items-center gap-1.5">
