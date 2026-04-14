@@ -65,10 +65,10 @@ export function HomeView() {
     staleTime: 60_000,
   });
 
-  // All PRs across workspaces, including merged/closed.
+  // Open PRs across workspaces, matching the homepage queue view.
   const allQuery = useQuery({
-    queryKey: ["pr", "listAll", "all", "all"],
-    queryFn: () => ipc("pr.listAll", { filter: "all", state: "all" }),
+    queryKey: ["pr", "listAll", "all", "open"],
+    queryFn: () => ipc("pr.listAll", { filter: "all", state: "open" }),
     refetchInterval: 30_000,
   });
 
@@ -175,8 +175,8 @@ export function HomeView() {
     () => [
       {
         method: "pr.listAll" as const,
-        args: { filter: "all" as const, state: "all" as const },
-        queryKey: ["pr", "listAll", "all", "all"],
+        args: { filter: "all" as const, state: "open" as const },
+        queryKey: ["pr", "listAll", "all", "open"],
       },
       {
         method: "pr.listAll" as const,
