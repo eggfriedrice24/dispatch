@@ -129,10 +129,10 @@ function configureExternalNavigation(win: BrowserWindow): void {
 }
 
 // ---------------------------------------------------------------------------
-// GitHub image auth — attach tokens for enterprise avatar/image requests
+// GitHub media auth — attach tokens for avatar, image, and video requests
 // ---------------------------------------------------------------------------
 
-/** Cache of hostname → token so we don't shell out on every image. */
+/** Cache of hostname → token so we don't shell out on every request. */
 const tokenCache = new Map<string, { token: string | null; fetchedAt: number }>();
 // 5 minutes.
 const TOKEN_TTL = 300_000;
@@ -176,22 +176,27 @@ async function getGhToken(host: string): Promise<string | null> {
   return null;
 }
 
-function setupImageAuth(): void {
+function setupMediaAuth(): void {
   session.defaultSession.webRequest.onBeforeSendHeaders(
     { urls: ["https://*/*"] },
     (details, callback) => {
-      // Only intercept image requests (avatars, PR body images)
-      const isImage =
+      // Intercept image and video/media requests (avatars, PR body images & videos)
+      const isMedia =
         details.resourceType === "image" ||
+        details.resourceType === "media" ||
         details.url.endsWith(".png") ||
         details.url.endsWith(".jpg") ||
         details.url.endsWith(".jpeg") ||
         details.url.endsWith(".gif") ||
         details.url.endsWith(".webp") ||
+        details.url.endsWith(".mp4") ||
+        details.url.endsWith(".mov") ||
+        details.url.endsWith(".webm") ||
         details.url.includes("/avatars/") ||
-        details.url.includes("/storage/");
+        details.url.includes("/storage/") ||
+        details.url.includes("/user-attachments/");
 
-      if (!isImage) {
+      if (!isMedia) {
         callback({ cancel: false });
         return;
       }
@@ -227,7 +232,7 @@ function setupImageAuth(): void {
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow(WINDOW_CONFIG);
   configureExternalNavigation(win);
-  setupImageAuth();
+  setupMediaAuth();
 
   const getWindowState = (): WindowState => ({
     isFullscreen: win.isFullScreen() || (process.platform === "darwin" && win.isSimpleFullScreen()),

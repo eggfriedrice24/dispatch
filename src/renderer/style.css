@@ -631,7 +631,7 @@
   --muted-foreground: #a39e96;
 
   /* ---- Accent = copper ---- */
-  --accent: rgba(232, 148, 62, 0.14);
+  --accent: rgba(232, 148, 62, 0.16);
   --accent-foreground: #f0a850;
 
   /* ---- Semantic (saturated for punch) ---- */
@@ -644,9 +644,9 @@
   --warning: #ffbe3d;
   --warning-foreground: #ffbe3d;
 
-  /* ---- Borders & Input (the defining feature — thick, visible) ---- */
-  --border: #4a4540;
-  --input: #4a4540;
+  /* ---- Borders & Input (the defining feature — bold, visible) ---- */
+  --border: #5c564e;
+  --input: #5c564e;
   --ring: #e8943e;
 
   /* ---- Sidebar ---- */
@@ -654,9 +654,9 @@
   --sidebar-foreground: #a39e96;
   --sidebar-primary: #e8943e;
   --sidebar-primary-foreground: #1a1a1a;
-  --sidebar-accent: rgba(232, 148, 62, 0.14);
+  --sidebar-accent: rgba(232, 148, 62, 0.16);
   --sidebar-accent-foreground: #f5f0e8;
-  --sidebar-border: #4a4540;
+  --sidebar-border: #5c564e;
   --sidebar-ring: #e8943e;
 
   /* ---- Code ---- */
@@ -722,7 +722,7 @@
   --selection-bg: rgba(232, 148, 62, 0.28);
   --app-shell-background: #1a1a1a;
   --noise-opacity: 0;
-  --accent-bar-opacity: 0.7;
+  --accent-bar-opacity: 0.85;
   --chrome-backdrop-filter: none;
   --bar-glass: #1e1e1e;
 
@@ -852,7 +852,7 @@
   /* ---- Comment card ---- */
   --comment-card-from: rgba(255, 255, 255, 0.98);
   --comment-card-to: rgba(250, 245, 237, 0.95);
-  --comment-card-shadow: 3px 3px 0 rgba(0, 0, 0, 0.2);
+  --comment-card-shadow: 3px 3px 0 #1a1815;
   --avatar-ring: rgba(26, 24, 21, 0.1);
 
   /* ---- Scrollbar ---- */
@@ -861,7 +861,7 @@
   --selection-bg: rgba(212, 136, 58, 0.22);
   --app-shell-background: #faf5ed;
   --noise-opacity: 0;
-  --accent-bar-opacity: 0.5;
+  --accent-bar-opacity: 0.7;
   --chrome-backdrop-filter: none;
   --bar-glass: rgba(255, 255, 255, 0.92);
 
@@ -923,9 +923,9 @@
   --warning: #ffc842;
   --warning-foreground: #ffc842;
 
-  /* ---- Borders & Input (warm edges on void) ---- */
-  --border: #3d3830;
-  --input: #3d3830;
+  /* ---- Borders & Input (warm edges on void — must pop against #000) ---- */
+  --border: #4a4540;
+  --input: #4a4540;
   --ring: #f0a040;
 
   /* ---- Sidebar ---- */
@@ -935,7 +935,7 @@
   --sidebar-primary-foreground: #000000;
   --sidebar-accent: rgba(240, 160, 64, 0.16);
   --sidebar-accent-foreground: #f6efe7;
-  --sidebar-border: #3d3830;
+  --sidebar-border: #4a4540;
   --sidebar-ring: #f0a040;
 
   /* ---- Code ---- */
@@ -992,7 +992,7 @@
   /* ---- Comment card ---- */
   --comment-card-from: rgba(12, 12, 12, 0.97);
   --comment-card-to: rgba(4, 4, 4, 0.95);
-  --comment-card-shadow: 4px 4px 0 rgba(0, 0, 0, 0.7);
+  --comment-card-shadow: 4px 4px 0 #000000;
   --avatar-ring: rgba(246, 239, 231, 0.12);
 
   /* ---- Scrollbar ---- */
@@ -1001,15 +1001,15 @@
   --selection-bg: rgba(240, 160, 64, 0.3);
   --app-shell-background: #000000;
   --noise-opacity: 0;
-  --accent-bar-opacity: 0.8;
+  --accent-bar-opacity: 0.9;
   --chrome-backdrop-filter: none;
   --bar-glass: rgba(10, 10, 10, 0.82);
 
   /* ---- Neo-brutal specific ---- */
   --neo-brutal-border-width: 2px;
-  --neo-brutal-shadow: 3px 3px 0 rgba(0, 0, 0, 0.8);
+  --neo-brutal-shadow: 3px 3px 0 #000000;
   --neo-brutal-shadow-accent: 3px 3px 0 #c07820;
-  --neo-brutal-shadow-hover: 4px 4px 0 rgba(0, 0, 0, 0.9);
+  --neo-brutal-shadow-hover: 4px 4px 0 #000000;
   --neo-brutal-radius: 8px;
 
   /* ---- Transitions ---- */
@@ -1213,10 +1213,15 @@
   color: var(--text-primary);
 }
 
-.prose-dispatch img {
+.prose-dispatch img,
+.prose-dispatch video {
   max-width: 100%;
   border-radius: 6px;
   margin: 8px 0;
+}
+
+.prose-dispatch video {
+  background: var(--bg-raised);
 }
 
 /* Primary button glow on hover */
@@ -1374,7 +1379,7 @@ button.bg-primary:hover {
   & [data-slot="select-popup"] > div {
     border-width: var(--neo-brutal-border-width);
     border-color: var(--border);
-    box-shadow: 5px 5px 0 rgba(0, 0, 0, 0.35);
+    box-shadow: 5px 5px 0 #000000;
     border-radius: var(--neo-brutal-radius);
     backdrop-filter: none;
   }

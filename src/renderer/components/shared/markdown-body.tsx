@@ -152,6 +152,22 @@ export function MarkdownBody({ content, repo, className = "" }: MarkdownBodyProp
               />
             );
           },
+          // Videos: native controls, no-referrer, contained sizing
+          video({ src, children, ...rest }) {
+            return (
+              // eslint-disable-next-line react/no-unknown-property -- referrerPolicy is valid HTML but missing from React's VideoHTMLAttributes
+              <video
+                src={src}
+                controls
+                preload="metadata"
+                // @ts-expect-error -- referrerPolicy is valid on <video> but not in React's type defs
+                referrerPolicy="no-referrer"
+                {...rest}
+              >
+                {children}
+              </video>
+            );
+          },
           // Open external links in browser
           a({ href, children, ...rest }) {
             return (
