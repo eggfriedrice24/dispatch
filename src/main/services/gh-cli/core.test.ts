@@ -47,15 +47,18 @@ describe("parseJsonOutput", () => {
   });
 
   it("concatenates multiple JSON arrays when standard parse fails", () => {
-    const output = '[1, 2][3, 4]';
+    const output = "[1, 2][3, 4]";
     const result = parseJsonOutput<number[]>(output);
     expect(result).toEqual([1, 2, 3, 4]);
   });
 
   it("handles nested arrays in fallback mode", () => {
-    const output = '[[1, 2], [3, 4]]';
+    const output = "[[1, 2], [3, 4]]";
     const result = parseJsonOutput<number[][]>(output);
-    expect(result).toEqual([[1, 2], [3, 4]]);
+    expect(result).toEqual([
+      [1, 2],
+      [3, 4],
+    ]);
   });
 
   it("handles JSON with surrounding whitespace", () => {
@@ -66,12 +69,23 @@ describe("parseJsonOutput", () => {
 
 describe("cacheKey", () => {
   it("builds key from nwo, filter, state, limit", () => {
-    const key = cacheKey({ nwo: "owner/repo", filter: "reviewRequested", state: "open", limit: "100" });
+    const key = cacheKey({
+      nwo: "owner/repo",
+      filter: "reviewRequested",
+      state: "open",
+      limit: "100",
+    });
     expect(key).toBe("owner/repo::reviewRequested::open::100");
   });
 
   it("prefers nwo over cwd", () => {
-    const key = cacheKey({ nwo: "owner/repo", cwd: "/local/path", filter: "all", state: "open", limit: "50" });
+    const key = cacheKey({
+      nwo: "owner/repo",
+      cwd: "/local/path",
+      filter: "all",
+      state: "open",
+      limit: "50",
+    });
     expect(key).toBe("owner/repo::all::open::50");
   });
 

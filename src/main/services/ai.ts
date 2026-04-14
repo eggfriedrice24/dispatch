@@ -219,7 +219,9 @@ export function buildClaudeCommandArgs(
 function isClaudeToolArgError(detail: string): boolean {
   const normalized = detail.toLowerCase();
   const hasToolsReference =
-    normalized.includes("--tools") || normalized.includes("tools flag") || normalized.includes("tool flag");
+    normalized.includes("--tools") ||
+    normalized.includes("tools flag") ||
+    normalized.includes("tool flag");
 
   return (
     hasToolsReference &&
@@ -786,7 +788,8 @@ async function completeWithClaude(args: ResolvedAiCompletionArgs): Promise<strin
 
         if (result.exitCode !== 0) {
           const detail = result.stderr.length > 0 ? result.stderr : result.stdout;
-          const message = detail.length > 0 ? detail : `Command failed with code ${result.exitCode}.`;
+          const message =
+            detail.length > 0 ? detail : `Command failed with code ${result.exitCode}.`;
           const error = createCliError("claude", message);
           if (includeTools && isClaudeToolArgError(message)) {
             lastError = error;

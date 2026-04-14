@@ -527,7 +527,6 @@ async function fetchUnlimitedFilteredPullRequests(
   return nodes;
 }
 
-
 function resolvePrEnrichmentLimit(
   filter: "reviewRequested" | "authored" | "all",
   state: "open" | "closed" | "merged" | "all",

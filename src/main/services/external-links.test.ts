@@ -8,9 +8,7 @@ describe("getExternalUrl", () => {
   });
 
   it("accepts https URLs", () => {
-    expect(getExternalUrl("https://github.com/owner/repo")).toBe(
-      "https://github.com/owner/repo",
-    );
+    expect(getExternalUrl("https://github.com/owner/repo")).toBe("https://github.com/owner/repo");
   });
 
   it("preserves query params and fragments", () => {
