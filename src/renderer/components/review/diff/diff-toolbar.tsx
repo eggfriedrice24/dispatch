@@ -40,6 +40,7 @@ export function DiffToolbar({
   hideReviewControls,
   onAiSuggest,
   isAiSuggesting,
+  isAiSuggestPending,
   aiSuggestEnabled,
   isFullFileLoading = false,
 }: {
@@ -58,6 +59,7 @@ export function DiffToolbar({
   hideReviewControls?: boolean;
   onAiSuggest?: () => void;
   isAiSuggesting?: boolean;
+  isAiSuggestPending?: boolean;
   aiSuggestEnabled?: boolean;
   isFullFileLoading?: boolean;
 }) {
@@ -65,6 +67,7 @@ export function DiffToolbar({
   const compactToolbar = useMediaQuery({ max: 1100 });
   const denseToolbar = useMediaQuery({ max: 920 });
   const controlsLocked = isFullFileLoading;
+  const isAiReviewRunning = Boolean(isAiSuggesting || isAiSuggestPending);
   const filePath = currentFile ? getDiffFilePath(currentFile) : "";
   const fileName = filePath.split("/").pop() ?? "";
   const dirPath = filePath.includes("/") ? filePath.slice(0, filePath.lastIndexOf("/") + 1) : "";
@@ -193,13 +196,13 @@ export function DiffToolbar({
               <button
                 type="button"
                 onClick={onAiSuggest}
-                disabled={controlsLocked || isAiSuggesting}
+                disabled={controlsLocked || isAiReviewRunning}
                 aria-label="AI review"
                 className={`flex shrink-0 cursor-pointer items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-medium whitespace-nowrap transition-colors disabled:cursor-default disabled:opacity-50 ${
                   aiJustFinished ? "text-success" : "text-primary hover:bg-primary/10"
                 }`}
               >
-                {isAiSuggesting ? (
+                {isAiReviewRunning ? (
                   <Spinner className="h-3 w-3" />
                 ) : aiJustFinished ? (
                   <Check size={11} />

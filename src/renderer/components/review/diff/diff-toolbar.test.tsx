@@ -60,6 +60,7 @@ describe("DiffToolbar", () => {
         onToggleViewed={vi.fn()}
         onAiSuggest={vi.fn()}
         isAiSuggesting={false}
+        isAiSuggestPending={false}
         aiSuggestEnabled
         isFullFileLoading
       />,
@@ -74,5 +75,33 @@ describe("DiffToolbar", () => {
     expect(screen.getByRole("button", { name: "Mark file as viewed" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Previous file" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Next file" })).toBeDisabled();
+  });
+
+  it("shows a spinner and disables the AI review button while auto-review is scheduled", () => {
+    const currentFile = parseDiff(SIMPLE_DIFF)[0]!;
+
+    render(
+      <DiffToolbar
+        currentFile={currentFile}
+        currentIndex={1}
+        totalFiles={3}
+        onPrev={vi.fn()}
+        onNext={vi.fn()}
+        diffMode="all"
+        onDiffModeChange={vi.fn()}
+        hasLastReview
+        viewMode="unified"
+        onViewModeChange={vi.fn()}
+        isViewed={false}
+        onToggleViewed={vi.fn()}
+        onAiSuggest={vi.fn()}
+        isAiSuggesting={false}
+        isAiSuggestPending
+        aiSuggestEnabled
+      />,
+    );
+
+    expect(screen.getByRole("status")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "AI review" })).toBeDisabled();
   });
 });

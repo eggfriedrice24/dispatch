@@ -312,6 +312,7 @@ function PrDetail({ prNumber }: { prNumber: number }) {
   const {
     suggestionsForFile,
     isGenerating: isAiGenerating,
+    isAutoTriggerScheduled,
     generateForFile,
     autoTriggerFile,
     postComment: postSuggestion,
@@ -813,6 +814,7 @@ function PrDetail({ prNumber }: { prNumber: number }) {
                 : undefined
             }
             isAiSuggesting={activeFilePath ? isAiGenerating(activeFilePath) : false}
+            isAiSuggestPending={activeFilePath ? isAutoTriggerScheduled(activeFilePath) : false}
             aiSuggestEnabled={aiReviewEnabled}
             isFullFileLoading={isFullFileLoading}
           />

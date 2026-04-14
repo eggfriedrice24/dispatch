@@ -56,11 +56,13 @@ export function useAiSuggestions({
 
   const [byFile, setByFile] = useState<Map<string, AiSuggestion[]>>(new Map());
   const [generating, setGenerating] = useState<Set<string>>(new Set());
+  const [scheduled, setScheduled] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
 
   // Refs for guards — keeps generateForFile identity stable
   const analyzedRef = useRef<Set<string>>(new Set());
   const generatingRef = useRef<Set<string>>(new Set());
+  const scheduledRef = useRef<Set<string>>(new Set());
 
   const autoSuggest = usePreference("aiAutoSuggest") === "true";
   const existingCommentFingerprints = useMemo(
@@ -74,9 +76,11 @@ export function useAiSuggestions({
     prevSnapshotRef.current = snapshotKey;
     setByFile(new Map());
     setGenerating(new Set());
+    setScheduled(new Set());
     setError(null);
     analyzedRef.current = new Set();
     generatingRef.current = new Set();
+    scheduledRef.current = new Set();
   }
 
   // -------------------------------------------------------------------------
@@ -99,12 +103,36 @@ export function useAiSuggestions({
     });
   }, []);
 
+  const markScheduled = useCallback((filePath: string) => {
+    if (scheduledRef.current.has(filePath)) {
+      return;
+    }
+
+    scheduledRef.current.add(filePath);
+    setScheduled((prev) => new Set(prev).add(filePath));
+  }, []);
+
+  const clearScheduled = useCallback((filePath: string) => {
+    if (!scheduledRef.current.has(filePath)) {
+      return;
+    }
+
+    scheduledRef.current.delete(filePath);
+    setScheduled((prev) => {
+      const next = new Set(prev);
+      next.delete(filePath);
+      return next;
+    });
+  }, []);
+
   // -------------------------------------------------------------------------
   // Generation (no `generating` state in deps — uses ref for guard)
   // -------------------------------------------------------------------------
 
   const generateForFile = useCallback(
     async (filePath: string) => {
+      clearScheduled(filePath);
+
       if (!enabled || !rawDiff || !config.isConfigured) {
         return;
       }
@@ -180,7 +208,17 @@ export function useAiSuggestions({
         });
       }
     },
-    [config.isConfigured, enabled, rawDiff, files, prTitle, prBody, cwd, existingComments],
+    [
+      clearScheduled,
+      config.isConfigured,
+      enabled,
+      rawDiff,
+      files,
+      prTitle,
+      prBody,
+      cwd,
+      existingComments,
+    ],
   );
 
   // -------------------------------------------------------------------------
@@ -189,15 +227,27 @@ export function useAiSuggestions({
 
   const autoTriggerFile = useCallback(
     (filePath: string): (() => void) => {
-      if (!enabled || !autoSuggest || analyzedRef.current.has(filePath)) {
+      if (
+        !enabled ||
+        !autoSuggest ||
+        analyzedRef.current.has(filePath) ||
+        generatingRef.current.has(filePath)
+      ) {
+        clearScheduled(filePath);
         return () => {};
       }
+
+      markScheduled(filePath);
+
       const timer = setTimeout(() => {
         void generateForFile(filePath);
       }, 800);
-      return () => clearTimeout(timer);
+      return () => {
+        clearTimeout(timer);
+        clearScheduled(filePath);
+      };
     },
-    [enabled, autoSuggest, generateForFile],
+    [autoSuggest, clearScheduled, enabled, generateForFile, markScheduled],
   );
 
   // -------------------------------------------------------------------------
@@ -271,6 +321,11 @@ export function useAiSuggestions({
     [generating],
   );
 
+  const isAutoTriggerScheduled = useCallback(
+    (filePath: string): boolean => scheduled.has(filePath),
+    [scheduled],
+  );
+
   const totalCount = useMemo(
     () =>
       [...byFile.values()].reduce(
@@ -293,6 +348,7 @@ export function useAiSuggestions({
     hasSuggestions: totalCount > 0,
     generateForFile,
     autoTriggerFile,
+    isAutoTriggerScheduled,
     postComment,
     dismiss,
     dismissFile,
