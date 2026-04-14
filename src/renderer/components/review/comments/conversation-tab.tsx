@@ -434,9 +434,7 @@ export function ContentEvent({
       <div
         className="overflow-hidden rounded-lg"
         style={{
-          border: isBotUser
-            ? "1px solid var(--border-accent)"
-            : "1px solid var(--border)",
+          border: isBotUser ? "1px solid var(--border-accent)" : "1px solid var(--border)",
         }}
       >
         {/* Header — bg-card/50 equivalent */}

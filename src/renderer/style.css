@@ -387,7 +387,7 @@
 
   /* ---- Muted ---- */
   --muted: #ece8e1;
-  --muted-foreground: #6e6862;
+  --muted-foreground: #635d57;
 
   /* ---- Accent = copper ---- */
   --accent: rgba(212, 136, 58, 0.1);
@@ -410,7 +410,7 @@
 
   /* ---- Sidebar ---- */
   --sidebar: #ece8e1;
-  --sidebar-foreground: #6e6862;
+  --sidebar-foreground: #635d57;
   --sidebar-primary: #d4883a;
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: rgba(212, 136, 58, 0.1);
@@ -438,8 +438,8 @@
 
   /* ---- Dispatch text hierarchy ---- */
   --text-primary: #1a1815;
-  --text-secondary: #6e6862;
-  --text-tertiary: #756e66;
+  --text-secondary: #635d57;
+  --text-tertiary: #6d6660;
   --text-ghost: #918b83;
 
   /* ---- Dispatch accent variants ---- */

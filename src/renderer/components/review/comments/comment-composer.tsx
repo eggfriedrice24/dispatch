@@ -151,9 +151,7 @@ export function CommentComposer({
       </div>
       {createMutation.isError && (
         <div className="border-border-subtle border-t px-3 py-2">
-          <p className="text-destructive text-[11px]">
-            {getErrorMessage(createMutation.error)}
-          </p>
+          <p className="text-destructive text-[11px]">{getErrorMessage(createMutation.error)}</p>
         </div>
       )}
     </div>

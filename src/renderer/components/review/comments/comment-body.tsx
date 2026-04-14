@@ -1,8 +1,7 @@
+import type { ReviewComment } from "@/renderer/components/review/comments/inline-comment";
 import type { ReviewThreadState } from "@/renderer/lib/review/review-comments";
 /* eslint-disable import/max-dependencies -- Comment body integrates markdown, suggestions, reactions, context menu, and thread resolution in one row component. */
 import type { GhReactionGroup } from "@/shared/ipc";
-
-import type { ReviewComment } from "@/renderer/components/review/comments/inline-comment";
 
 import { cn } from "@/lib/utils";
 import { CommentContextMenu } from "@/renderer/components/review/comments/comment-context-menu";

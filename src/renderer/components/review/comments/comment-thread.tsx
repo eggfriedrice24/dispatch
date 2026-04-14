@@ -1,8 +1,7 @@
+import type { ReviewComment } from "@/renderer/components/review/comments/inline-comment";
 import type { ReviewThreadState } from "@/renderer/lib/review/review-comments";
 /* eslint-disable import/max-dependencies -- Thread component integrates replies, collapsing, and resolution in one view. */
 import type { GhReactionGroup } from "@/shared/ipc";
-
-import type { ReviewComment } from "@/renderer/components/review/comments/inline-comment";
 
 import { cn } from "@/lib/utils";
 import { CommentBody } from "@/renderer/components/review/comments/comment-body";
@@ -70,8 +69,7 @@ export function CommentThread({
   const totalCount = 1 + replies.length;
   const canMutateThread = reviewActionsEnabled && Boolean(prNumber);
   const preview = useMemo(() => buildCommentPreview(root.body, 160), [root.body]);
-  const rootAutoMinimized =
-    shouldAutoCollapseBot(root.user.login) || (isDismissed && !hasReplies);
+  const rootAutoMinimized = shouldAutoCollapseBot(root.user.login) || (isDismissed && !hasReplies);
 
   return (
     <div

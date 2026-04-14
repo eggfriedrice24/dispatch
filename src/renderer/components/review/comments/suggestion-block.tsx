@@ -81,7 +81,7 @@ export function SuggestionBlock({
   }, [highlighter, language, lines, shikiTheme]);
 
   return (
-    <div className="my-2 overflow-hidden rounded-md border border-[rgba(61,214,140,0.15)] bg-[rgba(61,214,140,0.06)]">
+    <div className="border-success/15 bg-success-muted/60 my-2 overflow-hidden rounded-md border">
       <div className="flex items-center gap-[5px] px-2 py-1.5 text-[10px] font-semibold text-[var(--success)]">
         <Check size={11} />
         Suggested fix
@@ -102,7 +102,7 @@ export function SuggestionBlock({
           padding: "4px 10px 6px",
           background: "transparent",
           border: "none",
-          borderTop: "1px solid rgba(61,214,140,0.1)",
+          borderTop: "1px solid color-mix(in srgb, var(--success) 10%, transparent)",
           borderRadius: 0,
           overflow: "auto",
         }}
@@ -139,7 +139,7 @@ export function SuggestionBlock({
                   style={{
                     textDecoration: "line-through",
                     opacity: 0.7,
-                    background: "rgba(248,81,73,0.1)",
+                    background: "var(--diff-del-bg)",
                   }}
                 >
                   {content}
@@ -150,7 +150,7 @@ export function SuggestionBlock({
               return (
                 <div
                   key={i}
-                  style={{ background: "rgba(63,185,80,0.1)" }}
+                  style={{ background: "var(--diff-add-bg)" }}
                 >
                   {content}
                 </div>

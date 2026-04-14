@@ -46,7 +46,11 @@ export function RequestChangesBarButton({
       setOpen(false);
     },
     onError: (err) => {
-      toastManager.add({ title: "Review failed", description: getErrorMessage(err), type: "error" });
+      toastManager.add({
+        title: "Review failed",
+        description: getErrorMessage(err),
+        type: "error",
+      });
     },
   });
 
