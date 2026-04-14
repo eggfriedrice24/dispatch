@@ -1,24 +1,16 @@
-import { createContext, useContext, useState } from "react";
+import { create } from "zustand";
+import { useShallow } from "zustand/react/shallow";
 
 interface CommandPaletteState {
   open: boolean;
   setOpen: (open: boolean) => void;
 }
 
-const CommandPaletteContext = createContext<CommandPaletteState>({
+export const useCommandPaletteStore = create<CommandPaletteState>()((set) => ({
   open: false,
-  setOpen: () => {},
-});
-
-export function CommandPaletteProvider({ children }: { children: React.ReactNode }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <CommandPaletteContext.Provider value={{ open, setOpen }}>
-      {children}
-    </CommandPaletteContext.Provider>
-  );
-}
+  setOpen: (open) => set({ open }),
+}));
 
 export function useCommandPalette(): CommandPaletteState {
-  return useContext(CommandPaletteContext);
+  return useCommandPaletteStore(useShallow((s) => s));
 }

@@ -2,84 +2,95 @@ import type { RepoTarget } from "@/shared/ipc";
 
 import { ipc } from "@/renderer/lib/app/ipc";
 import { queryClient } from "@/renderer/lib/app/query-client";
-import { createContext, type ReactNode, useCallback, useContext, useMemo, useState } from "react";
+import { type ReactNode, useEffect } from "react";
+import { create } from "zustand";
+import { useShallow } from "zustand/react/shallow";
 
-interface WorkspaceContextValue {
-  /** Workspace database ID */
+interface WorkspaceData {
   id: number;
-  /** GitHub owner (always available) */
   owner: string;
-  /** GitHub repo name (always available) */
   repo: string;
-  /** "owner/repo" convenience string */
-  nwo: string;
-  /** Absolute path to local git clone, or null for remote-only workspaces */
-  cwd: string | null;
-  /** Whether this workspace has a local clone linked */
-  hasLocalClone: boolean;
-  /** RepoTarget object to spread into IPC args */
-  repoTarget: RepoTarget;
-  /** Switch to a different workspace */
-  switchWorkspace: (workspace: {
-    id: number;
-    owner: string;
-    repo: string;
-    path: string | null;
-  }) => void;
+  path: string | null;
 }
 
-const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
+interface WorkspaceState {
+  id: number;
+  owner: string;
+  repo: string;
+  nwo: string;
+  cwd: string | null;
+  hasLocalClone: boolean;
+  repoTarget: RepoTarget;
+  _initialized: boolean;
+  setWorkspace: (ws: WorkspaceData) => void;
+  switchWorkspace: (ws: WorkspaceData) => void;
+}
+
+export const useWorkspaceStore = create<WorkspaceState>()((set, get) => ({
+  id: 0,
+  owner: "",
+  repo: "",
+  nwo: "",
+  cwd: null,
+  hasLocalClone: false,
+  repoTarget: { cwd: null, owner: "", repo: "" },
+  _initialized: false,
+
+  setWorkspace: (ws) => {
+    const nwo = `${ws.owner}/${ws.repo}`;
+    set({
+      id: ws.id,
+      owner: ws.owner,
+      repo: ws.repo,
+      nwo,
+      cwd: ws.path,
+      hasLocalClone: ws.path !== null,
+      repoTarget: { cwd: ws.path, owner: ws.owner, repo: ws.repo },
+      _initialized: true,
+    });
+  },
+
+  switchWorkspace: (next) => {
+    if (next.id === get().id) return;
+
+    void ipc("workspace.setActive", { id: next.id })
+      .then(() => {
+        get().setWorkspace(next);
+      })
+      .catch(() => {
+        void queryClient.invalidateQueries({ queryKey: ["workspace"] });
+      });
+  },
+}));
 
 export function WorkspaceProvider({
   workspace,
   children,
 }: {
-  workspace: { id: number; owner: string; repo: string; path: string | null };
+  workspace: WorkspaceData;
   children: ReactNode;
 }) {
-  const [current, setCurrent] = useState(workspace);
+  const initialized = useWorkspaceStore((s) => s._initialized);
 
-  const switchWorkspace = useCallback(
-    (next: { id: number; owner: string; repo: string; path: string | null }) => {
-      if (next.id === current.id) {
-        return;
-      }
+  useEffect(() => {
+    useWorkspaceStore.getState().setWorkspace(workspace);
+  }, [workspace.id, workspace.owner, workspace.repo, workspace.path]);
 
-      void ipc("workspace.setActive", { id: next.id })
-        .then(() => {
-          setCurrent(next);
-        })
-        .catch(() => {
-          void queryClient.invalidateQueries({ queryKey: ["workspace"] });
-        });
-    },
-    [current.id],
-  );
-
-  const value = useMemo<WorkspaceContextValue>(() => {
-    const nwo = `${current.owner}/${current.repo}`;
-    return {
-      id: current.id,
-      owner: current.owner,
-      repo: current.repo,
-      nwo,
-      cwd: current.path,
-      hasLocalClone: current.path !== null,
-      repoTarget: { cwd: current.path, owner: current.owner, repo: current.repo },
-      switchWorkspace,
-    };
-  }, [current, switchWorkspace]);
-
-  return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>;
+  if (!initialized) return null;
+  return <>{children}</>;
 }
 
-/**
- * Access the active workspace. Must be used inside WorkspaceProvider.
- */
-export function useWorkspace(): WorkspaceContextValue {
-  const ctx = useContext(WorkspaceContext);
-  if (!ctx) {
-    throw new Error("useWorkspace must be used inside WorkspaceProvider");
-  }
-  return ctx;
+export function useWorkspace() {
+  return useWorkspaceStore(
+    useShallow((s) => ({
+      id: s.id,
+      owner: s.owner,
+      repo: s.repo,
+      nwo: s.nwo,
+      cwd: s.cwd,
+      hasLocalClone: s.hasLocalClone,
+      repoTarget: s.repoTarget,
+      switchWorkspace: s.switchWorkspace,
+    })),
+  );
 }

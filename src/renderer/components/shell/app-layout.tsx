@@ -1,4 +1,3 @@
-/* eslint-disable import/max-dependencies -- The app shell owns the top-level route and layout composition for the renderer. */
 import type { ReviewResumeState } from "@/shared/ipc/contracts/review";
 
 import { Button } from "@/components/ui/button";
@@ -14,17 +13,12 @@ import { WorkflowsDashboard } from "@/renderer/components/workflows/workflows-da
 import { useKeyboardShortcuts } from "@/renderer/hooks/app/use-keyboard-shortcuts";
 import { useNotificationPolling } from "@/renderer/hooks/app/use-notification-polling";
 import { useWorkspacePathMonitor } from "@/renderer/hooks/app/use-workspace-path-monitor";
-import { CommandPaletteProvider } from "@/renderer/lib/app/command-palette-context";
 import { ipc } from "@/renderer/lib/app/ipc";
 import { listenForMainProcessEvents } from "@/renderer/lib/app/posthog";
-import { RouterProvider, useRouter, type Route } from "@/renderer/lib/app/router";
+import { useRouter, useRouterStore, type Route } from "@/renderer/lib/app/router";
 import { useWorkspace } from "@/renderer/lib/app/workspace-context";
 import { useKeybindings } from "@/renderer/lib/keyboard/keybinding-context";
-import {
-  DEFAULT_FILE_NAV_STATE,
-  type FileNavState,
-  FileNavProvider,
-} from "@/renderer/lib/review/file-nav-context";
+import { type FileNavState, useFileNavStore } from "@/renderer/lib/review/file-nav-context";
 import { useQuery } from "@tanstack/react-query";
 import {
   type ReactNode,
@@ -42,11 +36,6 @@ import { KeyboardShortcutsDialog } from "./keyboard-shortcuts-dialog";
 import { Navbar } from "./navbar";
 import { UpdateBanner } from "./update-banner";
 
-/**
- * Root layout — DISPATCH-DESIGN-SYSTEM.md § 4.2
- *
- * Now with client-side routing: Review | Workflows | Settings
- */
 export function AppLayout() {
   const { nwo } = useWorkspace();
   const resumeStateQuery = useQuery({
@@ -61,23 +50,18 @@ export function AppLayout() {
     if (!resumeState) {
       return { view: "review", prNumber: null };
     }
-
     if (resumeState.view === "review") {
       return { view: "review", prNumber: resumeState.prNumber };
     }
-
     if (resumeState.view === "workflows") {
       return { view: "workflows" };
     }
-
     if (resumeState.view === "metrics") {
       return { view: "metrics" };
     }
-
     if (resumeState.view === "releases") {
       return { view: "releases" };
     }
-
     return { view: "settings" };
   }, [resumeState]);
 
@@ -85,7 +69,6 @@ export function AppLayout() {
     if (!resumeState || resumeState.view !== "review") {
       return null;
     }
-
     return {
       currentFileIndex: resumeState.currentFileIndex,
       currentFilePath: resumeState.currentFilePath,
@@ -96,29 +79,42 @@ export function AppLayout() {
     };
   }, [resumeState]);
 
+  // Reset router and file nav store when workspace or resume state changes
+  const resetKey = `${nwo}-${resumeReady ? "ready" : "loading"}`;
+  const prevResetKeyRef = useRef(resetKey);
+
+  useEffect(() => {
+    if (resetKey === prevResetKeyRef.current) return;
+    prevResetKeyRef.current = resetKey;
+    useRouterStore.getState().reset(initialRoute);
+    useFileNavStore.getState().reset(initialFileNavState ?? undefined);
+  }, [resetKey, initialRoute, initialFileNavState]);
+
+  // Set initial route on first mount
+  useEffect(() => {
+    useRouterStore.getState().reset(initialRoute);
+    if (initialFileNavState) {
+      useFileNavStore.getState().reset(initialFileNavState);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only on mount
+  }, []);
+
   return (
-    <RouterProvider
-      key={`${nwo}-${resumeReady ? "ready" : "loading"}`}
-      initialRoute={initialRoute}
-    >
-      <ErrorBoundary>
-        <AppShell
-          resumeReady={resumeReady}
-          resumeState={resumeState}
-          initialFileNavState={initialFileNavState}
-        />
-      </ErrorBoundary>
-    </RouterProvider>
+    <ErrorBoundary>
+      <AppShell
+        resumeReady={resumeReady}
+        resumeState={resumeState}
+      />
+    </ErrorBoundary>
   );
 }
 
 interface AppShellProps {
   resumeState: ReviewResumeState | null;
   resumeReady: boolean;
-  initialFileNavState: FileNavState | null;
 }
 
-function AppShell({ resumeState, resumeReady, initialFileNavState }: AppShellProps) {
+function AppShell({ resumeState, resumeReady }: AppShellProps) {
   const { route, navigate, toggleSettings } = useRouter();
   const { nwo } = useWorkspace();
   const { getBinding } = useKeybindings();
@@ -126,10 +122,7 @@ function AppShell({ resumeState, resumeReady, initialFileNavState }: AppShellPro
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [bannerVisible, setBannerVisible] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [fileNavState, setFileNavState] = useState<FileNavState>(
-    initialFileNavState ?? DEFAULT_FILE_NAV_STATE,
-  );
-  const reviewSeedRef = useRef<string | null>(null);
+
   const saveStateTimerRef = useRef<ReturnType<typeof globalThis.setTimeout> | null>(null);
   const lastSavedStateRef = useRef<string | null>(null);
 
@@ -150,12 +143,10 @@ function AppShell({ resumeState, resumeReady, initialFileNavState }: AppShellPro
   ]);
   useNotificationPolling();
 
-  // Forward analytics events from main process to PostHog
   useEffect(() => {
     listenForMainProcessEvents();
   }, []);
 
-  // Listen for navigation events from main process (tray menu, notification clicks)
   useEffect(() => {
     const { api } = globalThis as typeof globalThis & { api: ElectronApi };
     const cleanup = api.onNavigate((trayRoute) => {
@@ -178,24 +169,59 @@ function AppShell({ resumeState, resumeReady, initialFileNavState }: AppShellPro
 
   const selectedPr = route.view === "review" ? route.prNumber : null;
 
-  useEffect(() => {
-    if (!resumeReady || route.view !== "review") {
-      return;
+  // Refs for latest values — avoids stale closures in debounced persist
+  const nwoRef = useRef(nwo);
+  nwoRef.current = nwo;
+  const routeRef = useRef(route);
+  routeRef.current = route;
+
+  const schedulePersist = useCallback(() => {
+    if (!resumeReady) return;
+
+    if (saveStateTimerRef.current !== null) {
+      globalThis.clearTimeout(saveStateTimerRef.current);
     }
 
-    const seedKey = selectedPr === null ? "review-home" : `review-pr-${selectedPr}`;
-    if (seedKey === reviewSeedRef.current) {
-      return;
-    }
-    reviewSeedRef.current = seedKey;
+    saveStateTimerRef.current = globalThis.setTimeout(() => {
+      const currentRoute = routeRef.current;
+      const currentNwo = nwoRef.current;
+      const fnState = useFileNavStore.getState().getSnapshot();
+      const isReview = currentRoute.view === "review";
+
+      const nextState: Omit<ReviewResumeState, "updatedAt"> = {
+        workspace: currentNwo,
+        view: currentRoute.view,
+        prNumber: isReview ? currentRoute.prNumber : null,
+        currentFilePath: isReview ? fnState.currentFilePath : null,
+        currentFileIndex: isReview ? fnState.currentFileIndex : 0,
+        diffMode: isReview ? fnState.diffMode : "all",
+        panelOpen: isReview ? fnState.panelOpen : true,
+        panelTab: isReview ? fnState.panelTab : "overview",
+        selectedCommit: isReview ? fnState.selectedCommit : null,
+      };
+
+      const serialized = JSON.stringify(nextState);
+      if (serialized === lastSavedStateRef.current) return;
+
+      void ipc("review.saveResumeState", nextState)
+        .then(() => {
+          lastSavedStateRef.current = serialized;
+        })
+        .catch(() => {});
+    }, 250);
+  }, [resumeReady]);
+
+  // Reset file nav state when PR changes
+  useEffect(() => {
+    if (!resumeReady || route.view !== "review") return;
 
     if (selectedPr === null) {
-      setFileNavState(DEFAULT_FILE_NAV_STATE);
+      useFileNavStore.getState().reset();
       return;
     }
 
     if (resumeState?.view === "review" && resumeState.prNumber === selectedPr) {
-      setFileNavState({
+      useFileNavStore.getState().reset({
         currentFileIndex: resumeState.currentFileIndex,
         currentFilePath: resumeState.currentFilePath,
         selectedCommit: resumeState.selectedCommit,
@@ -206,167 +232,130 @@ function AppShell({ resumeState, resumeReady, initialFileNavState }: AppShellPro
       return;
     }
 
-    setFileNavState(DEFAULT_FILE_NAV_STATE);
+    useFileNavStore.getState().reset();
   }, [route.view, resumeReady, resumeState, selectedPr]);
 
+  // Subscribe to file nav store changes for persistence
   useEffect(() => {
-    if (!resumeReady) {
-      return;
-    }
+    if (!resumeReady) return;
+    const unsub = useFileNavStore.subscribe(() => {
+      schedulePersist();
+    });
+    return unsub;
+  }, [resumeReady, schedulePersist]);
 
-    const nextState: Omit<ReviewResumeState, "updatedAt"> = {
-      workspace: nwo,
-      view: route.view,
-      prNumber: route.view === "review" ? route.prNumber : null,
-      currentFilePath: route.view === "review" ? fileNavState.currentFilePath : null,
-      currentFileIndex: route.view === "review" ? fileNavState.currentFileIndex : 0,
-      diffMode: route.view === "review" ? fileNavState.diffMode : "all",
-      panelOpen: route.view === "review" ? fileNavState.panelOpen : true,
-      panelTab: route.view === "review" ? fileNavState.panelTab : "overview",
-      selectedCommit: route.view === "review" ? fileNavState.selectedCommit : null,
-    };
-
-    const serialized = JSON.stringify(nextState);
-    if (serialized === lastSavedStateRef.current) {
-      return;
-    }
-
-    if (saveStateTimerRef.current !== null) {
-      globalThis.clearTimeout(saveStateTimerRef.current);
-    }
-
-    saveStateTimerRef.current = globalThis.setTimeout(() => {
-      void ipc("review.saveResumeState", nextState)
-        .then(() => {
-          lastSavedStateRef.current = serialized;
-        })
-        .catch(() => {});
-    }, 250);
-
+  // Persist when route or workspace changes
+  useEffect(() => {
+    if (!resumeReady) return;
+    schedulePersist();
     return () => {
       if (saveStateTimerRef.current !== null) {
         globalThis.clearTimeout(saveStateTimerRef.current);
       }
     };
-  }, [fileNavState, nwo, route.view, resumeReady, selectedPr]);
+  }, [nwo, route.view, selectedPr, resumeReady, schedulePersist]);
 
   return (
-    <CommandPaletteProvider>
-      <div
-        className="bg-bg-root text-text-primary relative flex h-screen flex-col overflow-hidden"
-        style={{ background: "var(--app-shell-background, var(--bg-root))" }}
+    <div
+      className="bg-bg-root text-text-primary relative flex h-screen flex-col overflow-hidden"
+      style={{ background: "var(--app-shell-background, var(--bg-root))" }}
+    >
+      <a
+        href="#app-main"
+        className="bg-bg-elevated text-text-primary border-border-strong absolute top-3 left-3 z-50 -translate-y-2 rounded-md border px-3 py-2 text-xs font-medium opacity-0 shadow-[var(--shadow-md)] transition-[opacity,transform] duration-[120ms] ease-out focus-visible:translate-y-0 focus-visible:opacity-100 focus-visible:outline-none"
       >
-        <a
-          href="#app-main"
-          className="bg-bg-elevated text-text-primary border-border-strong absolute top-3 left-3 z-50 -translate-y-2 rounded-md border px-3 py-2 text-xs font-medium opacity-0 shadow-[var(--shadow-md)] transition-[opacity,transform] duration-[120ms] ease-out focus-visible:translate-y-0 focus-visible:opacity-100 focus-visible:outline-none"
-        >
-          Skip to main content
-        </a>
+        Skip to main content
+      </a>
 
-        {/* Background noise texture (§ 4.4) */}
-        <div
-          className="pointer-events-none fixed inset-0 z-0"
-          style={{
-            opacity: "var(--noise-opacity, 0.015)",
-            backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`,
-            backgroundRepeat: "repeat",
-            backgroundSize: "256px 256px",
-          }}
-        />
+      <div
+        className="pointer-events-none fixed inset-0 z-0"
+        style={{
+          opacity: "var(--noise-opacity, 0.015)",
+          backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`,
+          backgroundRepeat: "repeat",
+          backgroundSize: "256px 256px",
+        }}
+      />
 
-        {/* Update banner */}
-        <UpdateBanner
-          onVisibilityChange={setBannerVisible}
-          isFullscreen={isFullscreen}
-        />
+      <UpdateBanner
+        onVisibilityChange={setBannerVisible}
+        isFullscreen={isFullscreen}
+      />
 
-        {/* Accent bar */}
-        <div
-          className="w-full shrink-0"
-          style={{
-            height: "var(--accent-bar-height, 2px)",
-            background:
-              "var(--accent-bar-background, linear-gradient(90deg, transparent, var(--primary), transparent))",
-            opacity: "var(--accent-bar-opacity, 0.4)",
-          }}
-        />
+      <div
+        className="w-full shrink-0"
+        style={{
+          height: "var(--accent-bar-height, 2px)",
+          background:
+            "var(--accent-bar-background, linear-gradient(90deg, transparent, var(--primary), transparent))",
+          opacity: "var(--accent-bar-opacity, 0.4)",
+        }}
+      />
 
-        {/* Navbar */}
-        <Navbar
-          bannerVisible={bannerVisible}
-          isFullscreen={isFullscreen}
-        />
+      <Navbar
+        bannerVisible={bannerVisible}
+        isFullscreen={isFullscreen}
+      />
 
-        <main
-          id="app-main"
-          className="flex min-h-0 flex-1 flex-col overflow-hidden"
-        >
-          {/* View content */}
-          {route.view === "review" && !selectedPr && <HomeView />}
+      <main
+        id="app-main"
+        className="flex min-h-0 flex-1 flex-col overflow-hidden"
+      >
+        {route.view === "review" && !selectedPr && <HomeView />}
 
-          {route.view === "review" && selectedPr && (
-            <FileNavProvider
-              key={selectedPr}
-              initialState={fileNavState}
-              onStateChange={setFileNavState}
-            >
-              <ResizablePanelGroup
-                orientation="horizontal"
-                className="flex-1"
-              >
-                {!sidebarCollapsed && (
-                  <>
-                    <ResizablePanel
-                      defaultSize="20%"
-                      minSize="12%"
-                      maxSize="35%"
-                    >
-                      <ReviewSidebar
-                        prNumber={selectedPr}
-                        onBack={() => navigate({ view: "review", prNumber: null })}
-                        onSelectPr={(pr) => navigate({ view: "review", prNumber: pr })}
-                      />
-                    </ResizablePanel>
-                    <ResizableHandle />
-                  </>
-                )}
-                <ResizablePanel>
-                  <section
-                    aria-label="Pull request detail"
-                    className="flex h-full flex-col overflow-hidden"
-                  >
-                    <PrDetailView prNumber={selectedPr} />
-                  </section>
+        {route.view === "review" && selectedPr && (
+          <ResizablePanelGroup
+            orientation="horizontal"
+            className="flex-1"
+          >
+            {!sidebarCollapsed && (
+              <>
+                <ResizablePanel
+                  defaultSize="20%"
+                  minSize="12%"
+                  maxSize="35%"
+                >
+                  <ReviewSidebar
+                    prNumber={selectedPr}
+                    onBack={() => navigate({ view: "review", prNumber: null })}
+                    onSelectPr={(pr) => navigate({ view: "review", prNumber: pr })}
+                  />
                 </ResizablePanel>
-              </ResizablePanelGroup>
-            </FileNavProvider>
-          )}
+                <ResizableHandle />
+              </>
+            )}
+            <ResizablePanel>
+              <section
+                aria-label="Pull request detail"
+                className="flex h-full flex-col overflow-hidden"
+              >
+                <PrDetailView prNumber={selectedPr} />
+              </section>
+            </ResizablePanel>
+          </ResizablePanelGroup>
+        )}
 
-          {route.view === "workflows" && <WorkflowsDashboard />}
+        {route.view === "workflows" && <WorkflowsDashboard />}
 
-          {route.view === "metrics" && <MetricsView />}
+        {route.view === "metrics" && <MetricsView />}
 
-          {route.view === "releases" && <ReleasesView />}
+        {route.view === "releases" && <ReleasesView />}
 
-          {route.view === "settings" && <SettingsView />}
-        </main>
+        {route.view === "settings" && <SettingsView />}
+      </main>
 
-        {/* Keyboard shortcuts dialog */}
-        <KeyboardShortcutsDialog
-          open={showShortcuts}
-          onClose={() => setShowShortcuts(false)}
-        />
+      <KeyboardShortcutsDialog
+        open={showShortcuts}
+        onClose={() => setShowShortcuts(false)}
+      />
 
-        {/* Command palette (⌘K) */}
-        <CommandPalette />
+      <CommandPalette />
 
-        {/* Missing folder recovery dialog */}
-        <MissingFolderDialog
-          open={pathMissing}
-          onResolved={dismissPathMissing}
-        />
-      </div>
-    </CommandPaletteProvider>
+      <MissingFolderDialog
+        open={pathMissing}
+        onResolved={dismissPathMissing}
+      />
+    </div>
   );
 }
 

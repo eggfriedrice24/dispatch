@@ -1,4 +1,3 @@
-/* eslint-disable import/max-dependencies -- App bootstrap intentionally composes the top-level providers and boot flow in one entrypoint. */
 import type { Workspace } from "@/shared/ipc";
 
 import { ToastProvider } from "@/components/ui/toast";
@@ -13,9 +12,7 @@ import { SplashScreen } from "./components/shell/splash-screen";
 import { ipc } from "./lib/app/ipc";
 import { initPostHog } from "./lib/app/posthog";
 import { queryClient } from "./lib/app/query-client";
-import { ThemeProvider } from "./lib/app/theme-context";
 import { WorkspaceProvider } from "./lib/app/workspace-context";
-import { KeybindingProvider } from "./lib/keyboard/keybinding-context";
 
 /**
  * Boot flow:
@@ -187,15 +184,11 @@ function AppScreen({
 export function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider>
-        <TooltipProvider>
-          <KeybindingProvider>
-            <ToastProvider position="bottom-right">
-              <AppContent />
-            </ToastProvider>
-          </KeybindingProvider>
-        </TooltipProvider>
-      </ThemeProvider>
+      <TooltipProvider>
+        <ToastProvider position="bottom-right">
+          <AppContent />
+        </ToastProvider>
+      </TooltipProvider>
     </QueryClientProvider>
   );
 }

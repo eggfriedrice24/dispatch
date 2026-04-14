@@ -1,20 +1,6 @@
 import { trackPage } from "@/renderer/lib/app/posthog";
-import {
-  createContext,
-  type ReactNode,
-  useCallback,
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
-
-/**
- * Simple state-based client-side router.
- *
- * Tracks the previous non-settings route so the settings icon
- * can toggle back to where you came from.
- */
+import { create } from "zustand";
+import { useShallow } from "zustand/react/shallow";
 
 export type Route =
   | { view: "review"; prNumber: number | null }
@@ -23,68 +9,50 @@ export type Route =
   | { view: "releases" }
   | { view: "settings" };
 
-interface RouterContextValue {
+interface RouterState {
   route: Route;
   navigate: (route: Route) => void;
-  /** Navigate to settings, or back to the previous view if already on settings. */
   toggleSettings: () => void;
+  reset: (route: Route) => void;
 }
 
-const ROUTER_INITIAL_ROUTE: Route = { view: "review", prNumber: null };
+let previousRoute: Route = { view: "review", prNumber: null };
 
-const RouterContext = createContext<RouterContextValue>({
-  route: ROUTER_INITIAL_ROUTE,
-  navigate: () => {},
-  toggleSettings: () => {},
-});
+export const useRouterStore = create<RouterState>()((set, get) => ({
+  route: { view: "review", prNumber: null } as Route,
 
-interface RouterProviderProps {
-  children: ReactNode;
-  initialRoute?: Route;
-}
+  navigate: (next) => {
+    const current = get().route;
+    if (current.view !== "settings") {
+      previousRoute = current;
+    }
+    set({ route: next });
+    if (next.view !== current.view) {
+      trackPage(next.view);
+    }
+  },
 
-export function RouterProvider({
-  children,
-  initialRoute = ROUTER_INITIAL_ROUTE,
-}: RouterProviderProps) {
-  const [route, setRoute] = useState<Route>(initialRoute);
-  const previousRoute = useRef<Route>(initialRoute);
+  toggleSettings: () => {
+    const current = get().route;
+    if (current.view === "settings") {
+      const prev = previousRoute;
+      const next: Route = prev.view === "settings" ? { view: "review", prNumber: null } : prev;
+      set({ route: next });
+      trackPage(next.view);
+    } else {
+      previousRoute = current;
+      set({ route: { view: "settings" } });
+      trackPage("settings");
+    }
+  },
 
-  const navigate = useCallback((next: Route) => {
-    setRoute((current) => {
-      if (current.view !== "settings") {
-        previousRoute.current = current;
-      }
-      return next;
-    });
-  }, []);
-
-  useEffect(() => {
+  reset: (route) => {
+    previousRoute = { view: "review", prNumber: null };
+    set({ route });
     trackPage(route.view);
-  }, [route.view]);
-
-  const toggleSettings = useCallback(() => {
-    setRoute((current) => {
-      if (current.view === "settings") {
-        // Go back to previous view, fall back to home if no valid history
-        const prev = previousRoute.current;
-        return prev.view === "settings"
-          ? { view: "review", prNumber: null }
-          : prev;
-      }
-      // Going to settings — save current route
-      previousRoute.current = current;
-      return { view: "settings" };
-    });
-  }, []);
-
-  return (
-    <RouterContext.Provider value={{ route, navigate, toggleSettings }}>
-      {children}
-    </RouterContext.Provider>
-  );
-}
+  },
+}));
 
 export function useRouter() {
-  return useContext(RouterContext);
+  return useRouterStore(useShallow((s) => s));
 }

@@ -4,34 +4,15 @@ import {
   type Modifier,
   resolveBinding,
 } from "@/renderer/lib/keyboard/keybinding-registry";
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { create } from "zustand";
+import { useShallow } from "zustand/react/shallow";
 
 const STORAGE_KEY = "dispatch-keybindings";
 const PREF_KEY = "keybindings";
 
-interface KeybindingContextValue {
-  /** Get resolved key + modifiers for a shortcut ID. */
-  getBinding: (id: string) => { key: string; modifiers?: Modifier[] };
-  /** Set a custom binding for a shortcut ID. */
-  setBinding: (id: string, key: string, modifiers?: Modifier[]) => void;
-  /** Reset a single shortcut to its default. */
-  resetBinding: (id: string) => void;
-  /** Reset all shortcuts to defaults. */
-  resetAll: () => void;
-  /** Raw overrides — for checking what's been customized. */
-  overrides: KeybindingOverrides;
-}
-
-const KeybindingContext = createContext<KeybindingContextValue>({
-  getBinding: (id) => resolveBinding(id, {}),
-  setBinding: () => {},
-  resetBinding: () => {},
-  resetAll: () => {},
-  overrides: {},
-});
-
 function loadFromStorage(): KeybindingOverrides {
   try {
+    if (typeof localStorage === "undefined") return {};
     const raw = localStorage.getItem(STORAGE_KEY);
     return raw ? (JSON.parse(raw) as KeybindingOverrides) : {};
   } catch {
@@ -40,64 +21,60 @@ function loadFromStorage(): KeybindingOverrides {
 }
 
 function persist(overrides: KeybindingOverrides) {
+  if (typeof localStorage === "undefined") return;
   const json = JSON.stringify(overrides);
   localStorage.setItem(STORAGE_KEY, json);
   ipc("preferences.set", { key: PREF_KEY, value: json });
 }
 
-export function KeybindingProvider({ children }: { children: ReactNode }) {
-  const [overrides, setOverrides] = useState<KeybindingOverrides>(loadFromStorage);
+interface KeybindingState {
+  overrides: KeybindingOverrides;
+  getBinding: (id: string) => { key: string; modifiers?: Modifier[] };
+  setBinding: (id: string, key: string, modifiers?: Modifier[]) => void;
+  resetBinding: (id: string) => void;
+  resetAll: () => void;
+}
 
-  // Load authoritative value from SQLite on mount
-  useEffect(() => {
-    ipc("preferences.get", { key: PREF_KEY }).then((value) => {
-      if (!value) {
-        return;
-      }
+export const useKeybindingStore = create<KeybindingState>()((set, get) => ({
+  overrides: loadFromStorage(),
+
+  getBinding: (id) => resolveBinding(id, get().overrides),
+
+  setBinding: (id, key, modifiers) => {
+    const next = { ...get().overrides, [id]: { key, modifiers } };
+    set({ overrides: next });
+    persist(next);
+  },
+
+  resetBinding: (id) => {
+    const next = { ...get().overrides };
+    delete next[id];
+    set({ overrides: next });
+    persist(next);
+  },
+
+  resetAll: () => {
+    const empty: KeybindingOverrides = {};
+    set({ overrides: empty });
+    persist(empty);
+  },
+}));
+
+// Load authoritative value from SQLite on app start
+if (typeof (globalThis as Record<string, unknown>).api !== "undefined")
+  ipc("preferences.get", { key: PREF_KEY })
+    .then((value) => {
+      if (!value) return;
       try {
         const parsed = JSON.parse(value) as KeybindingOverrides;
-        setOverrides(parsed);
-        localStorage.setItem(STORAGE_KEY, value);
+        useKeybindingStore.setState({ overrides: parsed });
+        if (typeof localStorage !== "undefined") localStorage.setItem(STORAGE_KEY, value);
       } catch {
         // Invalid JSON in DB — ignore
       }
-    });
-  }, []);
-
-  const getBinding = useCallback((id: string) => resolveBinding(id, overrides), [overrides]);
-
-  const setBinding = useCallback((id: string, key: string, modifiers?: Modifier[]) => {
-    setOverrides((prev) => {
-      const next = { ...prev, [id]: { key, modifiers } };
-      persist(next);
-      return next;
-    });
-  }, []);
-
-  const resetBinding = useCallback((id: string) => {
-    setOverrides((prev) => {
-      const next = { ...prev };
-      delete next[id];
-      persist(next);
-      return next;
-    });
-  }, []);
-
-  const resetAll = useCallback(() => {
-    const empty: KeybindingOverrides = {};
-    setOverrides(empty);
-    persist(empty);
-  }, []);
-
-  return (
-    <KeybindingContext.Provider
-      value={{ getBinding, setBinding, resetBinding, resetAll, overrides }}
-    >
-      {children}
-    </KeybindingContext.Provider>
-  );
-}
+    })
+    .catch(() => {});
 
 export function useKeybindings() {
-  return useContext(KeybindingContext);
+  return useKeybindingStore(useShallow((s) => s));
 }

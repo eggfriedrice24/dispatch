@@ -38,7 +38,7 @@ import {
   Users,
   Zap,
 } from "lucide-react";
-import { useState } from "react";
+import { memo, useCallback, useState } from "react";
 
 import { NotificationCenter } from "./notification-center";
 
@@ -61,6 +61,11 @@ export function Navbar({
   const collapseNavLabels = useMediaQuery({ max: 1100 });
   const collapseChromeLabels = useMediaQuery({ max: 940 });
   const isNeoBrutalTheme = themeStyle === "neo-brutalism";
+
+  const navToReview = useCallback(() => navigate({ view: "review", prNumber: null }), [navigate]);
+  const navToWorkflows = useCallback(() => navigate({ view: "workflows" }), [navigate]);
+  const navToMetrics = useCallback(() => navigate({ view: "metrics" }), [navigate]);
+  const navToReleases = useCallback(() => navigate({ view: "releases" }), [navigate]);
 
   // Fetch authenticated GitHub user for avatar
   const userQuery = useQuery({
@@ -92,7 +97,7 @@ export function Navbar({
         style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
         aria-label="Dispatch"
         title={collapseChromeLabels ? "Dispatch" : undefined}
-        onClick={() => navigate({ view: "review", prNumber: null })}
+        onClick={navToReview}
       >
         <span
           className={cn(
@@ -123,28 +128,28 @@ export function Navbar({
           icon={<GitPullRequest size={14} />}
           compact={collapseNavLabels}
           active={route.view === "review"}
-          onClick={() => navigate({ view: "review", prNumber: null })}
+          onClick={navToReview}
         />
         <NavTab
           label="Workflows"
           icon={<Zap size={14} />}
           compact={collapseNavLabels}
           active={route.view === "workflows"}
-          onClick={() => navigate({ view: "workflows" })}
+          onClick={navToWorkflows}
         />
         <NavTab
           label="Metrics"
           icon={<BarChart3 size={14} />}
           compact={collapseNavLabels}
           active={route.view === "metrics"}
-          onClick={() => navigate({ view: "metrics" })}
+          onClick={navToMetrics}
         />
         <NavTab
           label="Releases"
           icon={<Tag size={14} />}
           compact={collapseNavLabels}
           active={route.view === "releases"}
-          onClick={() => navigate({ view: "releases" })}
+          onClick={navToReleases}
         />
         {!collapseChromeLabels && route.view === "review" && route.prNumber && (
           <>
@@ -190,7 +195,7 @@ export function Navbar({
 // User menu
 // ---------------------------------------------------------------------------
 
-function UserMenu({
+const UserMenu = memo(function UserMenu({
   user,
 }: {
   user: { login: string; avatarUrl: string; name: string | null } | null;
@@ -339,7 +344,7 @@ function UserMenu({
       </MenuPopup>
     </Menu>
   );
-}
+});
 
 function AccountMenuItem({
   account,
@@ -383,7 +388,11 @@ function AccountMenuItem({
 // Workspace switcher
 // ---------------------------------------------------------------------------
 
-function WorkspaceSwitcher({ compact = false }: { compact?: boolean }) {
+const WorkspaceSwitcher = memo(function WorkspaceSwitcher({
+  compact = false,
+}: {
+  compact?: boolean;
+}) {
   const { themeStyle } = useTheme();
   const { nwo, repo, switchWorkspace } = useWorkspace();
   const { navigate } = useRouter();
@@ -477,7 +486,7 @@ function WorkspaceSwitcher({ compact = false }: { compact?: boolean }) {
       />
     </Menu>
   );
-}
+});
 
 // ---------------------------------------------------------------------------
 // Sub-components
