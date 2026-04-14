@@ -28,18 +28,44 @@
     <!-- Flash-prevention: apply theme class synchronously before paint -->
     <script>
       (function () {
-        var t = localStorage.getItem("dispatch-theme") || "dark";
+        var style = localStorage.getItem("dispatch-theme-style");
+        var mode = localStorage.getItem("dispatch-color-mode");
+        if (!style || !mode) {
+          var old = localStorage.getItem("dispatch-theme") || "dark";
+          var map = {
+            light: ["default", "light"],
+            system: ["default", "system"],
+            oled: ["default", "oled"],
+            "neo-brutal-dark": ["neo-brutalism", "dark"],
+            "neo-brutal-light": ["neo-brutalism", "light"],
+            "neo-brutal-oled": ["neo-brutalism", "oled"],
+          };
+          var m = map[old] || ["default", "dark"];
+          style = m[0];
+          mode = m[1];
+        }
+        var isOled = mode === "oled";
         var r =
-          t === "system"
+          mode === "system"
             ? window.matchMedia("(prefers-color-scheme: light)").matches
               ? "light"
               : "dark"
-            : t === "light" || t === "neo-brutal-light"
+            : mode === "light"
               ? "light"
               : "dark";
+        var cls =
+          style === "neo-brutalism"
+            ? isOled
+              ? "neo-brutal-oled"
+              : r === "dark"
+                ? "neo-brutal-dark"
+                : "neo-brutal-light"
+            : isOled
+              ? "oled"
+              : r;
         var d = document.documentElement;
         d.classList.remove("dark", "light", "oled", "neo-brutal-dark", "neo-brutal-light", "neo-brutal-oled");
-        d.classList.add(t === "system" ? r : t);
+        d.classList.add(cls);
         d.style.colorScheme = r;
       })();
     </script>

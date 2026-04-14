@@ -3,41 +3,112 @@ import type { Highlighter } from "shiki";
 
 import { Spinner } from "@/components/ui/spinner";
 import { ensureTheme, getHighlighter } from "@/renderer/lib/review/highlighter";
-import { Check, Diamond, Monitor, Moon, Sun } from "lucide-react";
+import { Check, Eclipse, Monitor, Moon, Sun } from "lucide-react";
 import { memo, useEffect, useState } from "react";
 
-import type { Theme } from "@/renderer/lib/app/theme-context";
+import type { ColorMode, ThemeStyle } from "@/renderer/lib/app/theme-context";
 
-export interface ThemeOptionEntry {
-  value: Theme;
+/* ---------------------------------------------------------------------------
+ * Theme style options (card picker)
+ * --------------------------------------------------------------------------- */
+
+export interface ThemeStyleOption {
+  value: ThemeStyle;
+  label: string;
+  description: string;
+  /** Representative dark-mode colors: [bg, accent, text, border] */
+  colors: [string, string, string, string];
+  experimental?: boolean;
+}
+
+export const THEME_STYLE_OPTIONS: ThemeStyleOption[] = [
+  {
+    value: "default",
+    label: "Default",
+    description: "Warm dark theme with copper accents",
+    colors: ["#08080a", "#d4883a", "#f0ece6", "#25231f"],
+  },
+  {
+    value: "neo-brutalism",
+    label: "Neo-Brutalism",
+    description: "Bold borders and hard shadows",
+    colors: ["#1a1a1a", "#e8943e", "#f5f0e8", "#5c564e"],
+    experimental: true,
+  },
+];
+
+export function getThemeStyleOptions(includeNeoBrutalism: boolean): ThemeStyleOption[] {
+  return THEME_STYLE_OPTIONS.filter((option) => {
+    if (option.value === "neo-brutalism") return includeNeoBrutalism;
+    return true;
+  });
+}
+
+export function ThemeStyleCard({
+  option,
+  isActive,
+  onSelect,
+}: {
+  option: ThemeStyleOption;
+  isActive: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={`group relative flex cursor-pointer items-center gap-2.5 border px-3 py-2 text-left transition-all duration-[--duration-fast] ${
+        isActive
+          ? "border-[--border-accent] bg-[--accent-muted]"
+          : "border-[--border] hover:border-[--border-strong] hover:bg-[--bg-raised]"
+      } rounded-md`}
+    >
+      <div className="flex shrink-0 items-center gap-1">
+        {option.colors.map((color) => (
+          <span
+            key={color}
+            className="h-3 w-3 rounded-full border border-[--border-subtle]"
+            style={{ backgroundColor: color }}
+          />
+        ))}
+      </div>
+      <div className="min-w-0 flex-1">
+        <span className="text-text-primary block truncate font-mono text-xs">{option.label}</span>
+        <span className="text-text-ghost block truncate text-[10px]">{option.description}</span>
+      </div>
+      {isActive && (
+        <Check
+          size={13}
+          className="shrink-0 text-[--accent-text]"
+        />
+      )}
+    </button>
+  );
+}
+
+/* ---------------------------------------------------------------------------
+ * Color mode options (segmented control)
+ * --------------------------------------------------------------------------- */
+
+export interface ColorModeOption {
+  value: ColorMode;
   label: string;
   icon: typeof Moon;
 }
 
-const DARK_OPTION: ThemeOptionEntry = { value: "dark", label: "Dark", icon: Moon };
-const LIGHT_OPTION: ThemeOptionEntry = { value: "light", label: "Light", icon: Sun };
-const SYSTEM_OPTION: ThemeOptionEntry = { value: "system", label: "System", icon: Monitor };
+const DARK_OPTION: ColorModeOption = { value: "dark", label: "Dark", icon: Moon };
+const OLED_OPTION: ColorModeOption = { value: "oled", label: "OLED", icon: Eclipse };
+const LIGHT_OPTION: ColorModeOption = { value: "light", label: "Light", icon: Sun };
+const SYSTEM_OPTION: ColorModeOption = { value: "system", label: "System", icon: Monitor };
 
-export const THEME_OPTIONS: ThemeOptionEntry[] = [DARK_OPTION, LIGHT_OPTION, SYSTEM_OPTION];
-
-export const OLED_THEME_OPTION: ThemeOptionEntry = { value: "oled", label: "OLED", icon: Moon };
-
-export const NEO_BRUTAL_THEME_OPTIONS: ThemeOptionEntry[] = [
-  { value: "neo-brutal-dark", label: "Neo-Brutal Dark", icon: Diamond },
-  { value: "neo-brutal-light", label: "Neo-Brutal Light", icon: Diamond },
-  { value: "neo-brutal-oled", label: "Neo-Brutal OLED", icon: Diamond },
-];
-
-export function getThemeOptions(includeOled: boolean, includeNeoBrutalism = false): ThemeOptionEntry[] {
-  const base: ThemeOptionEntry[] = includeOled
-    ? [DARK_OPTION, OLED_THEME_OPTION, LIGHT_OPTION, SYSTEM_OPTION]
-    : [DARK_OPTION, LIGHT_OPTION, SYSTEM_OPTION];
-  if (includeNeoBrutalism) {
-    const systemIndex = base.findIndex((o) => o.value === "system");
-    base.splice(systemIndex, 0, ...NEO_BRUTAL_THEME_OPTIONS);
-  }
-  return base;
+export function getColorModeOptions(includeOled: boolean): ColorModeOption[] {
+  if (includeOled) return [DARK_OPTION, OLED_OPTION, LIGHT_OPTION, SYSTEM_OPTION];
+  return [DARK_OPTION, LIGHT_OPTION, SYSTEM_OPTION];
 }
+
+/* ---------------------------------------------------------------------------
+ * Code theme options (unchanged)
+ * --------------------------------------------------------------------------- */
 
 export interface CodeThemeOption {
   id: string;

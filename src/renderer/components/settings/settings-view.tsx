@@ -82,7 +82,9 @@ import {
   CODE_THEMES_LIGHT,
   CodeThemeCard,
   CodeThemePreview,
-  getThemeOptions,
+  ThemeStyleCard,
+  getColorModeOptions,
+  getThemeStyleOptions,
 } from "./settings-code-theme";
 import { ExperimentalSettingsSection } from "./settings-experimental";
 
@@ -140,7 +142,7 @@ interface AiProviderTestState {
 }
 
 export function SettingsView() {
-  const { theme, setTheme, resolvedTheme, codeTheme, setCodeTheme } = useTheme();
+  const { themeStyle, setThemeStyle, colorMode, setColorMode, resolvedTheme, codeTheme, setCodeTheme } = useTheme();
   const { toggleSettings } = useRouter();
   const { getBinding, setBinding, resetBinding, resetAll, overrides } = useKeybindings();
   const [activeSection, setActiveSection] = useState<SectionId>("appearance");
@@ -166,10 +168,23 @@ export function SettingsView() {
   const aiEnabled = isAiEnabledPreference(prefs.aiEnabled);
   const oledThemeEnabled = isExperimentalFeatureEnabled(prefs.experimentalOledTheme);
   const neoBrutalismEnabled = isExperimentalFeatureEnabled(prefs.experimentalNeoBrutalismTheme);
-  const themeOptions = useMemo(
-    () => getThemeOptions(oledThemeEnabled, neoBrutalismEnabled),
-    [oledThemeEnabled, neoBrutalismEnabled],
+  const themeStyleOptions = useMemo(
+    () => getThemeStyleOptions(neoBrutalismEnabled),
+    [neoBrutalismEnabled],
   );
+  const colorModeOptions = useMemo(
+    () => getColorModeOptions(oledThemeEnabled),
+    [oledThemeEnabled],
+  );
+
+  // Reset to defaults when current selection is no longer available
+  if (!themeStyleOptions.some((o) => o.value === themeStyle)) {
+    setThemeStyle("default");
+  }
+  if (!colorModeOptions.some((o) => o.value === colorMode)) {
+    setColorMode("dark");
+  }
+
   const aiProvidersQuery = useQuery({
     queryKey: ["ai", "providersStatus"],
     queryFn: () => ipc("ai.providersStatus"),
@@ -312,14 +327,15 @@ export function SettingsView() {
 
   const resetDefaults = useCallback(async () => {
     await ipc("preferences.deleteMany", { keys: PREF_KEYS });
-    setTheme("dark");
+    setThemeStyle("default");
+    setColorMode("dark");
     setCodeTheme(DEFAULT_CODE_THEME_DARK);
     resetAll();
     queryClient.invalidateQueries({ queryKey: ["preferences"] });
     queryClient.invalidateQueries({ queryKey: ["ai"] });
     queryClient.invalidateQueries({ queryKey: ["pr"] });
     setShowResetConfirm(false);
-  }, [setTheme, setCodeTheme, resetAll]);
+  }, [setThemeStyle, setColorMode, setCodeTheme, resetAll]);
 
   const nukeApp = useCallback(async () => {
     localStorage.clear();
@@ -430,20 +446,20 @@ export function SettingsView() {
                 Customize the look and feel of Dispatch.
               </p>
 
-              {/* App Theme */}
+              {/* Color Mode */}
               <section className="mt-6">
-                <h3 className="text-text-primary text-sm font-medium">App Theme</h3>
+                <h3 className="text-text-primary text-sm font-medium">Color Mode</h3>
                 <p className="text-text-tertiary mt-0.5 text-xs">
-                  Choose your preferred color theme.
+                  Switch between dark, light, or follow your system.
                 </p>
                 <div className="border-border bg-bg-raised mt-3 flex rounded-md border p-[2px]">
-                  {themeOptions.map(({ value, label, icon: Icon }) => (
+                  {colorModeOptions.map(({ value, label, icon: Icon }) => (
                     <button
                       key={value}
                       type="button"
-                      onClick={() => setTheme(value)}
+                      onClick={() => setColorMode(value)}
                       className={`flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-sm px-3 py-1.5 text-xs ${
-                        theme === value
+                        colorMode === value
                           ? "bg-bg-elevated text-text-primary shadow-sm"
                           : "text-text-tertiary hover:text-text-secondary"
                       }`}
@@ -451,6 +467,24 @@ export function SettingsView() {
                       <Icon size={13} />
                       {label}
                     </button>
+                  ))}
+                </div>
+              </section>
+
+              {/* App Theme */}
+              <section className="mt-8">
+                <h3 className="text-text-primary text-sm font-medium">App Theme</h3>
+                <p className="text-text-tertiary mt-0.5 text-xs">
+                  Choose your preferred visual style.
+                </p>
+                <div className="mt-3 grid grid-cols-2 gap-1.5">
+                  {themeStyleOptions.map((option) => (
+                    <ThemeStyleCard
+                      key={option.value}
+                      option={option}
+                      isActive={themeStyle === option.value}
+                      onSelect={() => setThemeStyle(option.value)}
+                    />
                   ))}
                 </div>
               </section>
