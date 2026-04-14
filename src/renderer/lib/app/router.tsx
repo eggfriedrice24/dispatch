@@ -66,8 +66,11 @@ export function RouterProvider({
   const toggleSettings = useCallback(() => {
     setRoute((current) => {
       if (current.view === "settings") {
-        // Go back to previous view
-        return previousRoute.current;
+        // Go back to previous view, fall back to home if no valid history
+        const prev = previousRoute.current;
+        return prev.view === "settings"
+          ? { view: "review", prNumber: null }
+          : prev;
       }
       // Going to settings — save current route
       previousRoute.current = current;
