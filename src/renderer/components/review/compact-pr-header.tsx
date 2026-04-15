@@ -5,6 +5,7 @@ import { toastManager } from "@/components/ui/toast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@/components/ui/tooltip";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { GitHubAvatar } from "@/renderer/components/shared/github-avatar";
+import { useBotSettings } from "@/renderer/hooks/preferences/use-bot-settings";
 import {
   formatAuthorName,
   useDisplayNameFormat,
@@ -52,6 +53,7 @@ export function CompactPrHeader({
   canEdit,
 }: CompactPrHeaderProps) {
   const { repoTarget } = useWorkspace();
+  const { isBot } = useBotSettings();
   const nameFormat = useDisplayNameFormat();
   const compactHeader = useMediaQuery({ max: 1160 });
   const denseHeader = useMediaQuery({ max: 940 });
@@ -60,7 +62,10 @@ export function CompactPrHeader({
   const inputRef = useRef<HTMLInputElement>(null);
   const completedLabel = getCompletedPullRequestLabel(pr.state);
   const ageTier = useMemo(() => getPrAgeTier(pr.createdAt), [pr.createdAt]);
-  const approvedReviewers = getLatestApprovedReviews(pr.reviews);
+  const approvedReviewers = useMemo(
+    () => getLatestApprovedReviews(pr.reviews, isBot),
+    [pr.reviews, isBot],
+  );
 
   const titleMutation = useMutation({
     mutationFn: (title: string) =>
@@ -424,8 +429,9 @@ function ApprovalAvatarStack({ reviews }: { reviews: Array<{ author: { login: st
   );
 }
 
-function getLatestApprovedReviews(
+export function getLatestApprovedReviews(
   reviews: Array<{ author: { login: string }; state: string; submittedAt: string }>,
+  isBot: (login: string) => boolean,
 ) {
   const latestByUser = new Map<
     string,
@@ -438,5 +444,7 @@ function getLatestApprovedReviews(
     }
   }
 
-  return [...latestByUser.values()].filter((review) => review.state === "APPROVED");
+  return [...latestByUser.values()].filter(
+    (review) => review.state === "APPROVED" && !isBot(review.author.login),
+  );
 }
