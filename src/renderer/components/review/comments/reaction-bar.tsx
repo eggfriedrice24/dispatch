@@ -5,6 +5,8 @@ import { Tooltip, TooltipPopup, TooltipTrigger } from "@/components/ui/tooltip";
 import { ipc } from "@/renderer/lib/app/ipc";
 import { queryClient } from "@/renderer/lib/app/query-client";
 import { useWorkspace } from "@/renderer/lib/app/workspace-context";
+import { GitHubAvatar } from "@/renderer/components/shared/github-avatar";
+import { UserProfileTooltip } from "@/renderer/components/shared/user-profile-tooltip";
 import { useMutation } from "@tanstack/react-query";
 import { SmilePlus } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -220,13 +222,22 @@ function ReactionTooltip({ reaction }: { reaction: GhReactionGroup }) {
       {visibleUsers.length > 0 ? (
         <div className="space-y-1">
           {visibleUsers.map((reactor) => (
-            <div
+            <UserProfileTooltip
               key={reactor.login}
-              className="truncate text-[11px] text-text-secondary"
-              style={{ maxWidth: "100%" }}
+              login={reactor.login}
             >
-              {reactor.login}
-            </div>
+              <button
+                type="button"
+                className="hover:bg-bg-raised flex w-full items-center gap-1.5 rounded px-1 py-0.5 text-left transition-colors"
+              >
+                <GitHubAvatar
+                  login={reactor.login}
+                  size={14}
+                  avatarUrl={reactor.avatarUrl ?? undefined}
+                />
+                <span className="truncate text-[11px] text-text-secondary">{reactor.login}</span>
+              </button>
+            </UserProfileTooltip>
           ))}
           {remainingCount > 0 && (
             <div className="text-text-tertiary text-[10px] pt-1">
