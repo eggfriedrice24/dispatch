@@ -73,9 +73,7 @@ describe("MarkdownBody", () => {
 
   it("does not pass ReactMarkdown internal props to image elements", () => {
     const { getByRole } = render(
-      <MarkdownBody
-        content="![attachment](https://github.com/user-attachments/assets/example.png)"
-      />,
+      <MarkdownBody content="![attachment](https://github.com/user-attachments/assets/example.png)" />,
     );
     const image = getByRole("img", { name: "attachment" });
 

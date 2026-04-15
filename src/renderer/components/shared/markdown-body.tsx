@@ -1,3 +1,5 @@
+import type { ComponentPropsWithoutRef } from "react";
+
 /* eslint-disable no-continue, no-inline-comments, @typescript-eslint/no-non-null-assertion -- Markdown AST traversal is clearer as a guarded walk than forcing alternative forms. */
 import { useSyntaxHighlighter } from "@/renderer/hooks/review/use-syntax-highlight";
 import { openExternal } from "@/renderer/lib/app/open-external";
@@ -9,7 +11,6 @@ import {
 } from "@/renderer/lib/review/highlighter";
 import { AlertCircle, Info, Lightbulb, OctagonAlert, TriangleAlert } from "lucide-react";
 import { Children, isValidElement, useMemo } from "react";
-import type { ComponentPropsWithoutRef } from "react";
 import Markdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import remarkGemoji from "remark-gemoji";
@@ -153,7 +154,10 @@ export function MarkdownBody({ content, repo, className = "" }: MarkdownBodyProp
           // Images: no-referrer to avoid leaking origin, lazy load
           img({ src, alt, ...rest }) {
             const imgProps = {
-              ...(rest as ComponentPropsWithoutRef<"img"> & { node?: unknown; sourcePos?: unknown }),
+              ...(rest as ComponentPropsWithoutRef<"img"> & {
+                node?: unknown;
+                sourcePos?: unknown;
+              }),
             };
             delete imgProps.node;
             delete imgProps.sourcePos;
