@@ -1,6 +1,8 @@
+import { Switch } from "@/components/ui/switch";
 import {
   BOT_AUTO_COLLAPSE_PREFERENCE_KEY,
   DEFAULT_BOT_USERNAMES,
+  HIDE_BOT_CHAT_IN_CONVERSATIONS_PREFERENCE_KEY,
   parseJsonArray,
 } from "@/renderer/hooks/preferences/use-bot-settings";
 import { X } from "lucide-react";
@@ -25,6 +27,8 @@ export function BotSettings({
     () => parseJsonArray(prefs[BOT_AUTO_COLLAPSE_PREFERENCE_KEY] ?? null),
     [prefs[BOT_AUTO_COLLAPSE_PREFERENCE_KEY]],
   );
+  const hideBotChatInConversations =
+    prefs[HIDE_BOT_CHAT_IN_CONVERSATIONS_PREFERENCE_KEY] === "true";
 
   return (
     <>
@@ -82,6 +86,29 @@ export function BotSettings({
           Add exact usernames for bots you want to keep out of the way by default. You can still
           expand individual comments when needed.
         </p>
+      </section>
+
+      <section className="mt-8">
+        <h3 className="text-text-primary text-sm font-medium">Conversation Timeline</h3>
+        <p className="text-text-tertiary mt-0.5 text-xs">
+          Control whether bot-authored chat appears in the Conversations tab.
+        </p>
+        <label className="mt-3 flex cursor-pointer items-start justify-between gap-4">
+          <div>
+            <span className="text-text-secondary text-xs">Hide bot chat</span>
+            <p className="text-text-ghost mt-0.5 text-[10px] leading-[1.5]">
+              Hides bot comments from the conversation timeline while leaving human discussion and
+              review threads visible.
+            </p>
+          </div>
+          <Switch
+            checked={hideBotChatInConversations}
+            onCheckedChange={(checked) =>
+              savePref(HIDE_BOT_CHAT_IN_CONVERSATIONS_PREFERENCE_KEY, checked ? "true" : "false")
+            }
+            aria-label="Hide bot chat in conversations"
+          />
+        </label>
       </section>
     </>
   );

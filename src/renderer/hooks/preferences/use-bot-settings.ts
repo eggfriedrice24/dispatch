@@ -3,8 +3,14 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 
 export const BOT_AUTO_COLLAPSE_PREFERENCE_KEY = "autoCollapseBotUsernames";
+export const HIDE_BOT_CHAT_IN_CONVERSATIONS_PREFERENCE_KEY = "hideBotChatInConversations";
 
-const BOT_PREF_KEYS = ["botTitleTags", "botUsernames", BOT_AUTO_COLLAPSE_PREFERENCE_KEY];
+const BOT_PREF_KEYS = [
+  "botTitleTags",
+  "botUsernames",
+  BOT_AUTO_COLLAPSE_PREFERENCE_KEY,
+  HIDE_BOT_CHAT_IN_CONVERSATIONS_PREFERENCE_KEY,
+];
 
 /** Regex patterns that always match bot usernames (not configurable). */
 const DEFAULT_BOT_PATTERNS = [/\[bot\]$/i, /-bot$/i];
@@ -47,6 +53,8 @@ export function useBotSettings() {
     () => parseJsonArray(prefs[BOT_AUTO_COLLAPSE_PREFERENCE_KEY]),
     [prefs[BOT_AUTO_COLLAPSE_PREFERENCE_KEY]],
   );
+  const hideBotChatInConversations =
+    prefs[HIDE_BOT_CHAT_IN_CONVERSATIONS_PREFERENCE_KEY] === "true";
 
   const isBot = useMemo(() => {
     const allUsernames = [...DEFAULT_BOT_USERNAMES, ...customUsernames];
@@ -88,5 +96,6 @@ export function useBotSettings() {
     customUsernames,
     autoCollapseUsernames,
     shouldAutoCollapseBot,
+    hideBotChatInConversations,
   };
 }

@@ -73,7 +73,7 @@ export function ConversationTab({
   onThreadClick,
   issueCommentReactions,
 }: ConversationTabProps) {
-  const { isBot, shouldAutoCollapseBot } = useBotSettings();
+  const { isBot, shouldAutoCollapseBot, hideBotChatInConversations } = useBotSettings();
   const { isCommentMinimized, toggleMinimized } = useMinimizedComments(repo, prNumber);
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -86,12 +86,21 @@ export function ConversationTab({
     issueCommentReactions,
   });
   const normalizedSearchQuery = searchQuery.trim().toLowerCase();
+  const visibleTimeline = useMemo(
+    () =>
+      hideBotChatInConversations
+        ? timeline.filter((event) => event.type !== "content" || !event.isBot)
+        : timeline,
+    [hideBotChatInConversations, timeline],
+  );
   const filteredTimeline = useMemo(
     () =>
       normalizedSearchQuery.length === 0
-        ? timeline
-        : timeline.filter((event) => matchesConversationSearch(event, normalizedSearchQuery)),
-    [normalizedSearchQuery, timeline],
+        ? visibleTimeline
+        : visibleTimeline.filter((event) =>
+            matchesConversationSearch(event, normalizedSearchQuery),
+          ),
+    [normalizedSearchQuery, visibleTimeline],
   );
 
   const unresolvedCount = (reviewThreads ?? []).filter((t) => !t.isResolved).length;

@@ -4,6 +4,7 @@ import type { toastManager } from "@/components/ui/toast";
 import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from "react";
 
 import {
+  ConversationTab,
   ContentEvent,
   PanelComposer,
 } from "@/renderer/components/review/comments/conversation-tab";
@@ -57,6 +58,25 @@ vi.mock("@/renderer/components/review/comments/review-markdown-composer", () => 
 
 vi.mock("@/renderer/lib/app/ipc", () => ({
   ipc: vi.fn(),
+}));
+
+const { useBotSettingsMock } = vi.hoisted(() => ({
+  useBotSettingsMock: vi.fn(() => ({
+    isBot: (login: string) => login.toLowerCase().includes("bot"),
+    shouldAutoCollapseBot: () => false,
+    hideBotChatInConversations: false,
+  })),
+}));
+
+vi.mock("@/renderer/hooks/preferences/use-bot-settings", () => ({
+  useBotSettings: useBotSettingsMock,
+}));
+
+vi.mock("@/renderer/hooks/review/use-minimized-comments", () => ({
+  useMinimizedComments: () => ({
+    isCommentMinimized: () => false,
+    toggleMinimized: vi.fn(),
+  }),
 }));
 
 const { toastManagerMock } = vi.hoisted(() => ({
@@ -146,6 +166,43 @@ describe("ContentEvent", () => {
 
     expect(onClick.mock.calls).toHaveLength(1);
     expect(onToggleMinimized).not.toHaveBeenCalled();
+  });
+});
+
+describe("ConversationTab", () => {
+  it("hides bot-authored chat when the preference is enabled", () => {
+    useBotSettingsMock.mockReturnValue({
+      isBot: (login: string) => login.toLowerCase().includes("bot"),
+      shouldAutoCollapseBot: () => false,
+      hideBotChatInConversations: true,
+    });
+
+    renderWithQueryClient(
+      <ConversationTab
+        prNumber={42}
+        reviews={[]}
+        issueComments={[
+          {
+            id: "comment-bot",
+            body: "Automated update is ready.",
+            author: { login: "deploy-bot" },
+            createdAt: "2026-04-01T10:00:00Z",
+          },
+          {
+            id: "comment-human",
+            body: "Please take another look.",
+            author: { login: "alice" },
+            createdAt: "2026-04-01T11:00:00Z",
+          },
+        ]}
+        reviewThreads={[]}
+        repo="binbandit/dispatch"
+        onReviewClick={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByText("Automated update is ready.")).not.toBeInTheDocument();
+    expect(screen.getByText("Please take another look.")).toBeInTheDocument();
   });
 });
 

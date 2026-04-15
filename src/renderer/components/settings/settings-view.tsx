@@ -117,6 +117,7 @@ const PREF_KEYS = [
   "botTitleTags",
   "botUsernames",
   "autoCollapseBotUsernames",
+  "hideBotChatInConversations",
   "defaultDiffView",
   "defaultFileNav",
   "displayNameFormat",
