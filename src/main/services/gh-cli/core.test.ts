@@ -326,4 +326,52 @@ describe("getUserProfile", () => {
       "authoredPullRequestsQuery=repo:octo/dispatch is:pr author:octocat",
     );
   });
+
+  it("uses the cached profile and contribution history on repeat lookups", async () => {
+    execFileMock
+      .mockResolvedValueOnce({
+        stdout: JSON.stringify({
+          login: "octocat",
+          name: "The Octocat",
+          avatarUrl: "https://example.com/octocat.png",
+          bio: "Testing trust cache.",
+          company: "@github",
+          location: "San Francisco",
+          followers: 120,
+          following: 5,
+          publicRepos: 42,
+          createdAt: "2020-01-01T00:00:00Z",
+        }),
+        stderr: "",
+      })
+      .mockResolvedValueOnce({
+        stdout: JSON.stringify({
+          login: "hubot",
+          avatarUrl: "https://example.com/hubot.png",
+          name: "Hubot",
+        }),
+        stderr: "",
+      })
+      .mockResolvedValueOnce({
+        stdout: JSON.stringify([{ login: "github", avatarUrl: "https://example.com/org.png" }]),
+        stderr: "",
+      })
+      .mockResolvedValueOnce({
+        stdout: JSON.stringify({
+          data: {
+            authoredPullRequests: { issueCount: 5 },
+            mergedPullRequests: { issueCount: 3 },
+            authoredIssues: { issueCount: 2 },
+            reviewedPullRequests: { issueCount: 4 },
+          },
+        }),
+        stderr: "",
+      });
+
+    const first = await getUserProfile("octocat", "octo/dispatch", 42);
+    const second = await getUserProfile("octocat", "octo/dispatch", 42);
+
+    expect(second).toEqual(first);
+    expect(execFileMock).toHaveBeenCalledTimes(4);
+  });
 });

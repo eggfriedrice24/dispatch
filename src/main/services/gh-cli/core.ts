@@ -138,7 +138,7 @@ async function getRepoContributionHistory(
   return getOrLoadCached({
     cache: genericCache,
     key: cacheKey,
-    ttl: CACHE_TTL_LONG_MS,
+    ttl: USER_TRUST_CACHE_TTL_MS,
     loader: async () => {
       const resolved = repoTarget ? resolveTarget(repoTarget) : { cwd: undefined };
       const query = `query(
@@ -223,11 +223,9 @@ async function getRepoContributionHistory(
   }) as Promise<GhRepoContributionHistory>;
 }
 
-export async function getUserProfile(
-  login: string,
-  repo?: string | RepoTarget,
-  currentPrNumber?: number,
-): Promise<GhUserProfile> {
+function getUserProfileBase(login: string): Promise<Omit<GhUserProfile, "repoContributions">> {
+  const normalizedLogin = login.trim().toLowerCase();
+  const cacheKey = `userProfile::${normalizedLogin}`;
   const jq = [
     "{",
     "login: .login,",
@@ -243,32 +241,49 @@ export async function getUserProfile(
     "}",
   ].join(" ");
 
-  const { stdout } = await ghExec(["api", `users/${encodeURIComponent(login)}`, "--jq", jq], {
-    timeout: 15_000,
-  });
-  const profile =
-    parseJsonOutput<Omit<GhUserProfile, "organizations" | "repoContributions">>(stdout);
+  return getOrLoadCached({
+    cache: genericCache,
+    key: cacheKey,
+    ttl: USER_TRUST_CACHE_TTL_MS,
+    loader: async () => {
+      const { stdout } = await ghExec(["api", `users/${encodeURIComponent(login)}`, "--jq", jq], {
+        timeout: 15_000,
+      });
+      const profile =
+        parseJsonOutput<Omit<GhUserProfile, "organizations" | "repoContributions">>(stdout);
 
-  // Fetch organizations separately.
-  // The public endpoint (users/{login}/orgs) only returns public memberships.
-  // For the authenticated user, use the authenticated endpoint (user/orgs)
-  // Which includes private org memberships.
-  let organizations: GhUserProfile["organizations"] = [];
-  try {
-    const viewer = await getAuthenticatedUser();
-    const orgEndpoint =
-      viewer && viewer.login.toLowerCase() === login.toLowerCase()
-        ? "user/orgs"
-        : `users/${encodeURIComponent(login)}/orgs`;
+      // Fetch organizations separately.
+      // The public endpoint (users/{login}/orgs) only returns public memberships.
+      // For the authenticated user, use the authenticated endpoint (user/orgs)
+      // Which includes private org memberships.
+      let organizations: GhUserProfile["organizations"] = [];
+      try {
+        const viewer = await getAuthenticatedUser();
+        const orgEndpoint =
+          viewer && viewer.login.toLowerCase() === login.toLowerCase()
+            ? "user/orgs"
+            : `users/${encodeURIComponent(login)}/orgs`;
 
-    const { stdout: orgStdout } = await ghExec(
-      ["api", orgEndpoint, "--jq", "[.[] | {login: .login, avatarUrl: .avatar_url}]"],
-      { timeout: 10_000 },
-    );
-    organizations = parseJsonOutput<GhUserProfile["organizations"]>(orgStdout);
-  } catch {
-    // Org fetch can fail for bots or private orgs — non-critical
-  }
+        const { stdout: orgStdout } = await ghExec(
+          ["api", orgEndpoint, "--jq", "[.[] | {login: .login, avatarUrl: .avatar_url}]"],
+          { timeout: 10_000 },
+        );
+        organizations = parseJsonOutput<GhUserProfile["organizations"]>(orgStdout);
+      } catch {
+        // Org fetch can fail for bots or private orgs — non-critical
+      }
+
+      return { ...profile, organizations, repoContributions: null };
+    },
+  }) as Promise<Omit<GhUserProfile, "repoContributions">>;
+}
+
+export async function getUserProfile(
+  login: string,
+  repo?: string | RepoTarget,
+  currentPrNumber?: number,
+): Promise<GhUserProfile> {
+  const profile = await getUserProfileBase(login);
 
   let repoContributions: GhUserProfile["repoContributions"] = null;
   if (repo) {
@@ -287,7 +302,7 @@ export async function getUserProfile(
     }
   }
 
-  return { ...profile, organizations, repoContributions };
+  return { ...profile, repoContributions };
 }
 
 export async function listAccounts(): Promise<GhAccount[]> {
@@ -512,7 +527,7 @@ export function getRepoInfo(cwdOrTarget: string | RepoTarget): Promise<RepoInfo>
           data?: { repository?: { mergeQueue?: { id: string } | null } };
         };
         const mergeQueue = gql.data?.repository?.mergeQueue;
-        hasMergeQueue = mergeQueue != null;
+        hasMergeQueue = mergeQueue !== null && mergeQueue !== undefined;
       } catch {
         // Merge queue query failed (e.g. GHES without merge queue support).
       }
@@ -645,6 +660,7 @@ const repoInfoCache = createCacheStore<RepoInfo>();
 
 const CACHE_TTL_MS = 15_000;
 export const CACHE_TTL_LONG_MS = 60_000;
+const USER_TRUST_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 
 export function cacheKey({
   cwd,
