@@ -460,11 +460,11 @@ export function PrInbox({ selectedPr, onSelectPr }: PrInboxProps) {
         <SearchPresetChips
           presets={getPrSearchPresets("sidebar")}
           activeQuery={searchQuery}
-          onSelect={(preset) => {
-            if (preset.preferredFilter) {
+          onSelect={(preset, isActive) => {
+            if (!isActive && preset.preferredFilter) {
               setActiveFilter(preset.preferredFilter);
             }
-            updateSearchQuery(preset.query);
+            updateSearchQuery(isActive ? "" : preset.query);
             setAutocompleteOpen(false);
             focusSearchInput();
           }}

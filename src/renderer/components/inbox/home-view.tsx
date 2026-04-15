@@ -573,8 +573,8 @@ export function HomeView() {
             <SearchPresetChips
               presets={getPrSearchPresets("home")}
               activeQuery={searchQuery}
-              onSelect={(preset) => {
-                setSearchQuery(preset.query);
+              onSelect={(preset, isActive) => {
+                setSearchQuery(isActive ? "" : preset.query);
                 setFocusIndex(-1);
               }}
             />

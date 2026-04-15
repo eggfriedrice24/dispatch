@@ -2,7 +2,7 @@ import type { PrSearchPreset } from "@/renderer/lib/inbox/pr-search-presets";
 
 interface SearchPresetChipsProps {
   activeQuery: string;
-  onSelect: (preset: PrSearchPreset) => void;
+  onSelect: (preset: PrSearchPreset, isActive: boolean) => void;
   presets: PrSearchPreset[];
 }
 
@@ -18,7 +18,7 @@ export function SearchPresetChips({ activeQuery, onSelect, presets }: SearchPres
           <button
             key={preset.id}
             type="button"
-            onClick={() => onSelect(preset)}
+            onClick={() => onSelect(preset, isActive)}
             className={`inline-flex cursor-pointer items-center rounded-sm border px-2 py-1 text-[10px] font-medium transition-colors ${
               isActive
                 ? "bg-accent-muted text-accent-text border-[var(--border-accent)]"
