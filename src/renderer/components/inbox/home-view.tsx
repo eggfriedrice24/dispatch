@@ -14,6 +14,7 @@ import { AddRepoDialog } from "@/renderer/components/shared/add-repo-dialog";
 import { useKeyboardShortcuts } from "@/renderer/hooks/app/use-keyboard-shortcuts";
 import { usePrSearchRefreshOnMiss } from "@/renderer/hooks/app/use-pr-search-refresh";
 import { useDisplayNameFormat } from "@/renderer/hooks/preferences/use-display-name";
+import { usePersistedSearchQuery } from "@/renderer/hooks/preferences/use-persisted-search-query";
 import { ipc } from "@/renderer/lib/app/ipc";
 import { queryClient } from "@/renderer/lib/app/query-client";
 import { useRouter } from "@/renderer/lib/app/router";
@@ -51,8 +52,7 @@ export function HomeView() {
   const { navigate } = useRouter();
   const nameFormat = useDisplayNameFormat();
   const repoName = repo;
-
-  const [searchQuery, setSearchQuery] = useState("");
+  const { searchQuery, setSearchQuery } = usePersistedSearchQuery(`home:${nwo}`);
   const [sortOption, setSortOptionLocal] = useState<SortOption>(
     () => (localStorage.getItem("home.sortOption") as SortOption) ?? "updated",
   );

@@ -42,6 +42,10 @@ import {
   isPresetPrFetchLimit,
   normalizePrFetchLimit,
 } from "@/shared/pr-fetch-limit";
+import {
+  isSearchStatePersistenceEnabled,
+  SEARCH_STATE_PERSISTENCE_PREFERENCE_KEY,
+} from "@/shared/search-state";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   ArrowLeft,
@@ -124,6 +128,7 @@ const PREF_KEYS = [
   "aiAutoSuggest",
   "disableFontLigatures",
   "reviewCommentMode",
+  SEARCH_STATE_PERSISTENCE_PREFERENCE_KEY,
   ...EXPERIMENTAL_FEATURE_PREFERENCE_KEYS,
 ];
 
@@ -324,6 +329,9 @@ export function SettingsView() {
   const defaultFileNav = prefs.defaultFileNav ?? "auto";
   const displayNameFormat = prefs.displayNameFormat ?? "name";
   const reviewCommentMode = prefs.reviewCommentMode ?? "immediate";
+  const persistSearchState = isSearchStatePersistenceEnabled(
+    prefs[SEARCH_STATE_PERSISTENCE_PREFERENCE_KEY],
+  );
 
   const navSections = useMemo(
     () => (aiEnabled ? NAV_SECTIONS_BASE : NAV_SECTIONS_BASE.filter((s) => s.id !== "ai")),
@@ -867,6 +875,28 @@ export function SettingsView() {
                 <p className="text-text-ghost mt-1.5 text-[10px]">
                   Falls back to username when a real name is unavailable.
                 </p>
+              </section>
+
+              <section className="mt-8">
+                <h3 className="text-text-primary text-sm font-medium">Search</h3>
+                <p className="text-text-tertiary mt-0.5 text-xs">
+                  Keep pull request searches when you leave a screen and return later.
+                </p>
+                <label className="mt-3 flex cursor-pointer items-center justify-between">
+                  <div>
+                    <span className="text-text-secondary text-xs">Remember search state</span>
+                    <p className="text-text-ghost mt-0.5 text-[10px]">
+                      Restores your PR search queries in the home dashboard and review sidebar.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={persistSearchState}
+                    onCheckedChange={(checked) =>
+                      savePref(SEARCH_STATE_PERSISTENCE_PREFERENCE_KEY, checked ? "true" : "false")
+                    }
+                    aria-label="Remember search state"
+                  />
+                </label>
               </section>
 
               <PrFetchSizeSection

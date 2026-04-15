@@ -20,6 +20,7 @@ import {
   formatAuthorName,
   useDisplayNameFormat,
 } from "@/renderer/hooks/preferences/use-display-name";
+import { usePersistedSearchQuery } from "@/renderer/hooks/preferences/use-persisted-search-query";
 import { getErrorMessage } from "@/renderer/lib/app/error-message";
 import { ipc } from "@/renderer/lib/app/ipc";
 import { openExternal } from "@/renderer/lib/app/open-external";
@@ -98,7 +99,7 @@ function resolveStatusIndicator(pr: GhPrListItemCore): StatusIndicator {
 
 export function PrInbox({ selectedPr, onSelectPr }: PrInboxProps) {
   const { nwo, repoTarget } = useWorkspace();
-  const [searchQuery, setSearchQuery] = useState("");
+  const { searchQuery, setSearchQuery } = usePersistedSearchQuery(`pr-inbox:${nwo}`);
   const [focusIndex, setFocusIndex] = useState(0);
   const [activeFilter, setActiveFilter] = useState<FilterTab>("review");
   const searchRef = useRef<HTMLInputElement>(null);
