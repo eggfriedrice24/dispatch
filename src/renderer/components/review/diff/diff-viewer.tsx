@@ -806,6 +806,7 @@ function UnifiedDiffView({
           row,
           prNumber,
           filePath,
+          currentUserLogin,
           reviewActionsEnabled,
           reviewThreadStateByRootCommentId,
           reviewCommentReactions,
@@ -824,6 +825,7 @@ function renderSupportingRow({
   prNumber,
   filePath,
   reviewActionsEnabled,
+  currentUserLogin,
   reviewThreadStateByRootCommentId,
   reviewCommentReactions,
   onPostSuggestion,
@@ -835,6 +837,7 @@ function renderSupportingRow({
   prNumber?: number;
   filePath: string;
   reviewActionsEnabled: boolean;
+  currentUserLogin?: string | null;
   reviewThreadStateByRootCommentId?: Map<number, ReviewThreadState>;
   reviewCommentReactions?: Record<string, GhReactionGroup[]>;
   onPostSuggestion?: (suggestion: AiSuggestion, body?: string) => Promise<void>;
