@@ -138,7 +138,7 @@ export function ReactionBar({ reactions, subjectId }: ReactionBarProps) {
             side="top"
             align="start"
             sideOffset={6}
-            className="!min-w-48 !max-w-56 !p-0"
+            className="!max-w-56 !min-w-48 !p-0"
           >
             <ReactionTooltip reaction={r} />
           </TooltipPopup>
@@ -226,13 +226,11 @@ function ReactionTooltip({ reaction }: { reaction: GhReactionGroup }) {
               style={{ maxWidth: "100%" }}
             >
               <span className="bg-text-tertiary inline-block h-[3px] w-[3px] shrink-0 rounded-full" />
-              <span className="truncate text-[11px] text-text-secondary">{reactor.login}</span>
+              <span className="text-text-secondary truncate text-[11px]">{reactor.login}</span>
             </div>
           ))}
           {remainingCount > 0 && (
-            <div className="text-text-tertiary text-[10px] pt-1">
-              +{remainingCount} more
-            </div>
+            <div className="text-text-tertiary pt-1 text-[10px]">+{remainingCount} more</div>
           )}
         </div>
       ) : (

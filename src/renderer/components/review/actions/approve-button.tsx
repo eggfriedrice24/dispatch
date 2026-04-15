@@ -175,7 +175,16 @@ export function ApproveButton({
             </button>
           </div>
           <DialogFooter variant="bare">
-            <DialogClose render={<Button size="xs" variant="ghost" />}>Cancel</DialogClose>
+            <DialogClose
+              render={
+                <Button
+                  size="xs"
+                  variant="ghost"
+                />
+              }
+            >
+              Cancel
+            </DialogClose>
             <Button
               size="xs"
               className="bg-success hover:bg-success/90 text-bg-root"

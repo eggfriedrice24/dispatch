@@ -10,18 +10,18 @@ import { cn } from "@/lib/utils";
 import { CommentContextMenu } from "@/renderer/components/review/comments/comment-context-menu";
 import { InlineMetaBadge } from "@/renderer/components/review/comments/inline-meta-badge";
 import { ReactionBar } from "@/renderer/components/review/comments/reaction-bar";
+import { ReviewMarkdownComposer } from "@/renderer/components/review/comments/review-markdown-composer";
 import {
   SuggestionBlock,
   parseSuggestions,
 } from "@/renderer/components/review/comments/suggestion-block";
-import { ReviewMarkdownComposer } from "@/renderer/components/review/comments/review-markdown-composer";
 import { ThreadResolveButton } from "@/renderer/components/review/comments/thread-resolve-button";
 import { GitHubAvatar } from "@/renderer/components/shared/github-avatar";
 import { MarkdownBody } from "@/renderer/components/shared/markdown-body";
-import { inferLanguage } from "@/renderer/lib/review/highlighter";
 import { ipc } from "@/renderer/lib/app/ipc";
 import { queryClient } from "@/renderer/lib/app/query-client";
 import { useWorkspace } from "@/renderer/lib/app/workspace-context";
+import { inferLanguage } from "@/renderer/lib/review/highlighter";
 import { relativeTime } from "@/shared/format";
 import { useMutation } from "@tanstack/react-query";
 import { CheckCircle2, ChevronDown, ChevronRight, Sparkles } from "lucide-react";

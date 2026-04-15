@@ -389,7 +389,7 @@ function ApprovalAvatarStack({ reviews }: { reviews: Array<{ author: { login: st
               className="text-success shrink-0 leading-none"
               strokeWidth={2.2}
             />
-            <span className="font-mono leading-none text-[10px] font-semibold text-success">
+            <span className="text-success font-mono text-[10px] leading-none font-semibold">
               {reviews.length}
             </span>
             <div className="relative inline-flex h-4 shrink-0 items-center">
@@ -402,7 +402,7 @@ function ApprovalAvatarStack({ reviews }: { reviews: Array<{ author: { login: st
                   <GitHubAvatar
                     login={review.author.login}
                     size={14}
-                    className="border-border-strong border-[1.5px] bg-bg-surface"
+                    className="border-border-strong bg-bg-surface border-[1.5px]"
                   />
                 </span>
               ))}

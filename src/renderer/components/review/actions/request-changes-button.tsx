@@ -91,7 +91,16 @@ export function RequestChangesButton({
           />
         </div>
         <DialogFooter variant="bare">
-          <DialogClose render={<Button size="xs" variant="ghost" />}>Cancel</DialogClose>
+          <DialogClose
+            render={
+              <Button
+                size="xs"
+                variant="ghost"
+              />
+            }
+          >
+            Cancel
+          </DialogClose>
           <Button
             size="xs"
             className="bg-destructive hover:bg-destructive/90 text-white"

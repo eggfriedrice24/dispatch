@@ -326,7 +326,7 @@ export function MergeButton({
 
         {/* Update branch button */}
         {isBehind && (
-            <Button
+          <Button
             size="xs"
             variant="ghost"
             className="text-warning hover:text-warning gap-1"
@@ -363,8 +363,8 @@ export function MergeButton({
       className="relative flex items-center gap-1.5"
     >
       <div className="flex">
-          <Button
-            size="xs"
+        <Button
+          size="xs"
           variant={!canMerge ? "outline" : requirementsMet ? "success" : "default"}
           className={`gap-1.5 rounded-r-none ${
             !canMerge
@@ -392,7 +392,7 @@ export function MergeButton({
           {STRATEGY_LABELS[strategy]}
         </Button>
         <Button
-            size="xs"
+          size="xs"
           variant={!canMerge ? "outline" : requirementsMet ? "success" : "default"}
           className={`rounded-l-none border-l px-1.5 ${
             !canMerge
