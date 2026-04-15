@@ -190,6 +190,11 @@ export async function commitDiff(cwd: string, sha: string): Promise<string> {
   return stdout;
 }
 
+export async function commitHasReviewableChanges(cwd: string, sha: string): Promise<boolean> {
+  const diff = await commitDiff(cwd, sha);
+  return diff.trim().length > 0;
+}
+
 // ---------------------------------------------------------------------------
 // Repository info
 // ---------------------------------------------------------------------------

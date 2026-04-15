@@ -32,7 +32,13 @@ export interface PullRequestIpcApi {
   "pr.detail": { args: RepoTarget & { prNumber: number }; result: GhPrDetail };
   "pr.commits": {
     args: RepoTarget & { prNumber: number };
-    result: Array<{ oid: string; message: string; author: string; committedDate: string }>;
+    result: Array<{
+      oid: string;
+      message: string;
+      author: string;
+      committedDate: string;
+      hasReviewableChanges: boolean;
+    }>;
   };
   "pr.diff": { args: RepoTarget & { prNumber: number }; result: string };
   "pr.updateTitle": {

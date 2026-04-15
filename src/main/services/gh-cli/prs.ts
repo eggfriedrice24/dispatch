@@ -21,6 +21,7 @@ import {
   savePrDetail,
   savePrListCache,
 } from "../../db/repository";
+import { commitHasReviewableChanges } from "../git-cli";
 import {
   PR_LIST_CORE_FIELDS,
   PR_LIST_ENRICHMENT_FIELDS,
@@ -934,7 +935,15 @@ function buildUnifiedDiffSection(file: PullRequestFileApiItem): string | null {
 export async function getPrCommits(
   cwdOrTarget: string | RepoTarget,
   prNumber: number,
-): Promise<Array<{ oid: string; message: string; author: string; committedDate: string }>> {
+): Promise<
+  Array<{
+    oid: string;
+    message: string;
+    author: string;
+    committedDate: string;
+    hasReviewableChanges: boolean;
+  }>
+> {
   const resolved = resolveTarget(cwdOrTarget);
   const { stdout } = await ghExec(
     [
@@ -949,11 +958,29 @@ export async function getPrCommits(
     ],
     { cwd: resolved.cwd, timeout: 15_000 },
   );
-  return stdout
+  const commits: Array<{
+    oid: string;
+    message: string;
+    author: string;
+    committedDate: string;
+  }> = stdout
     .trim()
     .split("\n")
     .filter(Boolean)
-    .map((line) => JSON.parse(line));
+    .map(
+      (line) =>
+        JSON.parse(line) as { oid: string; message: string; author: string; committedDate: string },
+    );
+  const cwd = resolved.cwd;
+  if (!cwd) {
+    return commits.map((commit) => ({ ...commit, hasReviewableChanges: true }));
+  }
+  return Promise.all(
+    commits.map(async (commit) => ({
+      ...commit,
+      hasReviewableChanges: await commitHasReviewableChanges(cwd, commit.oid),
+    })),
+  );
 }
 
 export async function updatePrTitle(

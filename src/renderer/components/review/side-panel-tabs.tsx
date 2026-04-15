@@ -62,7 +62,10 @@ export function PanelCommitsContent({ prNumber }: { prNumber: number }) {
   );
 
   const handleCommitClick = useCallback(
-    (commit: { oid: string; message: string }) => {
+    (commit: { oid: string; message: string; hasReviewableChanges: boolean }) => {
+      if (!commit.hasReviewableChanges) {
+        return;
+      }
       if (selectedCommit?.oid === commit.oid) {
         setSelectedCommit(null);
       } else {
@@ -132,12 +135,15 @@ export function PanelCommitsContent({ prNumber }: { prNumber: number }) {
         const isMerge = /^Merge (branch|pull request|remote-tracking|upstream)[\s/]/.test(
           commit.message,
         );
+        const isDisabled = !commit.hasReviewableChanges;
         return (
           <button
             type="button"
             key={commit.oid}
             onClick={() => handleCommitClick(commit)}
-            className={`flex w-full cursor-pointer items-start gap-2 rounded-md text-left transition-colors ${
+            disabled={isDisabled}
+            title={isDisabled ? "This commit has no file changes to review." : undefined}
+            className={`flex w-full items-start gap-2 rounded-md text-left transition-colors disabled:cursor-default disabled:opacity-40 ${
               isActive(commit.oid)
                 ? "bg-accent-muted"
                 : isMerge
@@ -172,6 +178,7 @@ export function PanelCommitsContent({ prNumber }: { prNumber: number }) {
                 )}
                 {commit.author} · {relativeTime(new Date(commit.committedDate))}
               </div>
+              {isDisabled && <div className="text-text-tertiary mt-1 text-[10px]">No changes</div>}
             </div>
           </button>
         );
