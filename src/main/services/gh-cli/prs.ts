@@ -1722,11 +1722,26 @@ const REACTION_GROUPS_FRAGMENT = `
   reactionGroups {
     content
     viewerHasReacted
-    reactors(first: 100) {
+    reactors(first: 25) {
       totalCount
       nodes {
-        login
-        avatarUrl
+        __typename
+        ... on Bot {
+          login
+          avatarUrl
+        }
+        ... on Mannequin {
+          login
+          avatarUrl
+        }
+        ... on Organization {
+          login
+          avatarUrl
+        }
+        ... on User {
+          login
+          avatarUrl
+        }
       }
     }
   }
@@ -1775,7 +1790,8 @@ export async function getPrReactions(
     reactors: {
       totalCount: number;
       nodes?: Array<{
-        login: string;
+        __typename?: "User" | "Bot" | "Mannequin" | "Organization";
+        login?: string;
         avatarUrl?: string | null;
       }>;
     };
@@ -1816,8 +1832,9 @@ export async function getPrReactions(
         count: group.reactors.totalCount,
         viewerHasReacted: group.viewerHasReacted,
         reactors: (group.reactors.nodes ?? [])
+          .filter((reactor) => Boolean(reactor.login))
           .map((reactor) => ({
-            login: reactor.login,
+            login: reactor.login ?? "",
             avatarUrl: reactor.avatarUrl ?? undefined,
           })),
       }));
