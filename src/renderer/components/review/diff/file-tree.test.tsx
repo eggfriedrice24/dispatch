@@ -1,7 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 import { FileTree } from "@/renderer/components/review/diff/file-tree";
 import { parseDiff } from "@/renderer/lib/review/diff-parser";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vite-plus/test";
 
 const MULTI_FILE_DIFF = `diff --git a/src/nested/a.ts b/src/nested/a.ts
@@ -102,5 +102,34 @@ describe("FileTree", () => {
     expect(
       screen.queryByRole("checkbox", { name: "Mark file src/nested/a.ts as unviewed" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("supports vim-style keyboard navigation", () => {
+    const files = parseDiff(MULTI_FILE_DIFF);
+    const onSelectFile = vi.fn();
+    const { container } = render(
+      <FileTree
+        files={files}
+        currentFileIndex={0}
+        onSelectFile={onSelectFile}
+        viewedFiles={new Set()}
+        nwo="acme/dispatch"
+        prNumber={42}
+      />,
+    );
+
+    const tree = container.querySelector<HTMLElement>('[data-review-focus-target="file-tree"]');
+
+    expect(tree).not.toBeNull();
+
+    act(() => {
+      tree?.focus();
+    });
+    fireEvent.keyDown(tree!, { key: "j" });
+    fireEvent.keyDown(tree!, { key: "j" });
+    fireEvent.keyDown(tree!, { key: "j" });
+    fireEvent.keyDown(tree!, { key: "Enter" });
+
+    expect(onSelectFile).toHaveBeenCalledWith(1);
   });
 });

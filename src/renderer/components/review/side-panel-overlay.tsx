@@ -95,13 +95,13 @@ export function SidePanelOverlay({
           onKeyDown={(e) => {
             const tabs: PanelTab[] = ["overview", "conversation", "commits", "checks"];
             const idx = tabs.indexOf(activeTab);
-            if (e.key === "ArrowRight") {
+            if (e.key === "ArrowRight" || e.key === "l") {
               e.preventDefault();
               const nextTab = tabs.at((idx + 1) % tabs.length);
               if (nextTab) {
                 setActiveTab(nextTab);
               }
-            } else if (e.key === "ArrowLeft") {
+            } else if (e.key === "ArrowLeft" || e.key === "h") {
               e.preventDefault();
               const previousTab = tabs.at((idx - 1 + tabs.length) % tabs.length);
               if (previousTab) {

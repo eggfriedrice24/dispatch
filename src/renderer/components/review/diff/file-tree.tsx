@@ -386,19 +386,22 @@ export function FileTree({
       };
 
       switch (e.key) {
-        case "ArrowDown": {
+        case "ArrowDown":
+        case "j": {
           e.preventDefault();
           const next = Math.min(currentIndex + 1, visibleNodes.length - 1);
           focusVisibleNode(next);
           break;
         }
-        case "ArrowUp": {
+        case "ArrowUp":
+        case "k": {
           e.preventDefault();
           const prev = Math.max(currentIndex <= 0 ? 0 : currentIndex - 1, 0);
           focusVisibleNode(prev);
           break;
         }
-        case "ArrowRight": {
+        case "ArrowRight":
+        case "l": {
           e.preventDefault();
           if (current?.type === "dir" && !expandedPaths.has(current.path)) {
             toggleExpand(current.path);
@@ -411,7 +414,8 @@ export function FileTree({
           }
           break;
         }
-        case "ArrowLeft": {
+        case "ArrowLeft":
+        case "h": {
           e.preventDefault();
           if (current?.type === "dir" && expandedPaths.has(current.path)) {
             toggleExpand(current.path);

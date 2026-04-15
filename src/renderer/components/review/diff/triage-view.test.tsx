@@ -62,4 +62,45 @@ describe("TriageView", () => {
 
     expect(onSelectFile).toHaveBeenCalledWith(1);
   });
+
+  it("supports vim-style keyboard navigation", () => {
+    const files = parseDiff(TRIAGE_DIFF);
+    const onSelectFile = vi.fn();
+    const sections: TriageSection[] = [
+      {
+        id: "changed",
+        label: "Changed",
+        tone: "changed",
+        files: [
+          { file: files[0]!, fileIndex: 0 },
+          { file: files[1]!, fileIndex: 1 },
+        ],
+      },
+    ];
+
+    const { container } = render(
+      <TriageView
+        sections={sections}
+        currentFileIndex={0}
+        onSelectFile={onSelectFile}
+        viewedFiles={new Set()}
+        commentCounts={new Map()}
+      />,
+    );
+
+    const focusTarget = container.querySelector<HTMLElement>(
+      '[data-review-focus-target="file-tree"]',
+    );
+
+    expect(focusTarget).not.toBeNull();
+
+    act(() => {
+      focusTarget?.focus();
+    });
+    fireEvent.keyDown(focusTarget!, { key: "j" });
+    fireEvent.keyDown(focusTarget!, { key: "j" });
+    fireEvent.keyDown(focusTarget!, { key: "Enter" });
+
+    expect(onSelectFile).toHaveBeenCalledWith(1);
+  });
 });

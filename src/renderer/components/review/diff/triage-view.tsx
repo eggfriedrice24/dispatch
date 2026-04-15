@@ -116,19 +116,22 @@ export function TriageView({
     }
 
     switch (event.key) {
-      case "ArrowDown": {
+      case "ArrowDown":
+      case "j": {
         event.preventDefault();
         const nextIndex = Math.min(activeIndex + 1, visibleItems.length - 1);
         focusItem(visibleItems[nextIndex]?.id ?? null);
         break;
       }
-      case "ArrowUp": {
+      case "ArrowUp":
+      case "k": {
         event.preventDefault();
         const previousIndex = Math.max(activeIndex - 1, 0);
         focusItem(visibleItems[previousIndex]?.id ?? null);
         break;
       }
-      case "ArrowRight": {
+      case "ArrowRight":
+      case "l": {
         if (
           activeItem.type === "section" &&
           !isSectionExpanded(activeItem.section, activeItem.index)
@@ -138,7 +141,8 @@ export function TriageView({
         }
         break;
       }
-      case "ArrowLeft": {
+      case "ArrowLeft":
+      case "h": {
         if (
           activeItem.type === "section" &&
           isSectionExpanded(activeItem.section, activeItem.index)
