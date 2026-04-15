@@ -14,9 +14,10 @@ import { openExternal } from "@/renderer/lib/app/open-external";
 import { queryClient } from "@/renderer/lib/app/query-client";
 import { useWorkspace } from "@/renderer/lib/app/workspace-context";
 import { getCompletedPullRequestLabel } from "@/renderer/lib/review/completed-pr-state";
+import { relativeTime } from "@/shared/format";
 import { useMutation } from "@tanstack/react-query";
-import { Copy, ExternalLink, Link, PanelRight, RefreshCw } from "lucide-react";
-import { useRef, useState } from "react";
+import { Clock, Copy, ExternalLink, Link, PanelRight, RefreshCw } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
 
 /**
  * Compact PR header — PR-REVIEW-REDESIGN.md § PR Header (36px, single strip)
@@ -58,6 +59,7 @@ export function CompactPrHeader({
   const [editValue, setEditValue] = useState(pr.title);
   const inputRef = useRef<HTMLInputElement>(null);
   const completedLabel = getCompletedPullRequestLabel(pr.state);
+  const ageTier = useMemo(() => getPrAgeTier(pr.createdAt), [pr.createdAt]);
 
   const titleMutation = useMutation({
     mutationFn: (title: string) =>
@@ -289,7 +291,71 @@ export function CompactPrHeader({
             </span>
           </>
         )}
+
+        {/* PR age indicator — color-coded by staleness */}
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <span
+                className="ml-auto flex shrink-0 items-center gap-1 rounded-full font-mono text-[10px]"
+                style={{
+                  padding: ageTier.hasBadge ? "1px 6px 1px 4px" : undefined,
+                  background: ageTier.bg,
+                  color: ageTier.color,
+                }}
+              >
+                <Clock size={10} />
+                {relativeTime(new Date(pr.createdAt))}
+              </span>
+            }
+          />
+          <TooltipPopup>
+            Opened{" "}
+            {new Date(pr.createdAt).toLocaleDateString("en-US", {
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+            })}
+            {" at "}
+            {new Date(pr.createdAt).toLocaleTimeString("en-US", {
+              hour: "numeric",
+              minute: "2-digit",
+            })}
+          </TooltipPopup>
+        </Tooltip>
       </div>
     </div>
   );
+}
+
+// ---------------------------------------------------------------------------
+// PR age tier — provides color-coded urgency for how old a PR is
+// ---------------------------------------------------------------------------
+
+const DAY_MS = 86_400_000;
+
+interface AgeTier {
+  color: string;
+  bg: string;
+  hasBadge: boolean;
+}
+
+function getPrAgeTier(createdAt: string): AgeTier {
+  const ageMs = Date.now() - new Date(createdAt).getTime();
+  const days = ageMs / DAY_MS;
+
+  if (days < 1) {
+    // Fresh — subtle, no background
+    return { color: "var(--text-tertiary)", bg: "transparent", hasBadge: false };
+  }
+  if (days < 4) {
+    // Normal — still tertiary, gentle background
+    return { color: "var(--text-secondary)", bg: "var(--bg-raised)", hasBadge: true };
+  }
+  if (days < 7) {
+    // Aging — warning tint
+    return { color: "var(--warning)", bg: "var(--warning-muted)", hasBadge: true };
+  }
+  // Stale — danger tint
+  return { color: "var(--danger)", bg: "var(--danger-muted)", hasBadge: true };
 }
