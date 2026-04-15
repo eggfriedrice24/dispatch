@@ -24,6 +24,7 @@ export const DEFAULT_BOT_USERNAMES = [
   "github-actions",
   "copilot",
   "coderabbit",
+  "coderabbitai",
   "macroscopeapp",
 ];
 

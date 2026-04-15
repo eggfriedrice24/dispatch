@@ -40,4 +40,8 @@ describe("DEFAULT_BOT_USERNAMES", () => {
   it("includes macroscopeapp as a built-in bot username", () => {
     expect(DEFAULT_BOT_USERNAMES).toContain("macroscopeapp");
   });
+
+  it("includes coderabbitai as a built-in bot username", () => {
+    expect(DEFAULT_BOT_USERNAMES).toContain("coderabbitai");
+  });
 });
