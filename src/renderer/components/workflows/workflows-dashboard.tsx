@@ -432,9 +432,16 @@ function RunRow({
   const isInProgress = run.status === "in_progress" || run.status === "queued";
 
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={(e) => onSelect(e.shiftKey)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onSelect(event.shiftKey);
+        }
+      }}
       className={`flex w-full cursor-pointer items-center gap-3 px-5 py-2.5 text-left transition-colors ${
         isSelected
           ? "bg-accent-muted"
@@ -504,7 +511,7 @@ function RunRow({
           />
         )}
       </div>
-    </button>
+    </div>
   );
 }
 
