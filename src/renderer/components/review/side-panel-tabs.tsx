@@ -9,8 +9,8 @@ import { useFileNavStore } from "@/renderer/lib/review/file-nav-context";
 import { summarizePrChecks } from "@/renderer/lib/review/pr-check-status";
 import { relativeTime } from "@/shared/format";
 import { useQuery } from "@tanstack/react-query";
-import { Check, GitCommitHorizontal, Loader2, XCircle } from "lucide-react";
-import { useCallback, useMemo } from "react";
+import { Check, GitCommitHorizontal, Loader2, Search, XCircle } from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
 
 function dedupeReviews(
   reviews: Array<{ author: { login: string }; state: string; submittedAt: string }>,
@@ -38,6 +38,7 @@ export function PanelCommitsContent({ prNumber }: { prNumber: number }) {
   const { repoTarget, nwo } = useWorkspace();
   const selectedCommit = useFileNavStore((s) => s.selectedCommit);
   const setSelectedCommit = useFileNavStore((s) => s.setSelectedCommit);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const commitsQuery = useQuery({
     queryKey: ["pr", "commits", nwo, prNumber],
@@ -46,6 +47,19 @@ export function PanelCommitsContent({ prNumber }: { prNumber: number }) {
   });
 
   const commits = commitsQuery.data ?? [];
+  const normalizedQuery = searchQuery.trim().toLowerCase();
+  const filteredCommits = useMemo(
+    () =>
+      normalizedQuery.length === 0
+        ? commits
+        : commits.filter((commit) =>
+            [commit.message, commit.author, commit.oid]
+              .join("\n")
+              .toLowerCase()
+              .includes(normalizedQuery),
+          ),
+    [commits, normalizedQuery],
+  );
 
   const handleCommitClick = useCallback(
     (commit: { oid: string; message: string }) => {
@@ -79,6 +93,26 @@ export function PanelCommitsContent({ prNumber }: { prNumber: number }) {
       data-review-focus-target="panel-commits"
       tabIndex={-1}
     >
+      <div className="mb-2">
+        <div className="border-border bg-bg-raised flex items-center gap-1.5 rounded-md border px-2 py-1">
+          <Search
+            size={11}
+            className="text-text-tertiary shrink-0"
+          />
+          <input
+            data-review-focus-target="panel-search"
+            aria-label="Filter commits"
+            autoComplete="off"
+            name="panel-commits-search"
+            spellCheck={false}
+            type="search"
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder="Filter commits…"
+            className="text-text-primary placeholder:text-text-tertiary min-w-0 flex-1 bg-transparent text-[11px] focus:outline-none"
+          />
+        </div>
+      </div>
       {selectedCommit && (
         <button
           type="button"
@@ -89,7 +123,12 @@ export function PanelCommitsContent({ prNumber }: { prNumber: number }) {
           View all changes
         </button>
       )}
-      {commits.map((commit, index) => {
+      {filteredCommits.length === 0 && normalizedQuery.length > 0 && (
+        <p className="text-text-tertiary px-1 py-3 text-xs">
+          No commits match “{searchQuery.trim()}”.
+        </p>
+      )}
+      {filteredCommits.map((commit, index) => {
         const isMerge = /^Merge (branch|pull request|remote-tracking|upstream)[\s/]/.test(
           commit.message,
         );
@@ -107,7 +146,8 @@ export function PanelCommitsContent({ prNumber }: { prNumber: number }) {
             }`}
             style={{
               padding: "8px 6px",
-              borderBottom: index < commits.length - 1 ? "1px solid var(--border-subtle)" : "none",
+              borderBottom:
+                index < filteredCommits.length - 1 ? "1px solid var(--border-subtle)" : "none",
             }}
           >
             <span
@@ -148,6 +188,7 @@ function parseRunIdFromUrl(detailsUrl: string): number | null {
 export function PanelChecksContent({ prNumber }: { prNumber: number }) {
   const { repoTarget, nwo } = useWorkspace();
   const { navigate } = useRouter();
+  const [searchQuery, setSearchQuery] = useState("");
 
   const checksQuery = useQuery({
     queryKey: ["checks", "list", nwo, prNumber],
@@ -158,6 +199,19 @@ export function PanelChecksContent({ prNumber }: { prNumber: number }) {
 
   const checks = checksQuery.data ?? [];
   const summary = useMemo(() => summarizePrChecks(checks), [checks]);
+  const normalizedQuery = searchQuery.trim().toLowerCase();
+  const filteredChecks = useMemo(
+    () =>
+      normalizedQuery.length === 0
+        ? checks
+        : checks.filter((check) =>
+            [check.name, check.status, check.conclusion ?? ""]
+              .join("\n")
+              .toLowerCase()
+              .includes(normalizedQuery),
+          ),
+    [checks, normalizedQuery],
+  );
 
   if (checksQuery.isLoading) {
     return (
@@ -180,6 +234,26 @@ export function PanelChecksContent({ prNumber }: { prNumber: number }) {
       data-review-focus-target="panel-checks"
       tabIndex={-1}
     >
+      <div className="mb-2">
+        <div className="border-border bg-bg-raised flex items-center gap-1.5 rounded-md border px-2 py-1">
+          <Search
+            size={11}
+            className="text-text-tertiary shrink-0"
+          />
+          <input
+            data-review-focus-target="panel-search"
+            aria-label="Filter checks"
+            autoComplete="off"
+            name="panel-checks-search"
+            spellCheck={false}
+            type="search"
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder="Filter checks…"
+            className="text-text-primary placeholder:text-text-tertiary min-w-0 flex-1 bg-transparent text-[11px] focus:outline-none"
+          />
+        </div>
+      </div>
       <div
         className="flex items-center gap-[5px] font-medium"
         style={{
@@ -194,7 +268,11 @@ export function PanelChecksContent({ prNumber }: { prNumber: number }) {
           : `${summary.passed} passed`}
       </div>
 
-      {checks.map((check, index) => {
+      {filteredChecks.length === 0 && normalizedQuery.length > 0 && (
+        <p className="text-text-tertiary py-3 text-xs">No checks match “{searchQuery.trim()}”.</p>
+      )}
+
+      {filteredChecks.map((check, index) => {
         const failed = check.conclusion === "failure";
         const pending = !check.conclusion;
         const duration =
@@ -209,7 +287,8 @@ export function PanelChecksContent({ prNumber }: { prNumber: number }) {
           <div
             key={check.name}
             style={{
-              borderBottom: index < checks.length - 1 ? "1px solid var(--border-subtle)" : "none",
+              borderBottom:
+                index < filteredChecks.length - 1 ? "1px solid var(--border-subtle)" : "none",
               paddingBottom: failed && runId ? "6px" : 0,
             }}
           >

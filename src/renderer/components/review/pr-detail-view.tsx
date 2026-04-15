@@ -39,6 +39,9 @@ import {
   type ReviewThreadState,
 } from "@/renderer/lib/review/review-comments";
 import {
+  focusReviewTarget,
+  getActiveReviewFocusTarget,
+  requestReviewDiffSearchFocus,
   focusReviewTargetSoon,
   type ReviewFocusTarget,
 } from "@/renderer/lib/review/review-focus-targets";
@@ -647,11 +650,138 @@ function PrDetail({ prNumber }: { prNumber: number }) {
     [focusPanelContent],
   );
 
+  const cycleFocusRegion = useCallback(
+    (direction: "next" | "prev") => {
+      const targets = [
+        "file-search",
+        "file-tree",
+        "diff-viewer",
+        "panel-tabs",
+        PANEL_FOCUS_TARGET_BY_TAB[panelTab],
+        "review-actions",
+      ].filter(
+        (target, index, allTargets) => allTargets.indexOf(target) === index,
+      ) as ReviewFocusTarget[];
+      const availableTargets = targets.filter((target) =>
+        document.querySelector(`[data-review-focus-target="${target}"]`),
+      );
+      if (availableTargets.length === 0) {
+        return;
+      }
+
+      const activeTarget = getActiveReviewFocusTarget();
+      const normalizedActiveTarget =
+        activeTarget === "diff-search"
+          ? "diff-viewer"
+          : activeTarget === "panel-search"
+            ? PANEL_FOCUS_TARGET_BY_TAB[panelTab]
+            : activeTarget;
+      const currentIndex = normalizedActiveTarget
+        ? availableTargets.indexOf(normalizedActiveTarget)
+        : -1;
+      const fallbackIndex = direction === "next" ? 0 : availableTargets.length - 1;
+      const nextIndex =
+        currentIndex === -1
+          ? fallbackIndex
+          : direction === "next"
+            ? (currentIndex + 1) % availableTargets.length
+            : (currentIndex - 1 + availableTargets.length) % availableTargets.length;
+      const nextTarget = availableTargets[nextIndex];
+
+      if (!nextTarget) {
+        return;
+      }
+
+      focusReviewTargetSoon(nextTarget, {
+        preferDescendant: nextTarget === "panel-tabs" || nextTarget === "review-actions",
+        selectText: nextTarget === "file-search",
+      });
+    },
+    [panelTab],
+  );
+
+  const focusSearchForCurrentRegion = useCallback(() => {
+    const activeTarget = getActiveReviewFocusTarget();
+
+    if (activeTarget === "file-search" || activeTarget === "file-tree") {
+      focusFileSearch();
+      return;
+    }
+
+    if (
+      (activeTarget === "panel-search" ||
+        activeTarget === "panel-tabs" ||
+        activeTarget === "panel-conversation" ||
+        activeTarget === "panel-commits" ||
+        activeTarget === "panel-checks") &&
+      focusReviewTarget("panel-search", { selectText: true })
+    ) {
+      return;
+    }
+
+    if (activeTarget === "panel-overview") {
+      focusReviewTargetSoon("panel-tabs", { preferDescendant: true });
+      return;
+    }
+
+    if (focusReviewTarget("diff-search", { selectText: true })) {
+      return;
+    }
+
+    requestReviewDiffSearchFocus();
+  }, [focusFileSearch]);
+
+  const focusNextUnresolvedThread = useCallback(() => {
+    const unresolvedThreads = [
+      ...document.querySelectorAll<HTMLElement>("[data-review-thread-state='open']"),
+    ];
+    if (unresolvedThreads.length === 0) {
+      return;
+    }
+
+    const activeElement =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const currentIndex = unresolvedThreads.findIndex(
+      (thread) => thread === activeElement || thread.contains(activeElement),
+    );
+    const nextThread =
+      unresolvedThreads[(currentIndex + 1 + unresolvedThreads.length) % unresolvedThreads.length];
+    nextThread?.focus({ preventScroll: true });
+    nextThread?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, []);
+
+  const activateFocusedThreadControl = useCallback(
+    (selector: "[data-review-thread-reply]" | "[data-review-thread-resolve]") => {
+      const activeElement =
+        document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      const activeThread = activeElement?.closest<HTMLElement>("[data-review-thread-id]");
+      const control =
+        activeThread?.querySelector<HTMLButtonElement>(selector) ??
+        (activeElement?.matches(selector) ? (activeElement as HTMLButtonElement) : null);
+      control?.click();
+    },
+    [],
+  );
+
   // Keyboard shortcuts — centralized via useKeyboardShortcuts
   const { getBinding } = useKeybindings();
 
   useKeyboardShortcuts([
-    { ...getBinding("search.focusSearch"), handler: focusFileSearch },
+    {
+      ...getBinding("search.focusSearch"),
+      handler: focusSearchForCurrentRegion,
+      preventWhileTyping: true,
+    },
+    {
+      ...getBinding("navigation.nextRegion"),
+      handler: () => cycleFocusRegion("next"),
+      preventWhileTyping: true,
+    },
+    {
+      ...getBinding("navigation.prevRegion"),
+      handler: () => cycleFocusRegion("prev"),
+      preventWhileTyping: true,
+    },
     { ...getBinding("navigation.prevFile"), handler: goToPrevFile },
     { ...getBinding("navigation.nextFile"), handler: goToNextFile },
     { ...getBinding("navigation.focusFiles"), handler: focusFilesTree },
@@ -675,6 +805,21 @@ function PrDetail({ prNumber }: { prNumber: number }) {
     { ...getBinding("actions.togglePanel"), handler: togglePanel },
     { ...getBinding("actions.focusPanel"), handler: () => focusPanelContent() },
     { ...getBinding("actions.focusReviewBar"), handler: focusReviewActions },
+    {
+      ...getBinding("actions.nextUnresolvedThread"),
+      handler: focusNextUnresolvedThread,
+      preventWhileTyping: true,
+    },
+    {
+      ...getBinding("actions.replyToThread"),
+      handler: () => activateFocusedThreadControl("[data-review-thread-reply]"),
+      preventWhileTyping: true,
+    },
+    {
+      ...getBinding("actions.resolveThread"),
+      handler: () => activateFocusedThreadControl("[data-review-thread-resolve]"),
+      preventWhileTyping: true,
+    },
     {
       ...getBinding("actions.openOverview"),
       handler: () => openPanelTab("overview"),

@@ -27,8 +27,9 @@ import {
   MessageCircle,
   MessageSquare,
   Pencil,
+  Search,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 function isCurrentUserCommentAuthor(
   currentUserLogin: string | null | undefined,
@@ -74,6 +75,7 @@ export function ConversationTab({
 }: ConversationTabProps) {
   const { isBot, shouldAutoCollapseBot } = useBotSettings();
   const { isCommentMinimized, toggleMinimized } = useMinimizedComments(repo, prNumber);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const timeline = buildTimeline({
     reviews,
@@ -83,6 +85,14 @@ export function ConversationTab({
     currentUserLogin,
     issueCommentReactions,
   });
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase();
+  const filteredTimeline = useMemo(
+    () =>
+      normalizedSearchQuery.length === 0
+        ? timeline
+        : timeline.filter((event) => matchesConversationSearch(event, normalizedSearchQuery)),
+    [normalizedSearchQuery, timeline],
+  );
 
   const unresolvedCount = (reviewThreads ?? []).filter((t) => !t.isResolved).length;
 
@@ -92,13 +102,33 @@ export function ConversationTab({
       data-review-focus-target="panel-conversation"
       tabIndex={-1}
     >
+      <div className="border-border shrink-0 border-b px-3 py-2">
+        <div className="border-border bg-bg-raised flex items-center gap-1.5 rounded-md border px-2 py-1">
+          <Search
+            size={11}
+            className="text-text-tertiary shrink-0"
+          />
+          <input
+            data-review-focus-target="panel-search"
+            aria-label="Search conversation"
+            autoComplete="off"
+            name="panel-conversation-search"
+            spellCheck={false}
+            type="search"
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder="Search conversation…"
+            className="text-text-primary placeholder:text-text-tertiary min-w-0 flex-1 bg-transparent text-[11px] focus:outline-none"
+          />
+        </div>
+      </div>
       <div
         className="min-h-0 flex-1 overflow-y-auto"
         style={{ padding: "12px" }}
       >
         <div className="space-y-3">
           {/* Unified timeline: status events, content events, and thread entries */}
-          {timeline.map((event) => {
+          {filteredTimeline.map((event) => {
             switch (event.type) {
               case "status": {
                 return (
@@ -163,16 +193,28 @@ export function ConversationTab({
           })}
 
           {/* Empty state */}
-          {timeline.length === 0 && unresolvedCount === 0 && (
+          {filteredTimeline.length === 0 && normalizedSearchQuery.length > 0 && (
             <div className="py-8 text-center">
               <p
                 className="text-sm"
                 style={{ color: "var(--text-tertiary)" }}
               >
-                No conversation yet
+                No conversation matches “{searchQuery.trim()}”
               </p>
             </div>
           )}
+          {filteredTimeline.length === 0 &&
+            normalizedSearchQuery.length === 0 &&
+            unresolvedCount === 0 && (
+              <div className="py-8 text-center">
+                <p
+                  className="text-sm"
+                  style={{ color: "var(--text-tertiary)" }}
+                >
+                  No conversation yet
+                </p>
+              </div>
+            )}
         </div>
       </div>
 
@@ -218,6 +260,28 @@ interface ThreadTimelineEvent {
 }
 
 type TimelineEvent = StatusTimelineEvent | ContentTimelineEvent | ThreadTimelineEvent;
+
+function matchesConversationSearch(event: TimelineEvent, query: string): boolean {
+  if (event.type === "status") {
+    return [event.login, event.action, event.state].join("\n").toLowerCase().includes(query);
+  }
+
+  if (event.type === "content") {
+    return [event.login, event.action, event.body, event.filePath ?? ""]
+      .join("\n")
+      .toLowerCase()
+      .includes(query);
+  }
+
+  return [
+    event.thread.path,
+    event.thread.line === null ? "" : String(event.thread.line),
+    ...event.thread.comments.map((comment) => `${comment.author.login}\n${comment.body}`),
+  ]
+    .join("\n")
+    .toLowerCase()
+    .includes(query);
+}
 
 function buildTimeline({
   reviews,
@@ -885,7 +949,9 @@ function UnresolvedThreadItem({
     <button
       type="button"
       onClick={onClick}
-      className="w-full cursor-pointer overflow-hidden rounded-lg text-left"
+      data-review-thread-id={thread.id}
+      data-review-thread-state={thread.isResolved ? "resolved" : "open"}
+      className="focus:ring-border-accent/70 w-full cursor-pointer overflow-hidden rounded-lg text-left focus:ring-1 focus:outline-none focus:ring-inset"
       style={{
         border: thread.isResolved
           ? "1px solid color-mix(in srgb, var(--success) 15%, transparent)"

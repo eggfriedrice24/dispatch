@@ -24,6 +24,14 @@ export const DEFAULT_KEYBINDINGS: ShortcutDefinition[] = [
   { id: "navigation.prevPr", key: "j", label: "Previous PR", category: "Navigation" },
   { id: "navigation.nextPr", key: "k", label: "Next PR", category: "Navigation" },
   { id: "navigation.openPr", key: "Enter", label: "Open PR", category: "Navigation" },
+  { id: "navigation.nextRegion", key: "Tab", label: "Next region", category: "Navigation" },
+  {
+    id: "navigation.prevRegion",
+    key: "Tab",
+    modifiers: ["shift"],
+    label: "Previous region",
+    category: "Navigation",
+  },
   { id: "navigation.prevFile", key: "[", label: "Previous file", category: "Navigation" },
   { id: "navigation.nextFile", key: "]", label: "Next file", category: "Navigation" },
   { id: "navigation.focusFiles", key: "f", label: "Focus files", category: "Navigation" },
@@ -78,6 +86,14 @@ export const DEFAULT_KEYBINDINGS: ShortcutDefinition[] = [
   { id: "actions.toggleViewed", key: "v", label: "Toggle file viewed", category: "Actions" },
   { id: "actions.nextUnreviewed", key: "n", label: "Next unreviewed file", category: "Actions" },
   {
+    id: "actions.nextUnresolvedThread",
+    key: "u",
+    label: "Next unresolved thread",
+    category: "Actions",
+  },
+  { id: "actions.replyToThread", key: "r", label: "Reply to focused thread", category: "Actions" },
+  { id: "actions.resolveThread", key: "e", label: "Resolve focused thread", category: "Actions" },
+  {
     id: "actions.requestChanges",
     key: "r",
     modifiers: ["meta", "shift"],
@@ -109,7 +125,7 @@ export const DEFAULT_KEYBINDINGS: ShortcutDefinition[] = [
   },
 
   // Search
-  { id: "search.focusSearch", key: "/", label: "Focus search", category: "Search" },
+  { id: "search.focusSearch", key: "/", label: "Search current region", category: "Search" },
   {
     id: "search.commandPalette",
     key: "k",

@@ -85,8 +85,13 @@ export function CommentThread({
 
   return (
     <div
+      data-review-thread-id={threadState?.threadId ?? `comment-${root.id}`}
+      data-review-thread-state={
+        isResolvedThread ? "resolved" : isOutdatedThread ? "outdated" : "open"
+      }
+      tabIndex={0}
       className={cn(
-        "relative",
+        "focus:ring-border-accent/70 relative rounded-md focus:ring-1 focus:outline-none focus:ring-inset",
         showBorder && "border-border-subtle border-t",
         isResolvedThread &&
           "bg-success-muted/50 before:bg-success before:absolute before:inset-y-0 before:left-0 before:w-[2px]",
@@ -228,6 +233,7 @@ export function CommentThread({
           <button
             type="button"
             onClick={() => setShowReply(true)}
+            data-review-thread-reply
             className="border-border bg-bg-surface text-text-secondary hover:border-border-strong hover:bg-bg-raised hover:text-text-primary inline-flex cursor-pointer items-center gap-1.5 rounded-md border px-2.5 py-1 text-[10px] font-medium transition-colors"
           >
             <Reply size={11} />

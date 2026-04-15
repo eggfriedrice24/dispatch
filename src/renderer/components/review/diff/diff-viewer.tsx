@@ -35,6 +35,7 @@ import {
   type ShikiToken,
   type ThemeMode,
 } from "@/renderer/lib/review/highlighter";
+import { REVIEW_DIFF_SEARCH_EVENT } from "@/renderer/lib/review/review-focus-targets";
 import { ChevronDown, ChevronUp, Plus, Search, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -181,6 +182,11 @@ export function DiffViewer({
   const searchInputRef = useRef<HTMLInputElement>(null);
   const activeSearchRef = useRef<HTMLSpanElement>(null);
 
+  const openSearch = useCallback(() => {
+    setSearchOpen(true);
+    requestAnimationFrame(() => searchInputRef.current?.focus());
+  }, []);
+
   // --- Drag-to-select state ---
   const selectingFromRef = useRef<CommentTarget | null>(null);
   const hoverLineRef = useRef<CommentTarget | null>(null);
@@ -320,15 +326,22 @@ export function DiffViewer({
     function handleKeyDown(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key === "f") {
         e.preventDefault();
-        setSearchOpen(true);
-        requestAnimationFrame(() => searchInputRef.current?.focus());
+        openSearch();
       }
     }
     globalThis.addEventListener("keydown", handleKeyDown);
     return () => {
       globalThis.removeEventListener("keydown", handleKeyDown);
     };
-  }, []);
+  }, [openSearch]);
+
+  useEffect(() => {
+    const handleReviewSearch = () => openSearch();
+    globalThis.addEventListener(REVIEW_DIFF_SEARCH_EVENT, handleReviewSearch);
+    return () => {
+      globalThis.removeEventListener(REVIEW_DIFF_SEARCH_EVENT, handleReviewSearch);
+    };
+  }, [openSearch]);
 
   if (activeRows.length === 0) {
     return (
@@ -363,6 +376,7 @@ export function DiffViewer({
           />
           <input
             ref={searchInputRef}
+            data-review-focus-target="diff-search"
             aria-label="Find in diff"
             autoComplete="off"
             name="diff-search"

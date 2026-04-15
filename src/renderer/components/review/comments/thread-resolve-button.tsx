@@ -38,8 +38,9 @@ export function ThreadResolveButton({
     <Button
       size="xs"
       variant="ghost"
+      data-review-thread-resolve
       className={cn(
-        "h-6 gap-1 rounded-md border px-2 shadow-none text-[10px]",
+        "h-6 gap-1 rounded-md border px-2 text-[10px] shadow-none",
         resolved
           ? "text-success border-[rgba(61,214,140,0.22)] bg-[rgba(61,214,140,0.08)] hover:bg-[rgba(61,214,140,0.12)]"
           : "border-border-subtle bg-bg-root/60 text-text-tertiary hover:border-border hover:bg-bg-raised hover:text-text-primary",

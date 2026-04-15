@@ -53,7 +53,10 @@ export function MergeBarButton({
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [strategy, setStrategy] = useState<"squash" | "merge" | "rebase">("squash");
+  const [armed, setArmed] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const mainButtonRef = useRef<HTMLButtonElement>(null);
+  const shortcutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { getBinding } = useKeybindings();
   const mergeBinding = getBinding("actions.merge");
   const mergeShortcut = formatKeybinding(mergeBinding.key, mergeBinding.modifiers);
@@ -136,18 +139,46 @@ export function MergeBarButton({
   // Disable if auto-merge is already enabled
   const autoMergeAlreadyEnabled = pr.autoMergeRequest !== null;
   const disabled = isDraft || !canMerge || autoMergeAlreadyEnabled;
+  const armShortcut = useCallback(() => {
+    if (shortcutTimerRef.current) {
+      clearTimeout(shortcutTimerRef.current);
+    }
+    setArmed(true);
+    mainButtonRef.current?.focus({ preventScroll: true });
+    shortcutTimerRef.current = setTimeout(() => setArmed(false), 3500);
+  }, []);
+  const triggerMerge = useCallback(
+    (args?: { admin?: boolean }) => {
+      if (shortcutTimerRef.current) {
+        clearTimeout(shortcutTimerRef.current);
+      }
+      setArmed(false);
+      mergeMutation.mutate(args);
+    },
+    [mergeMutation],
+  );
 
   useKeyboardShortcuts([
     {
       ...mergeBinding,
-      handler: () => mergeMutation.mutate(),
+      handler: () => {
+        if (armed && document.activeElement === mainButtonRef.current) {
+          triggerMerge();
+          return;
+        }
+
+        armShortcut();
+      },
       preventWhileTyping: true,
       when: () => !disabled && !mergeMutation.isPending && !menuOpen,
     },
   ]);
 
   // Close dropdown on Escape or click outside
-  const closeMenu = useCallback(() => setMenuOpen(false), []);
+  const closeMenu = useCallback(() => {
+    setMenuOpen(false);
+    setArmed(false);
+  }, []);
   useEffect(() => {
     if (!menuOpen) {
       return;
@@ -171,6 +202,15 @@ export function MergeBarButton({
     };
   }, [menuOpen, closeMenu]);
 
+  useEffect(
+    () => () => {
+      if (shortcutTimerRef.current) {
+        clearTimeout(shortcutTimerRef.current);
+      }
+    },
+    [],
+  );
+
   const mainBg = disabled ? "var(--bg-raised)" : "var(--success)";
   const mainColor = disabled ? "var(--text-tertiary)" : "var(--bg-root)";
   const mainBorder = disabled ? "var(--border)" : "var(--success)";
@@ -184,16 +224,24 @@ export function MergeBarButton({
         style={{ position: "relative", display: "flex" }}
       >
         <button
+          ref={mainButtonRef}
           type="button"
-          onClick={() => mergeMutation.mutate()}
+          onBlur={() => {
+            if (shortcutTimerRef.current) {
+              clearTimeout(shortcutTimerRef.current);
+            }
+            setArmed(false);
+          }}
+          onClick={() => triggerMerge()}
           disabled={isDraft || !canMerge || mergeMutation.isPending}
-          title={dense ? "Merge when ready" : undefined}
-          aria-label="Merge when ready"
+          title={dense ? (armed ? "Press Enter to confirm merge" : "Merge when ready") : undefined}
+          aria-label={armed ? "Press Enter to confirm merge" : "Merge when ready"}
           style={{
             ...btnBase,
             background: mainBg,
             color: mainColor,
-            borderColor: mainBorder,
+            borderColor: armed ? "var(--text-primary)" : mainBorder,
+            boxShadow: armed ? "0 0 0 1px rgba(240,236,230,0.22)" : undefined,
             cursor: mainCursor,
             borderTopRightRadius: canAdmin ? 0 : undefined,
             borderBottomRightRadius: canAdmin ? 0 : undefined,
@@ -201,10 +249,17 @@ export function MergeBarButton({
           }}
         >
           {mergeMutation.isPending ? <Spinner className="h-3 w-3" /> : <GitMerge size={11} />}
-          {!dense && (compact ? "Ready" : "Merge when ready")}
+          {!dense &&
+            (compact
+              ? armed
+                ? "Confirm"
+                : "Ready"
+              : armed
+                ? "Confirm merge"
+                : "Merge when ready")}
           {!compact && (
             <span style={{ fontFamily: "var(--font-mono)", fontSize: "9px", opacity: 0.5 }}>
-              {mergeShortcut}
+              {armed ? "↵" : mergeShortcut}
             </span>
           )}
         </button>
@@ -246,7 +301,7 @@ export function MergeBarButton({
               type="button"
               onClick={() => {
                 setMenuOpen(false);
-                mergeMutation.mutate({ admin: true });
+                triggerMerge({ admin: true });
               }}
               disabled={mergeMutation.isPending}
               style={{
@@ -279,16 +334,24 @@ export function MergeBarButton({
       style={{ position: "relative", display: "flex" }}
     >
       <button
+        ref={mainButtonRef}
         type="button"
-        onClick={() => mergeMutation.mutate()}
+        onBlur={() => {
+          if (shortcutTimerRef.current) {
+            clearTimeout(shortcutTimerRef.current);
+          }
+          setArmed(false);
+        }}
+        onClick={() => triggerMerge()}
         disabled={isDraft || !canMerge || mergeMutation.isPending}
-        title={dense ? labels[strategy] : undefined}
-        aria-label={labels[strategy]}
+        title={dense ? (armed ? "Press Enter to confirm merge" : labels[strategy]) : undefined}
+        aria-label={armed ? "Press Enter to confirm merge" : labels[strategy]}
         style={{
           ...btnBase,
           background: mainBg,
           color: mainColor,
-          borderColor: mainBorder,
+          borderColor: armed ? "var(--text-primary)" : mainBorder,
+          boxShadow: armed ? "0 0 0 1px rgba(240,236,230,0.22)" : undefined,
           cursor: mainCursor,
           borderTopRightRadius: 0,
           borderBottomRightRadius: 0,
@@ -296,10 +359,11 @@ export function MergeBarButton({
         }}
       >
         {mergeMutation.isPending ? <Spinner className="h-3 w-3" /> : <GitMerge size={11} />}
-        {!dense && (compact ? "Merge" : labels[strategy])}
+        {!dense &&
+          (compact ? (armed ? "Confirm" : "Merge") : armed ? "Confirm merge" : labels[strategy])}
         {!compact && (
           <span style={{ fontFamily: "var(--font-mono)", fontSize: "9px", opacity: 0.5 }}>
-            {mergeShortcut}
+            {armed ? "↵" : mergeShortcut}
           </span>
         )}
       </button>

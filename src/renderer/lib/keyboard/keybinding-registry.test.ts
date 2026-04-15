@@ -287,6 +287,8 @@ describe("shortcut categories", () => {
     expect(ids).toContain("navigation.prevPr");
     expect(ids).toContain("navigation.nextPr");
     expect(ids).toContain("navigation.openPr");
+    expect(ids).toContain("navigation.nextRegion");
+    expect(ids).toContain("navigation.prevRegion");
     expect(ids).toContain("navigation.prevFile");
     expect(ids).toContain("navigation.nextFile");
     expect(ids).toContain("navigation.focusFiles");
@@ -309,6 +311,9 @@ describe("shortcut categories", () => {
     expect(ids).toContain("actions.focusReviewBar");
     expect(ids).toContain("actions.toggleViewed");
     expect(ids).toContain("actions.nextUnreviewed");
+    expect(ids).toContain("actions.nextUnresolvedThread");
+    expect(ids).toContain("actions.replyToThread");
+    expect(ids).toContain("actions.resolveThread");
     expect(ids).toContain("actions.requestChanges");
     expect(ids).toContain("actions.approve");
     expect(ids).toContain("actions.merge");

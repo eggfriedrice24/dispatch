@@ -11,6 +11,7 @@ import { useKeybindings } from "@/renderer/lib/keyboard/keybinding-context";
 import { formatKeybinding } from "@/renderer/lib/keyboard/keybinding-registry";
 import { useMutation } from "@tanstack/react-query";
 import { Check } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 
 import { btnBase } from "./floating-review-bar";
 
@@ -33,6 +34,9 @@ export function ApproveBarButton({
   const { getBinding } = useKeybindings();
   const approveBinding = getBinding("actions.approve");
   const approveShortcut = formatKeybinding(approveBinding.key, approveBinding.modifiers);
+  const [armed, setArmed] = useState(false);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const shortcutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const reviewMutation = useMutation({
     mutationFn: () =>
@@ -50,10 +54,43 @@ export function ApproveBarButton({
     },
   });
 
+  useEffect(
+    () => () => {
+      if (shortcutTimerRef.current) {
+        clearTimeout(shortcutTimerRef.current);
+      }
+    },
+    [],
+  );
+
+  const armShortcut = () => {
+    if (shortcutTimerRef.current) {
+      clearTimeout(shortcutTimerRef.current);
+    }
+    setArmed(true);
+    buttonRef.current?.focus({ preventScroll: true });
+    shortcutTimerRef.current = setTimeout(() => setArmed(false), 3500);
+  };
+
+  const submitApproval = () => {
+    if (shortcutTimerRef.current) {
+      clearTimeout(shortcutTimerRef.current);
+    }
+    setArmed(false);
+    reviewMutation.mutate();
+  };
+
   useKeyboardShortcuts([
     {
       ...approveBinding,
-      handler: () => reviewMutation.mutate(),
+      handler: () => {
+        if (armed && document.activeElement === buttonRef.current) {
+          submitApproval();
+          return;
+        }
+
+        armShortcut();
+      },
       preventWhileTyping: true,
       when: () => !alreadyApproved && !reviewMutation.isPending,
     },
@@ -83,25 +120,33 @@ export function ApproveBarButton({
 
   return (
     <button
+      ref={buttonRef}
       type="button"
-      onClick={() => reviewMutation.mutate()}
+      onBlur={() => {
+        if (shortcutTimerRef.current) {
+          clearTimeout(shortcutTimerRef.current);
+        }
+        setArmed(false);
+      }}
+      onClick={submitApproval}
       disabled={reviewMutation.isPending}
-      title={dense ? "Approve" : undefined}
-      aria-label="Approve"
+      title={dense ? (armed ? "Press Enter to approve" : "Approve") : undefined}
+      aria-label={armed ? "Press Enter to approve" : "Approve"}
       style={{
         ...btnBase,
         background: "var(--success)",
         color: "var(--bg-root)",
-        borderColor: "var(--success)",
+        borderColor: armed ? "var(--text-primary)" : "var(--success)",
         opacity: reviewMutation.isPending ? 0.5 : 1,
+        boxShadow: armed ? "0 0 0 1px rgba(240,236,230,0.22)" : undefined,
         padding: dense ? "5px 7px" : compact ? "5px 8px" : btnBase.padding,
       }}
     >
       {reviewMutation.isPending ? <Spinner className="h-3 w-3" /> : <Check size={11} />}
-      {!dense && "Approve"}
+      {!dense && (armed ? "Confirm" : "Approve")}
       {!compact && (
         <span style={{ fontFamily: "var(--font-mono)", fontSize: "9px", opacity: 0.5 }}>
-          {approveShortcut}
+          {armed ? "↵" : approveShortcut}
         </span>
       )}
     </button>

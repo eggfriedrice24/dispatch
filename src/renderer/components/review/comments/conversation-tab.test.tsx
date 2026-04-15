@@ -1,6 +1,7 @@
 /* eslint-disable vitest/prefer-import-in-mock -- These local component mocks use string paths to keep Vitest typing simple in this suite. */
 import "@testing-library/jest-dom/vitest";
 import type { toastManager } from "@/components/ui/toast";
+import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from "react";
 
 import {
   ContentEvent,
@@ -33,6 +34,27 @@ vi.mock("@/renderer/components/review/comments/reaction-bar", () => ({
   ReactionBar: () => null,
 }));
 
+vi.mock("@/renderer/components/review/comments/review-markdown-composer", () => ({
+  ReviewMarkdownComposer: ({
+    value,
+    onChange,
+    onKeyDown,
+    placeholder,
+  }: {
+    value: string;
+    onChange: (value: string) => void;
+    onKeyDown?: (event: ReactKeyboardEvent<HTMLTextAreaElement>) => void;
+    placeholder?: string;
+  }) => (
+    <textarea
+      aria-label={placeholder}
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      onKeyDown={onKeyDown}
+    />
+  ),
+}));
+
 vi.mock("@/renderer/lib/app/ipc", () => ({
   ipc: vi.fn(),
 }));
@@ -51,7 +73,7 @@ vi.mock("@/components/ui/toast", () => ({
   toastManager: toastManagerMock as unknown as typeof toastManager,
 }));
 
-function renderPanelComposer() {
+function renderWithQueryClient(ui: ReactNode) {
   const queryClient = new QueryClient({
     defaultOptions: {
       mutations: { retry: false },
@@ -59,11 +81,11 @@ function renderPanelComposer() {
     },
   });
 
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <PanelComposer prNumber={42} />
-    </QueryClientProvider>,
-  );
+  return render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
+}
+
+function renderPanelComposer() {
+  return renderWithQueryClient(<PanelComposer prNumber={42} />);
 }
 
 describe("ContentEvent", () => {
@@ -71,7 +93,7 @@ describe("ContentEvent", () => {
     const user = userEvent.setup();
     const onToggleMinimized = vi.fn();
 
-    render(
+    renderWithQueryClient(
       <ContentEvent
         commentId="comment-1"
         login="alice"
@@ -80,6 +102,7 @@ describe("ContentEvent", () => {
         body="Looks good."
         repo="binbandit/dispatch"
         isBot={false}
+        canEdit={false}
         autoCollapse={false}
         prNumber={42}
         onClick={vi.fn()}
@@ -99,7 +122,7 @@ describe("ContentEvent", () => {
     const onToggleMinimized = vi.fn();
     const onClick = vi.fn();
 
-    render(
+    renderWithQueryClient(
       <ContentEvent
         commentId="comment-1"
         login="alice"
@@ -109,6 +132,7 @@ describe("ContentEvent", () => {
         filePath="src/renderer/components/conversation-tab.tsx"
         repo="binbandit/dispatch"
         isBot={false}
+        canEdit={false}
         autoCollapse={false}
         prNumber={42}
         onClick={onClick}
@@ -127,6 +151,11 @@ describe("ContentEvent", () => {
 
 describe("PanelComposer", () => {
   it("keeps the submit button visible while typing", async () => {
+    const api = globalThis as typeof globalThis & {
+      api: Record<string, unknown> & { onAiRewriteSelection?: () => () => void };
+    };
+    const originalOnAiRewriteSelection = api.api.onAiRewriteSelection;
+    api.api.onAiRewriteSelection = vi.fn(() => () => {});
     vi.mocked(ipc).mockImplementation((method: string) => {
       if (method === "pr.issuesList" || method === "pr.contributors") {
         return Promise.resolve([]);
@@ -151,5 +180,7 @@ describe("PanelComposer", () => {
 
     expect(screen.getByRole("button", { name: "Comment" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Comment" })).toBeEnabled();
+
+    api.api.onAiRewriteSelection = originalOnAiRewriteSelection;
   });
 });
