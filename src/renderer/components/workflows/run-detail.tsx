@@ -162,7 +162,7 @@ export function RunDetail({ repoTarget, runId }: RunDetailProps) {
         </div>
         <div className="mt-2 flex items-center gap-1.5">
           <Button
-            size="sm"
+            size="xs"
             variant="outline"
             className="gap-1"
             onClick={() => rerunMutation.mutate()}
@@ -176,7 +176,7 @@ export function RunDetail({ repoTarget, runId }: RunDetailProps) {
           </Button>
           {hasFailed && (
             <Button
-              size="sm"
+              size="xs"
               variant="outline"
             className="text-destructive gap-1"
               onClick={() => rerunFailedMutation.mutate()}

@@ -409,6 +409,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
             {this.state.error.message}
           </p>
           <Button
+            size="xs"
             onClick={() => {
               this.setState({ error: null });
             }}

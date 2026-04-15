@@ -150,9 +150,9 @@ export function AiSuggestionCard({ suggestion, onPost, onDismiss }: AiSuggestion
               />
               <div className="flex items-center gap-2">
                 <Button
-                  size="sm"
+                  size="xs"
                   variant="default"
-                  className="gap-1 text-[11px]"
+                  className="gap-1"
                   disabled={posting || editBody.trim().length === 0}
                   onClick={() => void handlePost(editBody)}
                 >
@@ -160,9 +160,8 @@ export function AiSuggestionCard({ suggestion, onPost, onDismiss }: AiSuggestion
                   Post
                 </Button>
                 <Button
-                  size="sm"
+                  size="xs"
                   variant="ghost"
-                  className="text-[11px]"
                   onClick={() => {
                     setEditing(false);
                     setEditBody(suggestion.body);
@@ -198,9 +197,9 @@ export function AiSuggestionCard({ suggestion, onPost, onDismiss }: AiSuggestion
               </div>
               <div className="mt-3 flex items-center gap-2">
                 <Button
-                  size="sm"
+                  size="xs"
                   variant="default"
-                  className="gap-1 text-[11px]"
+                  className="gap-1"
                   disabled={posting}
                   onClick={() => void handlePost()}
                 >
@@ -208,9 +207,9 @@ export function AiSuggestionCard({ suggestion, onPost, onDismiss }: AiSuggestion
                   Post comment
                 </Button>
                 <Button
-                  size="sm"
+                  size="xs"
                   variant="ghost"
-                  className="gap-1 text-[11px]"
+                  className="gap-1"
                   onClick={() => setEditing(true)}
                 >
                   <Pencil size={11} />

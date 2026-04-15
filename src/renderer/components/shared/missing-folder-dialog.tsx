@@ -153,7 +153,7 @@ export function MissingFolderDialog({ open, onResolved }: MissingFolderDialogPro
             render={
               <Button
                 variant="ghost"
-                size="sm"
+                size="xs"
                 disabled={isPending}
               />
             }

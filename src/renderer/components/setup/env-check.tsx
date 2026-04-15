@@ -129,6 +129,7 @@ export function EnvCheck({ ghVersion, gitVersion, ghAuth, onRetry }: EnvCheckPro
         style={ENV_CHECK_WINDOW_NO_DRAG_STYLE}
       >
         <Button
+          size="xs"
           variant="outline"
           onClick={onRetry}
           style={ENV_CHECK_WINDOW_NO_DRAG_STYLE}

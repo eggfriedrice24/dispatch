@@ -146,7 +146,7 @@ function ContextMenuItem({
     <button
       type="button"
       onClick={onClick}
-      className="text-text-secondary hover:bg-bg-raised hover:text-text-primary flex w-full cursor-pointer items-center gap-2 rounded-sm px-2.5 py-1.5 text-left text-xs"
+      className="text-text-secondary hover:bg-bg-raised hover:text-text-primary flex w-full cursor-pointer items-center gap-2 rounded-sm px-2.5 py-1.5 text-left text-[11px]"
     >
       {icon}
       {label}

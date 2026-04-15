@@ -127,6 +127,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
           />
 
           <Button
+            size="xs"
             variant="outline"
             className="w-full gap-2"
             onClick={() => pickFolderMutation.mutate()}

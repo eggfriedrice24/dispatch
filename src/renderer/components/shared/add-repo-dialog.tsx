@@ -124,7 +124,7 @@ export function AddRepoDialog({ open, onOpenChange, onAdded }: AddRepoDialogProp
             </div>
             <div>
               <DialogTitle className="text-[17px] font-semibold">Add repository</DialogTitle>
-              <DialogDescription className="text-text-tertiary mt-0.5 text-[12px]">
+              <DialogDescription className="text-text-tertiary mt-0.5 text-[11px]">
                 Search GitHub or link a local clone
               </DialogDescription>
             </div>
@@ -192,7 +192,7 @@ export function AddRepoDialog({ open, onOpenChange, onAdded }: AddRepoDialogProp
                   className="text-text-tertiary"
                 />
               </div>
-              <p className="text-text-secondary text-[12px]">Start typing to find repositories</p>
+              <p className="text-text-secondary text-[11px]">Start typing to find repositories</p>
             </div>
           )}
 
@@ -226,7 +226,7 @@ export function AddRepoDialog({ open, onOpenChange, onAdded }: AddRepoDialogProp
           {/* No results */}
           {!searchQuery.isLoading && hasQuery && results.length === 0 && (
             <div className="flex flex-col items-center justify-center py-8">
-              <p className="text-text-secondary text-[12px]">No repositories matching "{query}"</p>
+              <p className="text-text-secondary text-[11px]">No repositories matching "{query}"</p>
             </div>
           )}
 
@@ -264,7 +264,7 @@ export function AddRepoDialog({ open, onOpenChange, onAdded }: AddRepoDialogProp
 
                     {/* Repo info */}
                     <div className="min-w-0 flex-1">
-                      <p className="truncate font-mono text-[12px] leading-tight">
+                      <p className="truncate font-mono text-[11px] leading-tight">
                         <span className="text-text-secondary">{owner}</span>
                         <span className="text-text-tertiary">/</span>
                         <span className="text-text-primary font-medium">{name}</span>
@@ -312,7 +312,7 @@ export function AddRepoDialog({ open, onOpenChange, onAdded }: AddRepoDialogProp
           <div className="flex items-center justify-between px-6 py-3.5">
             <button
               type="button"
-              className="text-text-tertiary hover:text-text-secondary flex cursor-pointer items-center gap-2 text-[12px] transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+              className="text-text-tertiary hover:text-text-secondary flex cursor-pointer items-center gap-2 text-[11px] transition-colors disabled:cursor-not-allowed disabled:opacity-50"
               onClick={() => pickFolderMutation.mutate()}
               disabled={isPending || pickFolderMutation.isPending}
             >

@@ -55,7 +55,7 @@ export function RequestChangesButton({
       <DialogTrigger
         render={
           <Button
-            size="sm"
+            size="xs"
             variant="ghost"
             className="text-destructive hover:bg-danger-muted hover:text-destructive gap-1.5"
           />
@@ -91,8 +91,9 @@ export function RequestChangesButton({
           />
         </div>
         <DialogFooter variant="bare">
-          <DialogClose render={<Button variant="ghost" />}>Cancel</DialogClose>
+          <DialogClose render={<Button size="xs" variant="ghost" />}>Cancel</DialogClose>
           <Button
+            size="xs"
             className="bg-destructive hover:bg-destructive/90 text-white"
             disabled={!body.trim() || reviewMutation.isPending}
             onClick={() => {

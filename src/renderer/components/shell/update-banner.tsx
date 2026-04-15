@@ -109,7 +109,7 @@ export function UpdateBanner({
       <Button
         size="xs"
         variant="ghost"
-        className="text-accent-text hover:bg-bg-root/45 h-6 rounded-sm border border-transparent px-2 text-[10px] font-medium"
+        className="text-accent-text hover:bg-bg-root/45 rounded-sm border border-transparent px-2"
         onClick={() => setDismissedKey(bannerKey)}
       >
         Dismiss

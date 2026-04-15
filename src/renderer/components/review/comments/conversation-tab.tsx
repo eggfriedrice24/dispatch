@@ -636,16 +636,14 @@ export function ContentEvent({
                     />
                     <div className="flex items-center justify-end gap-1.5 pt-2">
                       <Button
-                        size="sm"
+                        size="xs"
                         variant="ghost"
-                        className="text-[11px]"
                         onClick={handleEditCancel}
                       >
                         Cancel
                       </Button>
                       <Button
-                        size="sm"
-                        className="text-[11px]"
+                        size="xs"
                         disabled={!canSaveEdit}
                         onClick={handleEditSubmit}
                       >
@@ -840,7 +838,7 @@ function ConvoMenuItem({
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full cursor-pointer items-center gap-2 rounded-sm px-2.5 py-1.5 text-left text-xs transition-colors"
+      className="flex w-full cursor-pointer items-center gap-2 rounded-sm px-2.5 py-1.5 text-left text-[11px] transition-colors"
       style={{ color: "var(--text-secondary)" }}
     >
       {icon}
@@ -1041,8 +1039,8 @@ export function PanelComposer({ prNumber }: { prNumber: number }) {
           {isMac ? "⌘" : "Ctrl"}+Enter to submit
         </div>
         <Button
-          size="sm"
-          className="shrink-0 text-[11px]"
+          size="xs"
+          className="shrink-0"
           disabled={!trimmedBody || commentMutation.isPending}
           onClick={handleSubmit}
         >

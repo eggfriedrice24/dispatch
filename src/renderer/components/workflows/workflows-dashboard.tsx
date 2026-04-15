@@ -565,7 +565,7 @@ function TriggerButton({ repoTarget, workflowId }: { repoTarget: RepoTarget; wor
 
   return (
     <Button
-      size="sm"
+      size="xs"
       className="bg-primary text-primary-foreground hover:bg-accent-hover gap-1.5"
       disabled={triggerMutation.isPending}
       onClick={() => {

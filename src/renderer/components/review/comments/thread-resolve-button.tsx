@@ -36,7 +36,7 @@ export function ThreadResolveButton({
 
   return (
     <Button
-      size="sm"
+      size="xs"
       variant="ghost"
       className={cn(
         "h-6 gap-1 rounded-md border px-2 shadow-none",

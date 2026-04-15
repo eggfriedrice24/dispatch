@@ -70,16 +70,15 @@ export function ReplyComposer({
       <div className="mt-2 flex items-center justify-between gap-2">
         <span className="text-text-ghost font-mono text-[10px]">{modKey}+Enter to reply</span>
         <Button
-          size="sm"
+          size="xs"
           variant="ghost"
           onClick={onClose}
-          className="text-[11px]"
         >
           Cancel
         </Button>
         <Button
-          size="sm"
-          className="bg-primary text-primary-foreground hover:bg-accent-hover text-[11px]"
+          size="xs"
+          className="bg-primary text-primary-foreground hover:bg-accent-hover"
           disabled={!body.trim() || replyMutation.isPending}
           onClick={() => replyMutation.mutate({ body: body.trim() })}
         >

@@ -95,7 +95,7 @@ export function AiExplanation({ filePath, codeSnippet, language, onDismiss }: Ai
           <p className="text-destructive text-xs">{getErrorMessage(explainMutation.error)}</p>
         ) : (
           <Button
-            size="sm"
+            size="xs"
             variant="outline"
             className="border-primary/30 text-primary hover:bg-primary/10 gap-1.5"
             onClick={() => explainMutation.mutate()}

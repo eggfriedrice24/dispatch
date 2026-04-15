@@ -146,17 +146,16 @@ export function CommentComposer({
         </span>
         <div className="flex items-center gap-1.5">
           <Button
-            size="sm"
+            size="xs"
             variant="ghost"
             onClick={onClose}
             disabled={createMutation.isPending}
-            className="text-[11px]"
           >
             Cancel
           </Button>
           <Button
-            size="sm"
-            className={`gap-1 text-[11px] ${
+            size="xs"
+            className={`gap-1 ${
               body.trim()
                 ? "bg-primary text-bg-root hover:bg-accent-hover"
                 : "bg-bg-raised text-text-tertiary"

@@ -557,7 +557,7 @@ export function HomeView() {
                 onClick={handleRefreshHome}
                 disabled={isRefreshing}
                 aria-label="Refresh homepage pull requests"
-                className="border-border bg-bg-surface text-text-secondary hover:border-border-strong hover:bg-bg-raised hover:text-text-primary inline-flex h-[31px] shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-md border px-3 text-[12px] font-medium transition-[color,background-color,border-color,box-shadow] disabled:cursor-default disabled:opacity-60"
+                className="border-border bg-bg-surface text-text-secondary hover:border-border-strong hover:bg-bg-raised hover:text-text-primary inline-flex h-[31px] shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-md border px-3 text-[11px] font-medium transition-[color,background-color,border-color,box-shadow] disabled:cursor-default disabled:opacity-60"
               >
                 <RefreshCw
                   size={13}

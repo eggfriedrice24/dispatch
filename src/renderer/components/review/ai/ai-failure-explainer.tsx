@@ -82,9 +82,9 @@ export function AiFailureExplainer({ checkName, repoTarget, runId }: AiFailureEx
 
   return (
     <Button
-      size="sm"
+      size="xs"
       variant="ghost"
-      className="text-primary hover:text-accent-hover mt-1 gap-1 px-0 text-[10px]"
+      className="text-primary hover:text-accent-hover mt-1 gap-1 px-0"
       onClick={() => explainMutation.mutate()}
       disabled={explainMutation.isPending}
     >

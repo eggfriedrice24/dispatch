@@ -96,7 +96,7 @@ export function ApproveButton({
   if (alreadyApproved) {
     return (
       <Button
-        size="sm"
+        size="xs"
         variant="outline"
         className="border-success/30 text-success gap-1.5 opacity-60"
         disabled
@@ -110,7 +110,7 @@ export function ApproveButton({
     <div className="flex">
       {/* Quick approve (no message) */}
       <Button
-        size="sm"
+        size="xs"
         variant="outline"
         className="border-success/30 text-success hover:bg-success-muted gap-1.5 rounded-r-none"
         disabled={reviewMutation.isPending}
@@ -132,7 +132,7 @@ export function ApproveButton({
         <DialogTrigger
           render={
             <Button
-              size="sm"
+              size="xs"
               variant="outline"
               className="border-success/30 text-success hover:bg-success-muted rounded-l-none border-l-0 px-1.5"
               disabled={reviewMutation.isPending}
@@ -175,8 +175,9 @@ export function ApproveButton({
             </button>
           </div>
           <DialogFooter variant="bare">
-            <DialogClose render={<Button variant="ghost" />}>Cancel</DialogClose>
+            <DialogClose render={<Button size="xs" variant="ghost" />}>Cancel</DialogClose>
             <Button
+              size="xs"
               className="bg-success hover:bg-success/90 text-bg-root"
               disabled={reviewMutation.isPending}
               onClick={() => {

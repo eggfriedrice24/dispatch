@@ -46,7 +46,7 @@ export function ConfirmDialog({
             render={
               <Button
                 variant="outline"
-                size="sm"
+                size="xs"
               />
             }
           >
@@ -56,7 +56,7 @@ export function ConfirmDialog({
             render={
               <Button
                 variant={confirmVariant}
-                size="sm"
+                size="xs"
                 onClick={onConfirm}
               />
             }

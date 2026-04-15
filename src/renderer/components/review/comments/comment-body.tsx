@@ -274,14 +274,14 @@ export function CommentBody({
                 />
                 <div className="flex items-center justify-end gap-1.5 pt-2">
                   <Button
-                    size="sm"
+                    size="xs"
                     variant="ghost"
                     onClick={handleEditCancel}
                   >
                     Cancel
                   </Button>
                   <Button
-                    size="sm"
+                    size="xs"
                     disabled={!canSaveEdit}
                     onClick={handleEditSubmit}
                   >
