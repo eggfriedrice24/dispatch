@@ -99,7 +99,7 @@ export function CommentComposer({
         <span className="text-text-ghost ml-auto truncate font-mono text-[10px]">{filePath}</span>
       </div>
       {isMultiLine && (
-        <div className="bg-bg-root/70 border-border-subtle border-b px-3 py-1.5">
+        <div className="border-border-subtle bg-bg-surface border-b px-3 py-1.5">
           <span className="text-text-tertiary font-mono text-[10px]">
             Range anchored on the {side === "RIGHT" ? "new" : "old"} side of the diff
           </span>

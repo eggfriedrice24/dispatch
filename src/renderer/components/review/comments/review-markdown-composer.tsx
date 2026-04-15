@@ -119,7 +119,7 @@ export function ReviewMarkdownComposer({
       )}
     >
       {isExpanded && (
-        <div className="border-border-subtle bg-bg-surface/80 flex flex-wrap items-center justify-between gap-2 border-b px-2 py-1.5">
+        <div className="border-border-subtle bg-bg-surface flex flex-wrap items-center justify-between gap-2 border-b px-2 py-1.5">
           <div className="bg-bg-root/80 border-border-subtle inline-flex items-center rounded-md border p-0.5">
             <ModeButton
               active={mode === "write"}
@@ -183,7 +183,7 @@ export function ReviewMarkdownComposer({
           prNumber={prNumber}
           rows={isExpanded ? rows : 1}
           textareaClassName={cn(
-            "text-text-primary placeholder:text-text-tertiary bg-bg-root/50 w-full resize-none border-0 font-sans text-xs leading-relaxed outline-none",
+            "text-text-primary placeholder:text-text-tertiary bg-bg-surface/80 w-full resize-none border-0 font-sans text-xs leading-relaxed outline-none",
             isExpanded ? "px-3 py-3" : "px-3 py-2",
             compact && isExpanded ? "min-h-[96px] py-2.5" : undefined,
             !compact && isExpanded ? "min-h-[128px]" : undefined,
@@ -194,7 +194,7 @@ export function ReviewMarkdownComposer({
         />
       ) : (
         <div
-          className="bg-bg-root/45 overflow-y-auto px-3 py-3"
+          className="bg-bg-surface/70 overflow-y-auto px-3 py-3"
           style={{ minHeight }}
         >
           {value.trim() ? (

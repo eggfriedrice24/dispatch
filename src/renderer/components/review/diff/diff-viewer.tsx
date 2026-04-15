@@ -561,7 +561,7 @@ function SplitDiffView({
               {/* Left side (old) */}
               <td
                 className={`text-text-ghost border-r-border/40 border-r p-0 pr-2 text-right text-[11px] select-none ${
-                  row.left?.type === "del" ? "bg-[rgba(239,100,97,0.04)]" : "bg-bg-root"
+                  row.left?.type === "del" ? "bg-diff-del-bg" : "bg-bg-root"
                 }`}
               >
                 <span className="flex h-5 items-center justify-end leading-5">
@@ -600,7 +600,7 @@ function SplitDiffView({
               {/* Right side (new) */}
               <td
                 className={`text-text-ghost border-r-border/40 border-r p-0 pr-2 text-right text-[11px] select-none ${
-                  row.right?.type === "add" ? "bg-[rgba(61,214,140,0.04)]" : "bg-bg-root"
+                  row.right?.type === "add" ? "bg-diff-add-bg" : "bg-bg-root"
                 }`}
               >
                 <span className="flex h-5 items-center justify-end leading-5">
@@ -949,7 +949,7 @@ function DiffLineRow({
   const showLineActions = showBlameButton || (canCommentOnLine && !isComposerActive);
 
   const rowBg = isSelected
-    ? "!bg-[rgba(155,149,144,0.08)]"
+    ? "!bg-[rgba(155,149,144,0.12)]"
     : line.type === "add"
       ? "bg-diff-add-bg"
       : line.type === "del"
@@ -983,11 +983,11 @@ function DiffLineRow({
       <div
         className={`sticky left-[3px] z-[1] w-14 shrink-0 border-r pr-2 text-right text-[11px] select-none ${
           isSelected
-            ? "border-r-text-secondary/20 text-text-secondary bg-[rgba(155,149,144,0.04)]"
+            ? "border-r-text-secondary/25 text-text-secondary bg-[rgba(155,149,144,0.08)]"
             : line.type === "add"
-              ? "border-r-success/10 text-text-ghost bg-[rgba(61,214,140,0.04)]"
+              ? "border-r-success/20 text-text-tertiary bg-diff-add-bg"
               : line.type === "del"
-                ? "border-r-destructive/10 text-text-ghost bg-[rgba(239,100,97,0.04)]"
+                ? "border-r-destructive/20 text-text-tertiary bg-diff-del-bg"
                 : "border-r-border/40 bg-bg-root text-text-ghost"
         }`}
       >

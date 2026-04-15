@@ -87,7 +87,7 @@ export function CommentBody({
       className={cn(
         "group/comment relative grid grid-cols-[20px_minmax(0,1fr)] gap-x-3 gap-y-1 px-3 py-3",
         isBotUser &&
-          "bg-[rgba(212,136,58,0.04)] before:absolute before:inset-y-0 before:left-0 before:w-[2px] before:bg-[var(--accent)]",
+          "bg-accent-muted/85 before:absolute before:inset-y-0 before:left-0 before:w-[2px] before:bg-[var(--accent-text)]",
       )}
       onContextMenu={(e) => {
         e.preventDefault();
@@ -145,13 +145,13 @@ export function CommentBody({
               </span>
             )}
             {isRoot && reviewThreadState?.isResolved && (
-              <InlineMetaBadge className="text-success border-[rgba(61,214,140,0.22)] bg-[rgba(61,214,140,0.08)]">
+              <InlineMetaBadge className="border-success/30 bg-success-muted text-success">
                 <CheckCircle2 size={9} />
                 Resolved
               </InlineMetaBadge>
             )}
             {isRoot && reviewThreadState?.isOutdated && !reviewThreadState?.isResolved && (
-              <InlineMetaBadge className="text-text-tertiary border-border-subtle bg-bg-root/70">
+              <InlineMetaBadge className="border-border text-text-tertiary bg-bg-surface">
                 Outdated
               </InlineMetaBadge>
             )}

@@ -77,10 +77,10 @@ export function CommentThread({
         "relative",
         showBorder && "border-border-subtle border-t",
         isResolvedThread &&
-          "bg-bg-root/30 before:absolute before:inset-y-0 before:left-0 before:w-[2px] before:bg-[rgba(61,214,140,0.35)]",
+          "bg-success-muted/50 before:bg-success before:absolute before:inset-y-0 before:left-0 before:w-[2px]",
         isOutdatedThread &&
           !isResolvedThread &&
-          "bg-bg-root/30 before:absolute before:inset-y-0 before:left-0 before:w-[2px] before:bg-[rgba(94,89,84,0.35)]",
+          "bg-bg-surface before:absolute before:inset-y-0 before:left-0 before:w-[2px] before:bg-[var(--text-tertiary)]",
       )}
     >
       {hasReplies &&
@@ -88,7 +88,7 @@ export function CommentThread({
           <button
             type="button"
             onClick={() => setCollapsed(false)}
-            className="hover:bg-bg-raised/40 flex w-full cursor-pointer items-start gap-2 px-3 py-2.5 text-left transition-colors"
+            className="hover:bg-bg-raised flex w-full cursor-pointer items-start gap-2 px-3 py-2.5 text-left transition-colors"
           >
             <ChevronRight
               size={12}
@@ -108,16 +108,16 @@ export function CommentThread({
                 <span className="text-text-tertiary font-mono text-[10px]">
                   {relativeTime(new Date(root.created_at))}
                 </span>
-                <InlineMetaBadge className="border-border-subtle bg-bg-root/70 text-text-tertiary">
+                <InlineMetaBadge className="border-border bg-bg-surface text-text-tertiary">
                   +{replies.length} {replies.length === 1 ? "reply" : "replies"}
                 </InlineMetaBadge>
                 {isResolvedThread && (
-                  <InlineMetaBadge className="text-success border-[rgba(61,214,140,0.22)] bg-[rgba(61,214,140,0.08)]">
+                  <InlineMetaBadge className="border-success/30 bg-success-muted text-success">
                     Resolved
                   </InlineMetaBadge>
                 )}
                 {isOutdatedThread && !isResolvedThread && (
-                  <InlineMetaBadge className="text-text-tertiary border-border-subtle bg-bg-root/70">
+                  <InlineMetaBadge className="border-border bg-bg-surface text-text-tertiary">
                     Outdated
                   </InlineMetaBadge>
                 )}
@@ -138,12 +138,12 @@ export function CommentThread({
             <span className="font-mono tracking-[0.08em] uppercase">Thread</span>
             <span className="text-text-ghost">{totalCount} comments</span>
             {isResolvedThread && (
-              <InlineMetaBadge className="text-success ml-auto border-[rgba(61,214,140,0.22)] bg-[rgba(61,214,140,0.08)]">
+              <InlineMetaBadge className="border-success/30 bg-success-muted text-success ml-auto">
                 Resolved
               </InlineMetaBadge>
             )}
             {isOutdatedThread && !isResolvedThread && (
-              <InlineMetaBadge className="text-text-tertiary border-border-subtle bg-bg-root/70 ml-auto">
+              <InlineMetaBadge className="border-border bg-bg-surface text-text-tertiary ml-auto">
                 Outdated
               </InlineMetaBadge>
             )}
@@ -214,7 +214,7 @@ export function CommentThread({
           <button
             type="button"
             onClick={() => setShowReply(true)}
-            className="border-border-subtle bg-bg-root/60 text-text-tertiary hover:border-border hover:bg-bg-raised hover:text-text-primary inline-flex cursor-pointer items-center gap-1.5 rounded-md border px-2.5 py-1 text-[10px] font-medium transition-colors"
+            className="border-border bg-bg-surface text-text-secondary hover:border-border-strong hover:bg-bg-raised hover:text-text-primary inline-flex cursor-pointer items-center gap-1.5 rounded-md border px-2.5 py-1 text-[10px] font-medium transition-colors"
           >
             <Reply size={11} />
             Reply to thread
