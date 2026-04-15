@@ -30,6 +30,16 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+function isCurrentUserCommentAuthor(
+  currentUserLogin: string | null | undefined,
+  commentAuthorLogin: string,
+): boolean {
+  if (!currentUserLogin) {
+    return false;
+  }
+  return currentUserLogin.trim().toLowerCase() === commentAuthorLogin.trim().toLowerCase();
+}
+
 /**
  * Conversation tab — Side Panel → Conversation tab
  *
@@ -266,7 +276,7 @@ function buildTimeline({
       time: new Date(comment.createdAt),
       body: comment.body,
       isBot: isBot(comment.author.login),
-      canEdit: currentUserLogin === comment.author.login,
+      canEdit: isCurrentUserCommentAuthor(currentUserLogin, comment.author.login),
       reactions: issueCommentReactions?.[comment.id],
     });
   }

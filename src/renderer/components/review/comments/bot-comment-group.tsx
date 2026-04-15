@@ -6,6 +6,16 @@ import { InlineMetaBadge } from "@/renderer/components/review/comments/inline-me
 import { ChevronDown, ChevronRight, Sparkles } from "lucide-react";
 import { useState } from "react";
 
+function isCurrentUserCommentAuthor(
+  currentUserLogin: string | null | undefined,
+  commentAuthorLogin: string,
+): boolean {
+  if (!currentUserLogin) {
+    return false;
+  }
+  return currentUserLogin.trim().toLowerCase() === commentAuthorLogin.trim().toLowerCase();
+}
+
 export function BotCommentGroup({
   comments,
   toggleMinimized,
@@ -82,7 +92,7 @@ export function BotCommentGroup({
                 toggleMinimized(String(comment.id), shouldAutoCollapseBot(comment.user.login))
               }
               isBot={isBot}
-              canEdit={currentUserLogin !== null && currentUserLogin === comment.user.login}
+              canEdit={isCurrentUserCommentAuthor(currentUserLogin, comment.user.login)}
               reactions={reviewCommentReactions?.[String(comment.id)]}
             />
           </div>

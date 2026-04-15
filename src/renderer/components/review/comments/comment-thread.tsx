@@ -12,6 +12,16 @@ import { relativeTime } from "@/shared/format";
 import { ChevronDown, ChevronRight, Reply } from "lucide-react";
 import { useMemo, useState } from "react";
 
+function isCurrentUserCommentAuthor(
+  currentUserLogin: string | null | undefined,
+  commentAuthorLogin: string,
+): boolean {
+  if (!currentUserLogin) {
+    return false;
+  }
+  return currentUserLogin.trim().toLowerCase() === commentAuthorLogin.trim().toLowerCase();
+}
+
 function buildCommentPreview(body: string, maxLength: number): string {
   const flattened = body
     .replaceAll(/```suggestion[\s\S]*?```/g, "Suggested change")
@@ -164,7 +174,7 @@ export function CommentThread({
             reviewThreadState={threadState}
             reviewActionsEnabled={reviewActionsEnabled}
             isBot={isBot}
-            canEdit={currentUserLogin !== null && currentUserLogin === root.user.login}
+            canEdit={isCurrentUserCommentAuthor(currentUserLogin, root.user.login)}
             reactions={reviewCommentReactions?.[String(root.id)]}
           />
           {replies.map((reply) => (
@@ -185,7 +195,7 @@ export function CommentThread({
                 }
                 reviewActionsEnabled={reviewActionsEnabled}
                 isBot={isBot}
-                canEdit={currentUserLogin !== null && currentUserLogin === reply.user.login}
+                canEdit={isCurrentUserCommentAuthor(currentUserLogin, reply.user.login)}
                 reactions={reviewCommentReactions?.[String(reply.id)]}
               />
             </div>
