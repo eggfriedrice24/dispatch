@@ -381,16 +381,18 @@ function ApprovalAvatarStack({ reviews }: { reviews: Array<{ author: { login: st
       <TooltipTrigger
         render={
           <div
-            className="hover:bg-bg-raised inline-flex min-w-0 cursor-default items-center gap-1 rounded-full px-1.5 py-0.5"
+            className="hover:bg-bg-raised inline-flex h-4 min-w-0 cursor-default items-center gap-1 rounded-full px-1.5 leading-none"
             title={tooltipLabel}
           >
             <Check
               size={10}
-              className="text-success shrink-0"
+              className="text-success shrink-0 leading-none"
               strokeWidth={2.2}
             />
-            <span className="font-mono text-[10px] font-semibold text-success">{reviews.length}</span>
-            <div className="relative inline-flex shrink-0">
+            <span className="font-mono leading-none text-[10px] font-semibold text-success">
+              {reviews.length}
+            </span>
+            <div className="relative inline-flex h-4 shrink-0 items-center">
               {visibleReviews.map((review, index) => (
                 <span
                   key={review.author.login}
@@ -406,7 +408,7 @@ function ApprovalAvatarStack({ reviews }: { reviews: Array<{ author: { login: st
               ))}
               {overflowCount > 0 && (
                 <span
-                  className="text-text-tertiary bg-bg-surface border-border-strong inline-flex h-[14px] w-[14px] items-center justify-center rounded-full border text-[9px] font-medium"
+                  className="text-text-tertiary bg-bg-surface border-border-strong inline-flex h-4 w-4 items-center justify-center rounded-full border text-[9px] leading-none font-medium"
                   style={{ marginLeft: "-6px", lineHeight: 1 }}
                   aria-hidden="true"
                 >
