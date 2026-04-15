@@ -294,6 +294,8 @@ describe("shortcut categories", () => {
     expect(ids).toContain("navigation.focusFiles");
     expect(ids).toContain("navigation.focusDiff");
     expect(ids).toContain("navigation.toggleSidebar");
+    expect(ids).toContain("navigation.back");
+    expect(ids).toContain("navigation.forward");
     expect(ids).toContain("navigation.prevHunk");
     expect(ids).toContain("navigation.nextHunk");
   });

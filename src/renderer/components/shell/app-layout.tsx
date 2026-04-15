@@ -115,7 +115,7 @@ interface AppShellProps {
 }
 
 function AppShell({ resumeState, resumeReady }: AppShellProps) {
-  const { route, navigate, toggleSettings } = useRouter();
+  const { route, navigate, goBack, goForward, toggleSettings } = useRouter();
   const { nwo } = useWorkspace();
   const { getBinding } = useKeybindings();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -134,6 +134,8 @@ function AppShell({ resumeState, resumeReady }: AppShellProps) {
 
   useKeyboardShortcuts([
     { ...getBinding("navigation.toggleSidebar"), handler: toggleSidebar },
+    { ...getBinding("navigation.back"), handler: goBack },
+    { ...getBinding("navigation.forward"), handler: goForward },
     { ...getBinding("views.shortcuts"), handler: () => setShowShortcuts(true) },
     { ...getBinding("views.review"), handler: () => navigate({ view: "review", prNumber: null }) },
     { ...getBinding("views.workflows"), handler: () => navigate({ view: "workflows" }) },

@@ -55,6 +55,11 @@ const DISPLAY_ROWS: Array<{
     category: "Navigation",
   },
   { ids: ["navigation.toggleSidebar"], label: "Toggle sidebar", category: "Navigation" },
+  {
+    ids: ["navigation.back", "navigation.forward"],
+    label: "Go back / forward",
+    category: "Navigation",
+  },
   // Actions
   { ids: ["actions.toggleViewed"], label: "Toggle file viewed", category: "Actions" },
   { ids: ["actions.nextUnreviewed"], label: "Next unreviewed file", category: "Actions" },

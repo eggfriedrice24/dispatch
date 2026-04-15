@@ -48,6 +48,20 @@ export const DEFAULT_KEYBINDINGS: ShortcutDefinition[] = [
     label: "Toggle sidebar",
     category: "Navigation",
   },
+  {
+    id: "navigation.back",
+    key: "[",
+    modifiers: ["meta"],
+    label: "Go back",
+    category: "Navigation",
+  },
+  {
+    id: "navigation.forward",
+    key: "]",
+    modifiers: ["meta"],
+    label: "Go forward",
+    category: "Navigation",
+  },
   { id: "navigation.prevHunk", key: "{", label: "Previous hunk", category: "Navigation" },
   { id: "navigation.nextHunk", key: "}", label: "Next hunk", category: "Navigation" },
 
