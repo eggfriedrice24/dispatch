@@ -12,6 +12,7 @@ export type MarkdownFormatAction =
   | "italic"
   | "link"
   | "numbered-list"
+  | "suggestion"
   | "task-list";
 
 interface FormatResult {
@@ -227,5 +228,20 @@ export function applyMarkdownFormat(
         placeholder: "Task",
       });
     }
+    case "suggestion": {
+      return applySuggestionFormat(value, selection);
+    }
   }
+}
+
+export function applySuggestionFormat(
+  value: string,
+  selection: TextSelectionRange,
+  suggestionText = "updated code",
+): FormatResult {
+  return wrapSelection(value, selection, {
+    prefix: "```suggestion\n",
+    suffix: "\n```",
+    placeholder: suggestionText,
+  });
 }

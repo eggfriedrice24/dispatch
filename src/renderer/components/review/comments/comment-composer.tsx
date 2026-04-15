@@ -1,3 +1,4 @@
+/* eslint-disable import/max-dependencies -- Inline review composition intentionally pulls together mutation state, shared composer behavior, and review-specific helpers in one focused component. */
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { toastManager } from "@/components/ui/toast";
@@ -5,6 +6,7 @@ import { ReviewMarkdownComposer } from "@/renderer/components/review/comments/re
 import { ipc } from "@/renderer/lib/app/ipc";
 import { queryClient } from "@/renderer/lib/app/query-client";
 import { useWorkspace } from "@/renderer/lib/app/workspace-context";
+import { inferLanguage } from "@/renderer/lib/review/highlighter";
 import { useMutation } from "@tanstack/react-query";
 import { CornerDownLeft } from "lucide-react";
 import { useState } from "react";
@@ -22,6 +24,7 @@ interface CommentComposerProps {
   line: number;
   side: "LEFT" | "RIGHT";
   startLine?: number;
+  suggestionText?: string;
   onClose: () => void;
 }
 
@@ -31,6 +34,7 @@ export function CommentComposer({
   line,
   side,
   startLine,
+  suggestionText,
   onClose,
 }: CommentComposerProps) {
   const { repoTarget } = useWorkspace();
@@ -106,6 +110,7 @@ export function CommentComposer({
         </div>
       )}
       <ReviewMarkdownComposer
+        allowSuggestion={side === "RIGHT"}
         autoFocus
         className="rounded-none border-0 bg-transparent shadow-none"
         onChange={setBody}
@@ -113,6 +118,8 @@ export function CommentComposer({
         placeholder="Leave a comment…"
         prNumber={prNumber}
         rows={4}
+        suggestionLanguage={inferLanguage(filePath)}
+        suggestionText={suggestionText}
         value={body}
       />
       <div className="border-border-subtle flex items-center justify-between gap-2 border-t px-3 py-2.5">

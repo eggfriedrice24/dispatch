@@ -26,6 +26,7 @@ import {
   type NonLineFlatRow,
 } from "@/renderer/components/review/diff/diff-row-builder";
 import { useTheme } from "@/renderer/lib/app/theme-context";
+import { getSuggestionTextForRange } from "@/renderer/lib/review/comment-suggestions";
 import { getDiffFilePath, type DiffFile, type Segment } from "@/renderer/lib/review/diff-parser";
 import {
   DEFAULT_CODE_THEME_DARK,
@@ -283,6 +284,10 @@ export function DiffViewer({
   const activeRows =
     diffMode === "full-file" && fullFileModeRows !== null ? fullFileModeRows : rows;
   const commentingEnabled = reviewActionsEnabled && Boolean(onCommentRange);
+  const composerSuggestionText = useMemo(
+    () => getSuggestionTextForRange(activeRows, activeComposer ?? null),
+    [activeComposer, activeRows],
+  );
 
   // --- Search match counting (must be after rows) ---
   const totalSearchMatches = useMemo(() => {
@@ -459,6 +464,7 @@ export function DiffViewer({
           reviewCommentReactions={reviewCommentReactions}
           onPostSuggestion={onPostSuggestion}
           onDismissSuggestion={onDismissSuggestion}
+          composerSuggestionText={composerSuggestionText}
         />
       )}
     </div>
@@ -711,6 +717,7 @@ function UnifiedDiffView({
   reviewCommentReactions,
   onPostSuggestion,
   onDismissSuggestion,
+  composerSuggestionText,
 }: {
   rows: FlatRow[];
   highlighter: Highlighter | null;
@@ -735,6 +742,7 @@ function UnifiedDiffView({
   reviewCommentReactions?: Record<string, GhReactionGroup[]>;
   onPostSuggestion?: (suggestion: AiSuggestion, body?: string) => Promise<void>;
   onDismissSuggestion?: (id: string) => void;
+  composerSuggestionText?: string | null;
 }) {
   // Precompute search match offsets for all rows
   const searchMatchOffsets = useMemo(() => {
@@ -802,6 +810,7 @@ function UnifiedDiffView({
           onPostSuggestion,
           onDismissSuggestion,
           onCloseComposer,
+          composerSuggestionText,
         });
       })}
     </div>
@@ -818,6 +827,7 @@ function renderSupportingRow({
   onPostSuggestion,
   onDismissSuggestion,
   onCloseComposer,
+  composerSuggestionText,
 }: {
   row: NonLineFlatRow;
   prNumber?: number;
@@ -828,6 +838,7 @@ function renderSupportingRow({
   onPostSuggestion?: (suggestion: AiSuggestion, body?: string) => Promise<void>;
   onDismissSuggestion?: (id: string) => void;
   onCloseComposer?: () => void;
+  composerSuggestionText?: string | null;
 }) {
   if (row.kind === "comment") {
     const commentLine = row.comments[0]?.line ?? row.comments[0]?.original_line;
@@ -877,6 +888,7 @@ function renderSupportingRow({
         line={row.endLine}
         side={row.side}
         startLine={row.startLine === row.endLine ? undefined : row.startLine}
+        suggestionText={composerSuggestionText ?? undefined}
         onClose={onCloseComposer}
       />
     );

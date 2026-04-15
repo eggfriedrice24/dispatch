@@ -1,9 +1,15 @@
+import { Tooltip, TooltipPopup, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import {
+  SuggestionBlock,
+  parseSuggestions,
+} from "@/renderer/components/review/comments/suggestion-block";
 import { MarkdownBody } from "@/renderer/components/shared/markdown-body";
 import { MentionTextarea } from "@/renderer/components/shared/mention-textarea";
 import { useWorkspace } from "@/renderer/lib/app/workspace-context";
 import {
   applyMarkdownFormat,
+  applySuggestionFormat,
   type MarkdownFormatAction,
   type TextSelectionRange,
 } from "@/renderer/lib/review/markdown-format";
@@ -16,9 +22,10 @@ import {
   Link2,
   List,
   ListOrdered,
+  PencilLine,
   Quote,
 } from "lucide-react";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 interface ReviewMarkdownComposerProps {
   ariaLabel?: string;
@@ -31,6 +38,9 @@ interface ReviewMarkdownComposerProps {
   placeholder?: string;
   prNumber?: number;
   rows?: number;
+  suggestionLanguage?: string;
+  suggestionText?: string;
+  allowSuggestion?: boolean;
   value: string;
 }
 
@@ -38,19 +48,46 @@ const TOOLBAR_ACTIONS: Array<{
   action: MarkdownFormatAction;
   icon: typeof Bold;
   label: string;
+  tooltip: string;
 }> = [
-  { action: "bold", icon: Bold, label: "Bold" },
-  { action: "italic", icon: Italic, label: "Italic" },
-  { action: "inline-code", icon: Code, label: "Inline code" },
-  { action: "code-block", icon: FileCode2, label: "Code block" },
-  { action: "link", icon: Link2, label: "Link" },
-  { action: "blockquote", icon: Quote, label: "Quote" },
-  { action: "bullet-list", icon: List, label: "Bullet list" },
-  { action: "numbered-list", icon: ListOrdered, label: "Numbered list" },
-  { action: "task-list", icon: CheckSquare, label: "Task list" },
+  { action: "bold", icon: Bold, label: "Bold", tooltip: "Wrap the selection in bold markdown" },
+  { action: "italic", icon: Italic, label: "Italic", tooltip: "Emphasize the selection" },
+  { action: "inline-code", icon: Code, label: "Inline code", tooltip: "Mark a short code span" },
+  {
+    action: "code-block",
+    icon: FileCode2,
+    label: "Code block",
+    tooltip: "Insert a fenced code block",
+  },
+  { action: "link", icon: Link2, label: "Link", tooltip: "Insert a markdown link" },
+  {
+    action: "blockquote",
+    icon: Quote,
+    label: "Quote",
+    tooltip: "Prefix the selected lines as a quote",
+  },
+  {
+    action: "bullet-list",
+    icon: List,
+    label: "Bullet list",
+    tooltip: "Turn the selection into a bullet list",
+  },
+  {
+    action: "numbered-list",
+    icon: ListOrdered,
+    label: "Numbered list",
+    tooltip: "Turn the selection into a numbered list",
+  },
+  {
+    action: "task-list",
+    icon: CheckSquare,
+    label: "Task list",
+    tooltip: "Insert checkbox list items",
+  },
 ];
 
 export function ReviewMarkdownComposer({
+  allowSuggestion = false,
   ariaLabel,
   autoFocus = false,
   className,
@@ -61,6 +98,8 @@ export function ReviewMarkdownComposer({
   placeholder = "Leave a comment…",
   prNumber,
   rows = 4,
+  suggestionLanguage = "text",
+  suggestionText,
   value,
 }: ReviewMarkdownComposerProps) {
   const { nwo } = useWorkspace();
@@ -70,6 +109,7 @@ export function ReviewMarkdownComposer({
   const [mode, setMode] = useState<"preview" | "write">("write");
   const minHeight = Math.max(rows * (compact ? 18 : 20) + 28, compact ? 108 : 144);
   const isExpanded = !collapseWhenIdle || hasFocus || value.trim().length > 0 || mode === "preview";
+  const { bodyParts, suggestions } = useMemo(() => parseSuggestions(value), [value]);
 
   const syncSelection = useCallback(() => {
     const textarea = textareaRef.current;
@@ -92,9 +132,12 @@ export function ReviewMarkdownComposer({
             end: textarea.selectionEnd,
           }
         : lastSelectionRef.current;
-      const formatted = applyMarkdownFormat(value, selection, action);
-      onChange(formatted.value);
-      lastSelectionRef.current = formatted.selection;
+      const nextValue =
+        action === "suggestion"
+          ? applySuggestionFormat(value, selection, suggestionText)
+          : applyMarkdownFormat(value, selection, action);
+      onChange(nextValue.value);
+      lastSelectionRef.current = nextValue.selection;
       setMode("write");
 
       requestAnimationFrame(() => {
@@ -104,10 +147,10 @@ export function ReviewMarkdownComposer({
         }
 
         nextTextarea.focus();
-        nextTextarea.setSelectionRange(formatted.selection.start, formatted.selection.end);
+        nextTextarea.setSelectionRange(nextValue.selection.start, nextValue.selection.end);
       });
     },
-    [onChange, value],
+    [onChange, suggestionText, value],
   );
 
   return (
@@ -125,35 +168,41 @@ export function ReviewMarkdownComposer({
               active={mode === "write"}
               compact={compact}
               label="Write"
+              tooltip="Edit the raw markdown for this comment"
               onClick={() => setMode("write")}
             />
             <ModeButton
               active={mode === "preview"}
               compact={compact}
               label="Preview"
+              tooltip="Preview the comment exactly as Dispatch will render it"
               onClick={() => setMode("preview")}
             />
           </div>
           <div className="flex flex-wrap items-center gap-1">
-            {TOOLBAR_ACTIONS.map(({ action, icon: Icon, label }) => (
-              <button
+            {TOOLBAR_ACTIONS.map(({ action, icon: Icon, label, tooltip }) => (
+              <ToolbarButton
                 key={action}
-                type="button"
-                aria-label={label}
-                title={label}
+                compact={compact}
                 disabled={mode === "preview"}
-                onMouseDown={(event) => {
-                  event.preventDefault();
-                }}
+                label={label}
+                tooltip={tooltip}
                 onClick={() => handleFormat(action)}
-                className={cn(
-                  "border-border-subtle text-text-tertiary hover:text-text-primary hover:bg-bg-raised inline-flex cursor-pointer items-center justify-center rounded-md border transition-colors disabled:cursor-not-allowed disabled:opacity-40",
-                  compact ? "h-7 w-7" : "h-8 w-8",
-                )}
               >
                 <Icon size={compact ? 12 : 13} />
-              </button>
+              </ToolbarButton>
             ))}
+            {allowSuggestion && (
+              <ToolbarButton
+                compact={compact}
+                disabled={mode === "preview"}
+                label="Suggested change"
+                tooltip="Insert a GitHub suggestion block for a code replacement"
+                onClick={() => handleFormat("suggestion")}
+              >
+                <PencilLine size={compact ? 12 : 13} />
+              </ToolbarButton>
+            )}
           </div>
         </div>
       )}
@@ -198,15 +247,34 @@ export function ReviewMarkdownComposer({
           style={{ minHeight }}
         >
           {value.trim() ? (
-            <MarkdownBody
-              content={value}
-              repo={nwo}
-            />
+            <div className="space-y-2">
+              {bodyParts.map((part, index) =>
+                part.type === "text" ? (
+                  <MarkdownBody
+                    key={`preview-text-${index}`}
+                    content={part.content}
+                    repo={nwo}
+                  />
+                ) : (
+                  <SuggestionBlock
+                    key={`preview-suggestion-${index}`}
+                    suggestion={part.content}
+                    language={suggestionLanguage}
+                  />
+                ),
+              )}
+              {bodyParts.length === 0 && suggestions.length === 0 && (
+                <MarkdownBody
+                  content={value}
+                  repo={nwo}
+                />
+              )}
+            </div>
           ) : (
             <div className="border-border-subtle bg-bg-surface/60 flex min-h-full items-center justify-center rounded-md border border-dashed px-4 py-6 text-center">
               <p className="text-text-tertiary max-w-[24rem] text-xs leading-relaxed">
-                Nothing to preview yet. Write markdown, add mentions, or drop in code and switch
-                back here to review the final comment.
+                Nothing to preview yet. Write markdown, add a suggested change, or drop in code
+                and switch back here to review the final comment.
               </p>
             </div>
           )}
@@ -216,7 +284,7 @@ export function ReviewMarkdownComposer({
       {isExpanded && (
         <div className="border-border-subtle bg-bg-surface/80 flex items-center justify-between gap-2 border-t px-3 py-2">
           <span className="text-text-tertiary font-mono text-[10px]">
-            Markdown, @mentions, and #refs
+            Markdown, @mentions, #refs, and suggestions
           </span>
           <span className="text-text-ghost text-[10px]">
             {mode === "write"
@@ -233,14 +301,16 @@ function ModeButton({
   active,
   compact,
   label,
+  tooltip,
   onClick,
 }: {
   active: boolean;
   compact: boolean;
   label: string;
+  tooltip: string;
   onClick: () => void;
 }) {
-  return (
+  const button = (
     <button
       type="button"
       onMouseDown={(event) => {
@@ -257,5 +327,53 @@ function ModeButton({
     >
       {label}
     </button>
+  );
+
+  return (
+    <Tooltip>
+      <TooltipTrigger render={button} />
+      <TooltipPopup>{tooltip}</TooltipPopup>
+    </Tooltip>
+  );
+}
+
+function ToolbarButton({
+  children,
+  compact,
+  disabled,
+  label,
+  tooltip,
+  onClick,
+}: {
+  children: React.ReactNode;
+  compact: boolean;
+  disabled: boolean;
+  label: string;
+  tooltip: string;
+  onClick: () => void;
+}) {
+  const button = (
+    <button
+      type="button"
+      aria-label={label}
+      disabled={disabled}
+      onMouseDown={(event) => {
+        event.preventDefault();
+      }}
+      onClick={onClick}
+      className={cn(
+        "border-border-subtle text-text-tertiary hover:text-text-primary hover:bg-bg-raised inline-flex cursor-pointer items-center justify-center rounded-md border transition-colors disabled:cursor-not-allowed disabled:opacity-40",
+        compact ? "h-7 w-7" : "h-8 w-8",
+      )}
+    >
+      {children}
+    </button>
+  );
+
+  return (
+    <Tooltip>
+      <TooltipTrigger render={button} />
+      <TooltipPopup>{tooltip}</TooltipPopup>
+    </Tooltip>
   );
 }

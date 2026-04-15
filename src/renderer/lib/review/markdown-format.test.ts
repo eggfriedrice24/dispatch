@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { applyMarkdownFormat } from "./markdown-format";
+import { applyMarkdownFormat, applySuggestionFormat } from "./markdown-format";
 
 describe("applyMarkdownFormat", () => {
   describe("bold", () => {
@@ -99,6 +99,26 @@ describe("applyMarkdownFormat", () => {
     it("prefixes lines with checkbox syntax", () => {
       const result = applyMarkdownFormat("task one\ntask two", { start: 0, end: 17 }, "task-list");
       expect(result.value).toBe("- [ ] task one\n- [ ] task two");
+    });
+  });
+
+  describe("suggestion", () => {
+    it("wraps selected text in a suggestion fence", () => {
+      const result = applyMarkdownFormat("return nextValue;", { start: 0, end: 17 }, "suggestion");
+
+      expect(result.value).toBe("```suggestion\nreturn nextValue;\n```");
+      expect(result.selection).toEqual({ start: 14, end: 31 });
+    });
+
+    it("uses the provided suggestion text when no textarea selection exists", () => {
+      const result = applySuggestionFormat(
+        "",
+        { start: 0, end: 0 },
+        "const nextValue = computeValue();",
+      );
+
+      expect(result.value).toBe("```suggestion\nconst nextValue = computeValue();\n```");
+      expect(result.selection).toEqual({ start: 14, end: 47 });
     });
   });
 

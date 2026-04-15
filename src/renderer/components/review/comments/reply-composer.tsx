@@ -48,6 +48,7 @@ export function ReplyComposer({
         </span>
       </div>
       <ReviewMarkdownComposer
+        allowSuggestion
         autoFocus
         compact
         className="border-border-subtle bg-[linear-gradient(180deg,var(--comment-card-from),var(--comment-card-to))] shadow-none"
