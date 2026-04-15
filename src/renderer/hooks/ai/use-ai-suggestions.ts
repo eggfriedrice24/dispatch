@@ -15,9 +15,9 @@ import {
   appendAiReviewMarker,
   buildAiSuggestionsSnapshotKey,
   buildExistingCommentFingerprints,
+  buildSuggestionPromptDiffContext,
   buildSuggestionPrompt,
   collectValidLines,
-  extractFileDiff,
   isSuggestionDuplicate,
   parseSuggestionsResponse,
 } from "@/renderer/lib/review/ai-suggestions";
@@ -133,7 +133,7 @@ export function useAiSuggestions({
     async (filePath: string) => {
       clearScheduled(filePath);
 
-      if (!enabled || !rawDiff || !config.isConfigured) {
+      if (!enabled || !config.isConfigured) {
         return;
       }
       if (analyzedRef.current.has(filePath) || generatingRef.current.has(filePath)) {
@@ -145,12 +145,8 @@ export function useAiSuggestions({
         return;
       }
 
-      const fileDiff = extractFileDiff(rawDiff, filePath);
-      if (!fileDiff) {
-        return;
-      }
-
       const validLines = collectValidLines(diffFile.hunks);
+      const promptDiffContext = buildSuggestionPromptDiffContext(diffFile);
 
       generatingRef.current.add(filePath);
       setGenerating((prev) => new Set(prev).add(filePath));
@@ -161,7 +157,7 @@ export function useAiSuggestions({
           prTitle,
           prBody,
           filePath,
-          fileDiff,
+          promptDiffContext.text,
           files.map((file) => ({
             path: getDiffFilePath(file),
             additions: file.additions,
@@ -187,6 +183,7 @@ export function useAiSuggestions({
           filePath,
           validLines,
           existingComments.filter((comment) => comment.path === filePath),
+          promptDiffContext.lineAnchors,
         );
         analyzedRef.current.add(filePath);
 
@@ -208,17 +205,7 @@ export function useAiSuggestions({
         });
       }
     },
-    [
-      clearScheduled,
-      config.isConfigured,
-      enabled,
-      rawDiff,
-      files,
-      prTitle,
-      prBody,
-      cwd,
-      existingComments,
-    ],
+    [clearScheduled, config.isConfigured, enabled, files, prTitle, prBody, cwd, existingComments],
   );
 
   // -------------------------------------------------------------------------

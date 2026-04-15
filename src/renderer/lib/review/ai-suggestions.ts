@@ -1,3 +1,5 @@
+import { getDiffFilePath, type DiffFile } from "@/renderer/lib/review/diff-parser";
+
 /* eslint-disable max-params, no-continue -- Suggestion extraction is a linear rule pass over AI output and reads more clearly with guarded early exits. */
 /**
  * AI Code Review Suggestions — types and utilities.
@@ -44,6 +46,11 @@ export interface SuggestionPromptChangedFile {
   path: string;
   additions: number;
   deletions: number;
+}
+
+export interface SuggestionPromptDiffContext {
+  text: string;
+  lineAnchors: Map<number, string>;
 }
 
 // ---------------------------------------------------------------------------
@@ -103,12 +110,14 @@ Rules:
 - Do not repeat the same issue multiple times.
 - Do not restate or closely paraphrase any existing review comment.
 - Skip trivial formatting issues, style preferences, and obvious changes.
-- Each suggestion must reference a specific NEW-side line number from the diff.
+- The file diff uses machine-readable prefixes like [new:42 old:41 type:add].
+- Only \`new:<number>\` values are valid anchors. Never anchor to deleted-only rows.
+- Each suggestion must include \`anchorText\`, copied from the exact code text after the metadata prefix on the anchored row.
 - Return ONLY a JSON array. No markdown fences, no explanation outside the array.
 - Return an empty array [] if the code looks good.
 
 JSON schema for each element:
-{ "line": number, "severity": "critical"|"warning"|"suggestion", "title": string, "body": string }
+{ "line": number, "anchorText": string, "severity": "critical"|"warning"|"suggestion", "title": string, "body": string }
 
 The "body" field is the full review comment in GitHub-flavored markdown.
 If suggesting a code replacement, use a \`\`\`suggestion code block.`;
@@ -148,6 +157,37 @@ export function buildSuggestionPrompt(
   ];
 }
 
+export function buildSuggestionPromptDiffContext(file: DiffFile): SuggestionPromptDiffContext {
+  const lineAnchors = new Map<number, string>();
+  const oldPath = formatPromptDiffPath("a", file.oldPath);
+  const newPath = formatPromptDiffPath("b", file.newPath);
+  const lines = [
+    `diff --git ${oldPath} ${newPath}`,
+    `status: ${file.status}`,
+    `resolved path: ${getDiffFilePath(file)}`,
+    `--- ${oldPath}`,
+    `+++ ${newPath}`,
+  ];
+
+  for (const hunk of file.hunks) {
+    lines.push(hunk.header);
+
+    for (const line of hunk.lines) {
+      const formattedLine = formatPromptDiffLine(line);
+      lines.push(formattedLine);
+
+      if (line.newLineNumber !== null && line.type !== "del") {
+        lineAnchors.set(line.newLineNumber, line.content);
+      }
+    }
+  }
+
+  return {
+    text: lines.join("\n"),
+    lineAnchors,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Response parser
 // ---------------------------------------------------------------------------
@@ -164,6 +204,7 @@ export function parseSuggestionsResponse(
   filePath: string,
   validLines: Set<number>,
   existingComments: ReadonlyArray<ExistingReviewComment> = [],
+  lineAnchors?: ReadonlyMap<number, string>,
 ): AiSuggestion[] {
   const fencedMatch = raw.match(/```(?:json|markdown|md|text)?\s*([\s\S]*?)```/iu);
   let cleaned = (fencedMatch?.[1] ?? raw).trim();
@@ -199,7 +240,7 @@ export function parseSuggestionsResponse(
       continue;
     }
 
-    const { line, severity, title, body } = item as Record<string, unknown>;
+    const { anchorText, line, severity, title, body } = item as Record<string, unknown>;
 
     if (typeof line !== "number" || !Number.isInteger(line)) {
       continue;
@@ -214,7 +255,14 @@ export function parseSuggestionsResponse(
       continue;
     }
 
-    if (!validLines.has(line)) {
+    const resolvedLine = resolveSuggestionLine(
+      line,
+      typeof anchorText === "string" ? anchorText : null,
+      validLines,
+      lineAnchors,
+    );
+
+    if (resolvedLine === null) {
       continue;
     }
 
@@ -228,7 +276,7 @@ export function parseSuggestionsResponse(
     results.push({
       id: crypto.randomUUID(),
       path: filePath,
-      line,
+      line: resolvedLine,
       severity: severity as AiSuggestionSeverity,
       title,
       body,
@@ -327,6 +375,111 @@ export function collectValidLines(
   return valid;
 }
 
+function formatPromptDiffPath(side: "a" | "b", path: string): string {
+  return path === "/dev/null" ? "/dev/null" : `${side}/${path}`;
+}
+
+function formatPromptDiffLine(line: {
+  type: "context" | "add" | "del" | "hunk-header";
+  content: string;
+  oldLineNumber: number | null;
+  newLineNumber: number | null;
+}): string {
+  if (line.type === "hunk-header") {
+    return line.content;
+  }
+
+  if (line.type === "del") {
+    return `[old:${line.oldLineNumber ?? "-"} type:del] ${line.content}`;
+  }
+
+  return `[new:${line.newLineNumber ?? "-"} old:${line.oldLineNumber ?? "-"} type:${line.type}] ${line.content}`;
+}
+
+function resolveSuggestionLine(
+  line: number,
+  anchorText: string | null,
+  validLines: ReadonlySet<number>,
+  lineAnchors?: ReadonlyMap<number, string>,
+): number | null {
+  if (lineAnchors && anchorText) {
+    const anchorResolvedLine = resolveSuggestionLineFromAnchor(line, anchorText, lineAnchors);
+    if (anchorResolvedLine !== null && validLines.has(anchorResolvedLine)) {
+      return anchorResolvedLine;
+    }
+  }
+
+  return validLines.has(line) ? line : null;
+}
+
+function resolveSuggestionLineFromAnchor(
+  line: number,
+  anchorText: string,
+  lineAnchors: ReadonlyMap<number, string>,
+): number | null {
+  const normalizedAnchorText = normalizeAnchorText(anchorText);
+  if (!normalizedAnchorText) {
+    return null;
+  }
+
+  const claimedLineText = lineAnchors.get(line);
+  if (claimedLineText && normalizeAnchorText(claimedLineText) === normalizedAnchorText) {
+    return line;
+  }
+
+  const exactMatches = findAnchorMatches(
+    lineAnchors,
+    (candidateText) => normalizeAnchorText(candidateText) === normalizedAnchorText,
+  );
+  if (exactMatches.length > 0) {
+    return pickClosestLine(exactMatches, line);
+  }
+
+  if (normalizedAnchorText.length < 12) {
+    return null;
+  }
+
+  const partialMatches = findAnchorMatches(lineAnchors, (candidateText) => {
+    const normalizedCandidate = normalizeAnchorText(candidateText);
+    return (
+      normalizedCandidate.includes(normalizedAnchorText) ||
+      normalizedAnchorText.includes(normalizedCandidate)
+    );
+  });
+  if (partialMatches.length > 0) {
+    return pickClosestLine(partialMatches, line);
+  }
+
+  return null;
+}
+
+function findAnchorMatches(
+  lineAnchors: ReadonlyMap<number, string>,
+  predicate: (candidateText: string) => boolean,
+): number[] {
+  const matches: number[] = [];
+
+  for (const [candidateLine, candidateText] of lineAnchors) {
+    if (predicate(candidateText)) {
+      matches.push(candidateLine);
+    }
+  }
+
+  return matches;
+}
+
+function pickClosestLine(lines: number[], targetLine: number): number {
+  const [closestLine] = lines.toSorted((left, right) => {
+    const distanceDelta = Math.abs(left - targetLine) - Math.abs(right - targetLine);
+    if (distanceDelta === 0) {
+      return left - right;
+    }
+    return distanceDelta;
+  });
+
+  return closestLine ?? targetLine;
+}
+
 function formatChangedFilesSummary(
   changedFiles: ReadonlyArray<SuggestionPromptChangedFile>,
   currentFilePath: string,
@@ -392,6 +545,10 @@ function stripAiReviewMarker(body: string): string {
 
 function normalizeReviewText(value: string): string {
   return collapseWhitespace(stripAiReviewMarker(value)).toLowerCase();
+}
+
+function normalizeAnchorText(value: string): string {
+  return collapseWhitespace(value.replaceAll(/^[`]+|[`]+$/gu, "")).toLowerCase();
 }
 
 function collapseWhitespace(value: string): string {

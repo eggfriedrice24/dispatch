@@ -2,6 +2,7 @@ import {
   appendAiReviewMarker,
   buildAiSuggestionsSnapshotKey,
   buildExistingCommentFingerprints,
+  buildSuggestionPromptDiffContext,
   buildSuggestionPrompt,
   collectValidLines,
   extractFileDiff,
@@ -9,6 +10,7 @@ import {
   isSuggestionDuplicate,
   parseSuggestionsResponse,
 } from "@/renderer/lib/review/ai-suggestions";
+import { parseDiff } from "@/renderer/lib/review/diff-parser";
 import { describe, expect, it } from "vite-plus/test";
 
 describe("parseSuggestionsResponse", () => {
@@ -96,6 +98,7 @@ describe("buildSuggestionPrompt", () => {
     expect(prompt[1]?.content).toContain("src/session.ts (+4, -0)");
     expect(prompt[1]?.content).toContain("Existing review comments on this file:");
     expect(prompt[1]?.content).toContain("line 22: We already asked for a null guard here.");
+    expect(prompt[0]?.content).toContain('"anchorText": string');
   });
 
   it("caps oversized changed-file manifests", () => {
@@ -113,6 +116,34 @@ describe("buildSuggestionPrompt", () => {
     );
 
     expect(prompt[1]?.content).toContain("… 3 more changed files");
+  });
+});
+
+describe("buildSuggestionPromptDiffContext", () => {
+  it("formats diff rows with explicit machine-readable anchors", () => {
+    const file = parseDiff(
+      [
+        "diff --git a/src/a.ts b/src/a.ts",
+        "--- a/src/a.ts",
+        "+++ b/src/a.ts",
+        "@@ -1,3 +1,3 @@",
+        " const stable = value;",
+        "-return oldValue;",
+        "+return newValue;",
+      ].join("\n"),
+    )[0]!;
+
+    const context = buildSuggestionPromptDiffContext(file);
+
+    expect(context.text).toContain("[new:1 old:1 type:context] const stable = value;");
+    expect(context.text).toContain("[old:2 type:del] return oldValue;");
+    expect(context.text).toContain("[new:2 old:- type:add] return newValue;");
+    expect(context.lineAnchors).toEqual(
+      new Map([
+        [1, "const stable = value;"],
+        [2, "return newValue;"],
+      ]),
+    );
   });
 });
 
@@ -177,10 +208,9 @@ describe("parseSuggestionsResponse — additional cases", () => {
   const validLines = new Set([1, 2, 3, 10]);
 
   it("strips markdown code fences", () => {
-    const raw =
-      "```json\n" +
-      JSON.stringify([{ line: 1, severity: "warning", title: "Perf", body: "Optimize" }]) +
-      "\n```";
+    const raw = `\`\`\`json
+${JSON.stringify([{ line: 1, severity: "warning", title: "Perf", body: "Optimize" }])}
+\`\`\``;
     expect(parseSuggestionsResponse(raw, "f.ts", validLines)).toHaveLength(1);
   });
 
@@ -225,6 +255,53 @@ describe("parseSuggestionsResponse — additional cases", () => {
       body: `B${i}`,
     }));
     expect(parseSuggestionsResponse(JSON.stringify(items), "f.ts", validLines)).toHaveLength(5);
+  });
+
+  it("realigns suggestions to the matching anchored line when the model miscounts", () => {
+    const raw = JSON.stringify([
+      {
+        line: 1,
+        anchorText: "return latestValue;",
+        severity: "warning",
+        title: "Guard the new return path",
+        body: "This branch can still be undefined.",
+      },
+    ]);
+
+    const parsed = parseSuggestionsResponse(
+      raw,
+      "f.ts",
+      validLines,
+      [],
+      new Map([[3, "return latestValue;"]]),
+    );
+
+    expect(parsed[0]?.line).toBe(3);
+  });
+
+  it("prefers the closest matching line when anchor text appears multiple times", () => {
+    const raw = JSON.stringify([
+      {
+        line: 9,
+        anchorText: "return result;",
+        severity: "warning",
+        title: "Clarify return value",
+        body: "This return should validate the result first.",
+      },
+    ]);
+
+    const parsed = parseSuggestionsResponse(
+      raw,
+      "f.ts",
+      validLines,
+      [],
+      new Map([
+        [2, "return result;"],
+        [10, "return result;"],
+      ]),
+    );
+
+    expect(parsed[0]?.line).toBe(10);
   });
 });
 
