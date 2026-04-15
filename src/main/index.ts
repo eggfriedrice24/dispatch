@@ -2,6 +2,7 @@
 import { join } from "node:path";
 
 import {
+  type MenuItemConstructorOptions,
   type BrowserWindowConstructorOptions,
   BrowserWindow,
   Menu,
@@ -14,7 +15,12 @@ import {
   session,
 } from "electron";
 
-import { BADGE_COUNT_CHANNEL, WINDOW_STATE_CHANNEL, type WindowState } from "../shared/ipc";
+import {
+  AI_REWRITE_SELECTION_CHANNEL,
+  BADGE_COUNT_CHANNEL,
+  WINDOW_STATE_CHANNEL,
+  type WindowState,
+} from "../shared/ipc";
 import { closeDatabase, initDatabase } from "./db/database";
 import { registerIpcHandler } from "./ipc-handler";
 import { trackFromMain } from "./services/analytics";
@@ -128,6 +134,50 @@ function configureExternalNavigation(win: BrowserWindow): void {
   });
 }
 
+function configureEditableContextMenu(win: BrowserWindow): void {
+  win.webContents.on("context-menu", (event, params) => {
+    if (!params.isEditable) {
+      return;
+    }
+
+    event.preventDefault();
+
+    const hasSelection = params.selectionText.trim().length > 0;
+    const menuItems: MenuItemConstructorOptions[] = [
+      { role: "undo", enabled: params.editFlags.canUndo },
+      { role: "redo", enabled: params.editFlags.canRedo },
+      { type: "separator" },
+      { role: "cut", enabled: params.editFlags.canCut },
+      { role: "copy", enabled: params.editFlags.canCopy },
+      { role: "paste", enabled: params.editFlags.canPaste },
+      { role: "delete", enabled: params.editFlags.canDelete },
+    ];
+
+    if (process.platform === "darwin") {
+      menuItems.push({ role: "pasteAndMatchStyle", enabled: params.editFlags.canPaste });
+    }
+
+    if (hasSelection) {
+      menuItems.push(
+        { type: "separator" },
+        {
+          label: "Rewrite with AI",
+          click: () => {
+            win.webContents.send(AI_REWRITE_SELECTION_CHANNEL);
+          },
+        },
+      );
+    }
+
+    menuItems.push(
+      { type: "separator" },
+      { role: "selectAll", enabled: params.editFlags.canSelectAll },
+    );
+
+    Menu.buildFromTemplate(menuItems).popup({ window: win });
+  });
+}
+
 // ---------------------------------------------------------------------------
 // GitHub media auth — attach tokens for avatar, image, and video requests
 // ---------------------------------------------------------------------------
@@ -232,6 +282,7 @@ function setupMediaAuth(): void {
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow(WINDOW_CONFIG);
   configureExternalNavigation(win);
+  configureEditableContextMenu(win);
   setupMediaAuth();
 
   const getWindowState = (): WindowState => ({

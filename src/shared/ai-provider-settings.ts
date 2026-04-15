@@ -41,6 +41,7 @@ export const AI_MODEL_SLOT_PREFERENCE_KEYS: Record<AiModelSlot, ScopedSlotPrefer
 
 export const AI_TASK_SLOT_PREFERENCE_KEYS: Record<AiTaskId, string> = {
   codeExplanation: "aiTaskCodeExplanationSlot",
+  commentRewrite: "aiTaskCommentRewriteSlot",
   failureExplanation: "aiTaskFailureExplanationSlot",
   reviewSummary: "aiTaskReviewSummarySlot",
   reviewConfidence: "aiTaskReviewConfidenceSlot",
@@ -104,6 +105,7 @@ export const AI_MODEL_SLOT_SCOPED_PREFERENCE_KEYS = [
 
 export const AI_TASK_SLOT_SCOPED_PREFERENCE_KEYS = [
   "aiTaskCodeExplanationSlot",
+  "aiTaskCommentRewriteSlot",
   "aiTaskFailureExplanationSlot",
   "aiTaskReviewSummarySlot",
   "aiTaskReviewConfidenceSlot",
@@ -141,6 +143,7 @@ export const DEFAULT_AI_MODEL_BY_SLOT_AND_PROVIDER: Record<
 
 export const DEFAULT_AI_TASK_SLOT: Record<AiTaskId, AiModelSlot> = {
   codeExplanation: "small",
+  commentRewrite: "small",
   failureExplanation: "small",
   reviewSummary: "big",
   reviewConfidence: "small",
@@ -167,6 +170,11 @@ export const AI_TASK_DEFINITIONS: ReadonlyArray<{
     id: "triage",
     label: "Triage",
     description: "Groups files into stable review sections in the sidebar.",
+  },
+  {
+    id: "commentRewrite",
+    label: "Comment rewrite",
+    description: "Rewrites selected text while you draft review comments or replies.",
   },
   {
     id: "commentSuggestions",

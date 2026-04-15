@@ -607,6 +607,7 @@ export function resolveAiConfigFromSources(
 
   const tasks = {
     codeExplanation: resolveTaskConfig(preferences, "codeExplanation", slots),
+    commentRewrite: resolveTaskConfig(preferences, "commentRewrite", slots),
     failureExplanation: resolveTaskConfig(preferences, "failureExplanation", slots),
     reviewSummary: resolveTaskConfig(preferences, "reviewSummary", slots),
     reviewConfidence: resolveTaskConfig(preferences, "reviewConfidence", slots),

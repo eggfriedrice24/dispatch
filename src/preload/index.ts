@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 
 import {
+  AI_REWRITE_SELECTION_CHANNEL,
   ANALYTICS_CHANNEL,
   BADGE_COUNT_CHANNEL,
   IPC_CHANNEL,
@@ -68,6 +69,16 @@ contextBridge.exposeInMainWorld("api", {
     ipcRenderer.on(ANALYTICS_CHANNEL, handler);
     return () => {
       ipcRenderer.removeListener(ANALYTICS_CHANNEL, handler);
+    };
+  },
+
+  onAiRewriteSelection(callback: () => void): () => void {
+    const handler = () => {
+      callback();
+    };
+    ipcRenderer.on(AI_REWRITE_SELECTION_CHANNEL, handler);
+    return () => {
+      ipcRenderer.removeListener(AI_REWRITE_SELECTION_CHANNEL, handler);
     };
   },
 

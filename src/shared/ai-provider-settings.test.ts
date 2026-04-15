@@ -102,6 +102,7 @@ describe("getAiModelSlotPreferenceKey", () => {
 describe("getAiTaskSlotPreferenceKey", () => {
   it("returns correct key for each task", () => {
     expect(getAiTaskSlotPreferenceKey("reviewSummary")).toBe("aiTaskReviewSummarySlot");
+    expect(getAiTaskSlotPreferenceKey("commentRewrite")).toBe("aiTaskCommentRewriteSlot");
     expect(getAiTaskSlotPreferenceKey("triage")).toBe("aiTaskTriageSlot");
   });
 });

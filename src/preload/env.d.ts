@@ -17,6 +17,7 @@ declare global {
         properties?: Record<string, string | number | boolean>;
       }) => void,
     ): () => void;
+    onAiRewriteSelection(callback: () => void): () => void;
     onWindowStateChange(callback: (state: WindowState) => void): () => void;
   }
 

@@ -35,6 +35,7 @@ interface MentionTextareaProps {
   onFocus?: (e: React.FocusEvent<HTMLTextAreaElement>) => void;
   onClick?: (e: React.MouseEvent<HTMLTextAreaElement>) => void;
   onSelect?: (e: React.SyntheticEvent<HTMLTextAreaElement>) => void;
+  readOnly?: boolean;
 }
 
 type SuggestionKind = "user" | "issue";
@@ -70,6 +71,7 @@ export function MentionTextarea({
   onFocus: externalOnFocus,
   onClick: externalOnClick,
   onSelect: externalOnSelect,
+  readOnly = false,
 }: MentionTextareaProps) {
   const { repoTarget, nwo } = useWorkspace();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -290,6 +292,7 @@ export function MentionTextarea({
         onClick={externalOnClick}
         onSelect={externalOnSelect}
         placeholder={placeholder}
+        readOnly={readOnly}
         rows={rows}
         autoFocus={autoFocus}
         className={textareaClassName ?? DEFAULT_TEXTAREA_CLASS}

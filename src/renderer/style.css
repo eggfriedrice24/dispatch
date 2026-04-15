@@ -1127,6 +1127,19 @@
     color: var(--text-primary);
   }
 
+  .dispatch-rewrite-pending {
+    background-image: linear-gradient(
+      110deg,
+      rgba(212, 136, 58, 0.05) 0%,
+      rgba(212, 136, 58, 0.16) 22%,
+      rgba(240, 236, 230, 0.1) 34%,
+      rgba(212, 136, 58, 0.18) 48%,
+      rgba(212, 136, 58, 0.05) 62%
+    );
+    background-size: 220% 100%;
+    animation: var(--animate-skeleton);
+  }
+
   code,
   kbd,
   samp,
@@ -1287,6 +1300,19 @@
 .prose-dispatch li input[type="checkbox"] {
   margin-right: 6px;
   accent-color: var(--accent);
+}
+.prose-dispatch .contains-task-list {
+  padding-left: 0;
+  list-style: none;
+}
+.prose-dispatch .task-list-item {
+  list-style: none;
+}
+.prose-dispatch .gh-alert-content > :first-child {
+  margin-top: 0;
+}
+.prose-dispatch .gh-alert-content > :last-child {
+  margin-bottom: 0;
 }
 
 .prose-dispatch blockquote {

@@ -26,6 +26,7 @@ function createPreferences(
       | "aiSmallProvider"
       | "aiSmallModel"
       | "aiTaskCodeExplanationSlot"
+      | "aiTaskCommentRewriteSlot"
       | "aiTaskFailureExplanationSlot"
       | "aiTaskReviewSummarySlot"
       | "aiTaskReviewConfidenceSlot"
@@ -57,6 +58,7 @@ function createPreferences(
     aiSmallProvider: null,
     aiSmallModel: null,
     aiTaskCodeExplanationSlot: null,
+    aiTaskCommentRewriteSlot: null,
     aiTaskFailureExplanationSlot: null,
     aiTaskReviewSummarySlot: null,
     aiTaskReviewConfidenceSlot: null,
@@ -82,6 +84,8 @@ describe("resolveAiConfigFromSources", () => {
     expect(config.slots.big.providerSource).toBe("environment");
     expect(config.tasks.reviewSummary.selectedSlot).toBe("big");
     expect(config.tasks.reviewSummary.provider).toBe("codex");
+    expect(config.tasks.commentRewrite.selectedSlot).toBe("small");
+    expect(config.tasks.commentRewrite.provider).toBe("codex");
     expect(config.tasks.triage.selectedSlot).toBe("small");
     expect(config.tasks.triage.provider).toBe("codex");
   });

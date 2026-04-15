@@ -107,6 +107,7 @@ const FALLBACK_AI_CONFIG: AiResolvedConfig = {
   },
   tasks: {
     codeExplanation: createFallbackTaskConfig("codeExplanation", "small"),
+    commentRewrite: createFallbackTaskConfig("commentRewrite", "small"),
     failureExplanation: createFallbackTaskConfig("failureExplanation", "small"),
     reviewSummary: createFallbackTaskConfig("reviewSummary", "big"),
     reviewConfidence: createFallbackTaskConfig("reviewConfidence", "small"),

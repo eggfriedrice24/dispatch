@@ -22,6 +22,7 @@ export const IPC_CHANNEL = "dispatch:ipc";
 export const WINDOW_STATE_CHANNEL = "window-state";
 export const BADGE_COUNT_CHANNEL = "set-badge-count";
 export const ANALYTICS_CHANNEL = "analytics:track";
+export const AI_REWRITE_SELECTION_CHANNEL = "ai:rewrite-selection";
 
 export interface WindowState {
   isFullscreen: boolean;
@@ -36,6 +37,7 @@ export type AiConfigSource = "preference" | "environment" | "default" | "none";
 export type AiModelSlot = "big" | "small";
 export type AiTaskId =
   | "codeExplanation"
+  | "commentRewrite"
   | "failureExplanation"
   | "reviewSummary"
   | "reviewConfidence"
