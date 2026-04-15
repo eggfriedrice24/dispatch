@@ -77,7 +77,16 @@ export function CommandPalette() {
         }}
       >
         <Command key={open ? "open" : "closed"}>
-          <CommandInput placeholder="Search PRs, files, actions…" />
+          <CommandInput
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                event.preventDefault();
+                event.stopPropagation();
+                close();
+              }
+            }}
+            placeholder="Search PRs, files, actions…"
+          />
           <CommandPanel>
             <CommandList>
               <CommandPaletteContent onSelect={close} />
