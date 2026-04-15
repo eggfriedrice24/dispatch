@@ -873,7 +873,6 @@ function PrDetail({ prNumber }: { prNumber: number }) {
         )}
         <SidePanelOverlay
           open={panelOpen}
-          onClose={() => setPanelOpen(false)}
           pr={pr}
           prNumber={prNumber}
           issueComments={issueCommentsQuery.data ?? []}

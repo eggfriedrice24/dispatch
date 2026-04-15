@@ -33,7 +33,6 @@ export type PanelTab = "overview" | "conversation" | "commits" | "checks";
 
 interface SidePanelOverlayProps {
   open: boolean;
-  onClose: () => void;
   pr: GhPrDetail;
   prNumber: number;
   issueComments: Array<{ id: string; body: string; author: { login: string }; createdAt: string }>;
@@ -52,7 +51,6 @@ interface SidePanelOverlayProps {
 
 export function SidePanelOverlay({
   open,
-  onClose,
   pr,
   prNumber,
   issueComments,
@@ -81,7 +79,7 @@ export function SidePanelOverlay({
         borderLeft: "1px solid var(--border)",
       }}
     >
-      {/* Header — 40px, tabs + close */}
+      {/* Header — 40px, tabs */}
       <div
         className="flex shrink-0 items-center"
         style={{
@@ -136,13 +134,6 @@ export function SidePanelOverlay({
             danger={pr.statusCheckRollup.some((c) => c.conclusion?.toUpperCase() === "FAILURE")}
           />
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="text-text-ghost hover:text-text-primary hover:bg-bg-raised flex h-6 w-6 cursor-pointer items-center justify-center rounded-sm transition-colors"
-        >
-          <X size={14} />
-        </button>
       </div>
 
       {/* Conversation tab manages its own scroll + composer */}
