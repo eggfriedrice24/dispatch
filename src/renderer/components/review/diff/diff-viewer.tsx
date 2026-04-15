@@ -106,6 +106,31 @@ function countMatchesInText(text: string, query: string): number {
   return count;
 }
 
+function UnsupportedDiffState({ file }: { file: DiffFile }) {
+  const hasStats = file.additions > 0 || file.deletions > 0;
+  const title =
+    file.contentKind === "binary" ? "Binary diff not available" : "Line-level diff unavailable";
+  const description =
+    file.contentKind === "binary"
+      ? "Dispatch found this changed file, but binary formats like parquet cannot be rendered line by line."
+      : "Dispatch found this changed file, but GitHub did not provide a line-level patch for it.";
+
+  return (
+    <div className="flex flex-1 items-center justify-center px-6">
+      <div className="border-border-subtle bg-bg-surface/70 max-w-md rounded-md border px-4 py-3 text-center shadow-sm">
+        <p className="text-text-primary text-sm font-medium">{title}</p>
+        <p className="text-text-tertiary mt-1 text-xs leading-5">{description}</p>
+        {hasStats && (
+          <div className="mt-3 flex items-center justify-center gap-3 font-mono text-[11px]">
+            {file.additions > 0 && <span className="text-success">+{file.additions}</span>}
+            {file.deletions > 0 && <span className="text-destructive">-{file.deletions}</span>}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // DiffViewer
 // ---------------------------------------------------------------------------
@@ -348,6 +373,10 @@ export function DiffViewer({
   }, [openSearch]);
 
   if (activeRows.length === 0) {
+    if (file.contentKind === "binary" || file.contentKind === "metadata-only") {
+      return <UnsupportedDiffState file={file} />;
+    }
+
     return (
       <div className="flex flex-1 items-center justify-center">
         <p className="text-text-tertiary text-xs">No changes in this file</p>

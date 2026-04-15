@@ -293,13 +293,42 @@ index abc1234..def5678 100644
     expect(file.deletions).toBe(2);
   });
 
-  it("skips binary files", () => {
+  it("preserves binary files without line-level hunks", () => {
     const raw = `diff --git a/image.png b/image.png
 index abc1234..def5678 100644
 Binary files a/image.png and b/image.png differ`;
 
     const files = parseDiff(raw);
-    expect(files).toHaveLength(0);
+    expect(files).toHaveLength(1);
+    expect(files[0]).toMatchObject({
+      oldPath: "image.png",
+      newPath: "image.png",
+      status: "modified",
+      additions: 0,
+      deletions: 0,
+      contentKind: "binary",
+      hunks: [],
+    });
+  });
+
+  it("preserves metadata-only files from the fallback PR files manifest", () => {
+    const raw = `diff --git a/data/report.parquet b/data/report.parquet
+--- a/data/report.parquet
++++ b/data/report.parquet
+dispatch-stats additions=0 deletions=0`;
+
+    const files = parseDiff(raw);
+
+    expect(files).toHaveLength(1);
+    expect(files[0]).toMatchObject({
+      oldPath: "data/report.parquet",
+      newPath: "data/report.parquet",
+      status: "modified",
+      additions: 0,
+      deletions: 0,
+      contentKind: "metadata-only",
+      hunks: [],
+    });
   });
 
   it("handles hunk headers without counts", () => {

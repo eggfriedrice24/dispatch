@@ -874,6 +874,38 @@ describe("gh-cli caching", () => {
     );
   });
 
+  it("keeps patchless files in the fallback diff manifest", async () => {
+    execFileMock
+      .mockRejectedValueOnce(
+        Object.assign(
+          new Error(
+            "Sorry, the diff exceeded the maximum number of files (300). Consider using 'List pull requests files' API.",
+          ),
+          { stderr: "", stdout: "" },
+        ),
+      )
+      .mockResolvedValueOnce({ stdout: createRepoInfoStdout(), stderr: "" })
+      .mockRejectedValueOnce(new Error("merge queue unavailable"))
+      .mockResolvedValueOnce({
+        stdout: JSON.stringify([
+          {
+            filename: "data/example.parquet",
+            status: "modified",
+            additions: 0,
+            deletions: 0,
+          },
+        ]),
+        stderr: "",
+      });
+
+    const diff = await getPrDiff("/repo-large-diff", 42);
+
+    expect(diff).toContain("diff --git a/data/example.parquet b/data/example.parquet");
+    expect(diff).toContain("--- a/data/example.parquet");
+    expect(diff).toContain("+++ b/data/example.parquet");
+    expect(diff).toContain("dispatch-stats additions=0 deletions=0");
+  });
+
   it("backfills truncated PR file manifests from the paginated PR files API", async () => {
     execFileMock
       .mockResolvedValueOnce({

@@ -80,6 +80,15 @@ index abc1234..def5678 100644
 +const itemCount = items.length;
  console.log("done");`;
 
+const BINARY_DIFF = `diff --git a/data/example.parquet b/data/example.parquet
+index abc1234..def5678 100644
+Binary files a/data/example.parquet and b/data/example.parquet differ`;
+
+const METADATA_ONLY_DIFF = `diff --git a/data/example.parquet b/data/example.parquet
+--- a/data/example.parquet
++++ b/data/example.parquet
+dispatch-stats additions=0 deletions=0`;
+
 describe("DiffViewer", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -284,5 +293,25 @@ describe("DiffViewer", () => {
     expect(statusRow?.textContent).toContain('const status = "published";');
     expect(itemCountRow?.textContent).toContain("const count = items.length;");
     expect(itemCountRow?.textContent).toContain("const itemCount = items.length;");
+  });
+
+  it("renders a binary-file fallback instead of hiding the file", () => {
+    const file = parseDiff(BINARY_DIFF)[0]!;
+
+    render(<DiffViewer file={file} />);
+
+    expect(screen.getByText("Binary diff not available")).toBeInTheDocument();
+    expect(screen.getByText(/parquet cannot be rendered line by line/i)).toBeInTheDocument();
+    expect(screen.queryByText("No changes in this file")).not.toBeInTheDocument();
+  });
+
+  it("renders a patch-unavailable fallback for metadata-only files", () => {
+    const file = parseDiff(METADATA_ONLY_DIFF)[0]!;
+
+    render(<DiffViewer file={file} />);
+
+    expect(screen.getByText("Line-level diff unavailable")).toBeInTheDocument();
+    expect(screen.getByText(/did not provide a line-level patch/i)).toBeInTheDocument();
+    expect(screen.queryByText("No changes in this file")).not.toBeInTheDocument();
   });
 });

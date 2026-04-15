@@ -8,6 +8,7 @@ export interface DiffFile {
   hunks: DiffHunk[];
   additions: number;
   deletions: number;
+  contentKind?: "binary" | "metadata-only";
 }
 
 export interface DiffHunk {
@@ -36,6 +37,7 @@ export interface Segment {
 }
 
 const DIFF_NULL_PATH = "/dev/null";
+const DISPATCH_DIFF_STATS_PREFIX = "dispatch-stats";
 const WORD_DIFF_TOKEN_PATTERN = /\s+|[\p{L}\p{N}_$]+|[^\s\p{L}\p{N}_$]+/gu;
 const WORD_DIFF_IDENTIFIER_PATTERN = /^[\p{L}\p{N}_$]+$/u;
 const WORD_DIFF_WHITESPACE_PATTERN = /^\s+$/u;
@@ -154,22 +156,32 @@ function splitByFiles(raw: string): string[] {
 function parseFileSection(section: string): DiffFile | null {
   const lines = section.split("\n");
 
-  // Skip binary files
-  if (lines.some((l) => l.startsWith("Binary files") && l.includes("differ"))) {
-    return null;
-  }
-
   let oldPath = "";
   let newPath = "";
   const hunks: DiffHunk[] = [];
   let additions = 0;
   let deletions = 0;
+  let contentKind: DiffFile["contentKind"] = undefined;
+  let fallbackStats: { additions: number; deletions: number } | null = null;
 
   let i = 0;
 
   // Skip the "diff --git a/... b/..." line and metadata lines until we find --- or @@
   while (i < lines.length) {
     const line = lines[i]!;
+
+    const parsedFallbackStats = parseDispatchDiffStats(line);
+    if (parsedFallbackStats) {
+      fallbackStats = parsedFallbackStats;
+      i++;
+      continue;
+    }
+
+    if (line.startsWith("Binary files") && line.includes("differ")) {
+      contentKind = "binary";
+      i++;
+      continue;
+    }
 
     if (line.startsWith("--- ")) {
       oldPath = parseDiffPath(line.slice(4));
@@ -336,8 +348,13 @@ function parseFileSection(section: string): DiffFile | null {
 
   const status = resolveStatus(oldPath, newPath);
 
+  if (hunks.length === 0 && fallbackStats !== null) {
+    ({ additions, deletions } = fallbackStats);
+    contentKind ??= "metadata-only";
+  }
+
   // Skip files with no actual content changes (pure mode changes etc.) and no hunks
-  if (hunks.length === 0 && additions === 0 && deletions === 0) {
+  if (hunks.length === 0 && additions === 0 && deletions === 0 && contentKind === undefined) {
     return null;
   }
 
@@ -348,6 +365,21 @@ function parseFileSection(section: string): DiffFile | null {
     hunks,
     additions,
     deletions,
+    ...(contentKind ? { contentKind } : {}),
+  };
+}
+
+function parseDispatchDiffStats(line: string): { additions: number; deletions: number } | null {
+  const match = line.match(
+    new RegExp(`^${DISPATCH_DIFF_STATS_PREFIX} additions=(\\d+) deletions=(\\d+)$`),
+  );
+  if (!match) {
+    return null;
+  }
+
+  return {
+    additions: Number.parseInt(match[1]!, 10),
+    deletions: Number.parseInt(match[2]!, 10),
   };
 }
 

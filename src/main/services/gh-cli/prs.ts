@@ -848,6 +848,7 @@ const LARGE_PR_DIFF_ERROR_MARKERS = [
 const PULL_REQUEST_FILES_PAGE_SIZE = 100;
 const PULL_REQUEST_FILES_CACHE_TTL_MS = 60_000;
 const DIFF_NULL_PATH = "/dev/null";
+const DISPATCH_DIFF_STATS_PREFIX = "dispatch-stats";
 
 function shouldFallbackToPullRequestFilesApi(error: unknown): boolean {
   const ghErrorText = [
@@ -929,6 +930,10 @@ function buildUnifiedDiffSection(file: PullRequestFileApiItem): string | null {
 
   if (file.patch?.trim()) {
     lines.push(file.patch.trimEnd());
+  } else {
+    lines.push(
+      `${DISPATCH_DIFF_STATS_PREFIX} additions=${file.additions} deletions=${file.deletions}`,
+    );
   }
 
   const section = lines.join("\n");
@@ -1567,7 +1572,7 @@ export async function getPrReviewRequests(
   return nodes
     .filter(
       (node): node is RawNode & { requestedReviewer: NonNullable<RawNode["requestedReviewer"]> } =>
-        node.requestedReviewer != null,
+        node.requestedReviewer !== null && node.requestedReviewer !== undefined,
     )
     .map((node) => {
       const reviewer = node.requestedReviewer;
