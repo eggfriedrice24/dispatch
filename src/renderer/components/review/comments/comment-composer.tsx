@@ -11,13 +11,13 @@ import { inferLanguage } from "@/renderer/lib/review/highlighter";
 import { usePendingReviewActions } from "@/renderer/lib/review/pending-review-store";
 import { useMutation } from "@tanstack/react-query";
 import { CornerDownLeft, Plus } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 /**
  * Comment composer — inline card for creating new review comments.
  *
  * Renders inside a `<td colSpan={3}>` in the diff table.
- * - Cmd/Ctrl+Enter to submit, Escape to cancel
+ * - Cmd/Ctrl+Enter to submit, Escape to close when empty
  */
 
 interface CommentComposerProps {
@@ -41,6 +41,11 @@ export function CommentComposer({
 }: CommentComposerProps) {
   const { repoTarget } = useWorkspace();
   const [body, setBody] = useState("");
+  const previousFocusRef = useRef<HTMLElement | null>(
+    typeof document !== "undefined" && document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null,
+  );
   const reviewMode = usePreference("reviewCommentMode");
   const isBatched = reviewMode === "batched";
   const { addComment } = usePendingReviewActions();
@@ -95,13 +100,43 @@ export function CommentComposer({
     });
   }
 
+  function restoreFocusAfterClose() {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const previousFocus = previousFocusRef.current;
+        if (
+          previousFocus &&
+          previousFocus.isConnected &&
+          previousFocus !== document.body &&
+          previousFocus !== document.documentElement
+        ) {
+          previousFocus.focus({ preventScroll: true });
+          return;
+        }
+
+        const commentTrigger = document.querySelector<HTMLButtonElement>(
+          `[data-review-comment-trigger="true"][data-review-comment-line="${line}"][data-review-comment-side="${side}"]`,
+        );
+        if (commentTrigger) {
+          commentTrigger.focus({ preventScroll: true });
+          return;
+        }
+
+        document
+          .querySelector<HTMLElement>('[data-review-focus-target="diff-viewer"]')
+          ?.focus({ preventScroll: true });
+      });
+    });
+  }
+
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       handleSubmit();
-    } else if (e.key === "Escape") {
+    } else if (e.key === "Escape" && !body.trim()) {
       e.preventDefault();
       onClose();
+      restoreFocusAfterClose();
     }
   }
 
@@ -142,7 +177,7 @@ export function CommentComposer({
       />
       <div className="border-border-subtle flex items-center justify-between gap-2 border-t px-3 py-2.5">
         <span className="text-text-ghost font-mono text-[10px]">
-          {modKey}+Enter to {isBatched ? "add" : "submit"} · Esc to cancel
+          {modKey}+Enter to {isBatched ? "add" : "submit"} · Esc to close when empty
         </span>
         <div className="flex items-center gap-1.5">
           <Button

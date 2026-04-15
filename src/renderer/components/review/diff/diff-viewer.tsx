@@ -1043,6 +1043,9 @@ function DiffLineRow({
               {canCommentOnLine && !isComposerActive && (
                 <button
                   type="button"
+                  data-review-comment-trigger="true"
+                  data-review-comment-line={commentTarget.line}
+                  data-review-comment-side={commentTarget.side}
                   onMouseDown={(e) => {
                     e.preventDefault();
                     if (commentTarget) {
