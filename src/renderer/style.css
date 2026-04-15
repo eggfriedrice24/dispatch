@@ -1152,6 +1152,16 @@
     font-variant-numeric: tabular-nums;
   }
 
+  .font-ligatures-off code,
+  .font-ligatures-off pre,
+  .font-ligatures-off kbd,
+  .font-ligatures-off samp,
+  .font-ligatures-off .font-mono,
+  .font-ligatures-off code span {
+    font-variant-ligatures: none;
+    font-feature-settings: "liga" 0, "clig" 0;
+  }
+
   :where(
     h1,
     h2,

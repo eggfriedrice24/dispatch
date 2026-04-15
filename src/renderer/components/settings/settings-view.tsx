@@ -118,6 +118,7 @@ const PREF_KEYS = [
   "defaultFileNav",
   "displayNameFormat",
   "aiAutoSuggest",
+  "disableFontLigatures",
   ...EXPERIMENTAL_FEATURE_PREFERENCE_KEYS,
 ];
 
@@ -150,6 +151,8 @@ export function SettingsView() {
     resolvedTheme,
     codeTheme,
     setCodeTheme,
+    disableFontLigatures,
+    setDisableFontLigatures,
   } = useTheme();
   const { toggleSettings } = useRouter();
   const { getBinding, setBinding, resetBinding, resetAll, overrides } = useKeybindings();
@@ -335,12 +338,13 @@ export function SettingsView() {
     setThemeStyle("default");
     setColorMode("dark");
     setCodeTheme(DEFAULT_CODE_THEME_DARK);
+    setDisableFontLigatures(false);
     resetAll();
     queryClient.invalidateQueries({ queryKey: ["preferences"] });
     queryClient.invalidateQueries({ queryKey: ["ai"] });
     queryClient.invalidateQueries({ queryKey: ["pr"] });
     setShowResetConfirm(false);
-  }, [setThemeStyle, setColorMode, setCodeTheme, resetAll]);
+  }, [setThemeStyle, setColorMode, setCodeTheme, setDisableFontLigatures, resetAll]);
 
   const nukeApp = useCallback(async () => {
     localStorage.clear();
@@ -517,6 +521,26 @@ export function SettingsView() {
                   </label>
                   <CodeThemePreview themeId={codeTheme} />
                 </div>
+              </section>
+
+              <section className="mt-8">
+                <h3 className="text-text-primary text-sm font-medium">Typography</h3>
+                <p className="text-text-tertiary mt-0.5 text-xs">
+                  Adjust text rendering options used throughout Dispatch.
+                </p>
+                <label className="mt-3 flex cursor-pointer items-start justify-between">
+                  <div>
+                    <span className="text-text-secondary text-xs">Disable font ligatures</span>
+                    <p className="text-text-ghost mt-0.5 text-[10px]">
+                      Prevent character combinations from rendering as ligature glyphs in code.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={disableFontLigatures}
+                    onCheckedChange={setDisableFontLigatures}
+                    aria-label="Disable font ligatures"
+                  />
+                </label>
               </section>
             </>
           )}

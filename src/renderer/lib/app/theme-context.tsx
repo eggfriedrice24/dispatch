@@ -15,6 +15,8 @@ const STYLE_STORAGE_KEY = "dispatch-theme-style";
 const MODE_STORAGE_KEY = "dispatch-color-mode";
 const LEGACY_SINGLE_CODE_THEME_STORAGE_KEY = "dispatch-code-theme";
 const LEGACY_SINGLE_CODE_THEME_PREFERENCE_KEY = "codeTheme";
+const FONT_LIGATURES_STORAGE_KEY = "dispatch-disable-font-ligatures";
+const FONT_LIGATURES_PREFERENCE_KEY = "disableFontLigatures";
 
 function safeLocalStorage() {
   try {
@@ -29,6 +31,12 @@ function safeLocalStorage() {
 
 function readCodeThemePreference(storageKey: string, fallback: string): string {
   return safeLocalStorage()?.getItem(storageKey) ?? fallback;
+}
+
+function readBooleanPreference(value: string | null, fallback: boolean): boolean {
+  if (value === "true") return true;
+  if (value === "false") return false;
+  return fallback;
 }
 
 function migrateOldTheme(old: string): { style: ThemeStyle; mode: ColorMode } {
@@ -57,9 +65,11 @@ interface ThemeState {
   codeTheme: string;
   codeThemeLight: string;
   codeThemeDark: string;
+  disableFontLigatures: boolean;
   setThemeStyle: (style: ThemeStyle) => void;
   setColorMode: (mode: ColorMode) => void;
   setCodeTheme: (theme: string) => void;
+  setDisableFontLigatures: (disable: boolean) => void;
 }
 
 function getSystemTheme(): ResolvedTheme {
@@ -98,6 +108,12 @@ function applyTheme(style: ThemeStyle, mode: ColorMode, resolved: ResolvedTheme)
   root.classList.remove(...ALL_THEME_CLASSES);
   root.classList.add(deriveThemeClass(style, mode, resolved));
   root.style.colorScheme = resolved;
+}
+
+function applyFontLigaturePreference(disableFontLigatures: boolean) {
+  if (typeof document === "undefined") return;
+  const root = document.documentElement;
+  root.classList.toggle("font-ligatures-off", disableFontLigatures);
 }
 
 function readInitialValues(): { style: ThemeStyle; mode: ColorMode } {
@@ -156,6 +172,10 @@ function teardownSystemThemeListener() {
 const initial = readInitialValues();
 const initialResolved = resolveMode(initial.mode);
 const legacyCodeTheme = safeLocalStorage()?.getItem(LEGACY_SINGLE_CODE_THEME_STORAGE_KEY);
+const initialDisableFontLigatures = readBooleanPreference(
+  safeLocalStorage()?.getItem(FONT_LIGATURES_STORAGE_KEY),
+  false,
+);
 const initialCodeDark = readCodeThemePreference(
   "dispatch-code-theme-dark",
   legacyCodeTheme ?? DEFAULT_CODE_THEME_DARK,
@@ -166,6 +186,7 @@ const initialCodeLight = readCodeThemePreference(
 );
 
 applyTheme(initial.style, initial.mode, initialResolved);
+applyFontLigaturePreference(initialDisableFontLigatures);
 
 export const useThemeStore = create<ThemeState>()((set, get) => ({
   themeStyle: initial.style,
@@ -174,6 +195,7 @@ export const useThemeStore = create<ThemeState>()((set, get) => ({
   codeThemeDark: initialCodeDark,
   codeThemeLight: initialCodeLight,
   codeTheme: initialResolved === "light" ? initialCodeLight : initialCodeDark,
+  disableFontLigatures: initialDisableFontLigatures,
 
   setThemeStyle: (style) => {
     const { colorMode, resolvedTheme } = get();
@@ -215,6 +237,15 @@ export const useThemeStore = create<ThemeState>()((set, get) => ({
       ipc("preferences.set", { key: "codeThemeDark", value: theme });
     }
   },
+  setDisableFontLigatures: (disable) => {
+    safeLocalStorage()?.setItem(FONT_LIGATURES_STORAGE_KEY, disable ? "true" : "false");
+    applyFontLigaturePreference(disable);
+    set({ disableFontLigatures: disable });
+    ipc("preferences.set", {
+      key: FONT_LIGATURES_PREFERENCE_KEY,
+      value: disable ? "true" : "false",
+    });
+  },
 }));
 
 // ---------------------------------------------------------------------------
@@ -234,79 +265,88 @@ if (typeof (globalThis as Record<string, unknown>).api !== "undefined") {
       "codeThemeDark",
       "codeThemeLight",
       LEGACY_SINGLE_CODE_THEME_PREFERENCE_KEY,
+      FONT_LIGATURES_PREFERENCE_KEY,
     ],
   });
-  if (initResult && typeof initResult.then === "function") initResult
-    .then((prefs) => {
-      const state = useThemeStore.getState();
-      const storage = safeLocalStorage();
+  if (initResult && typeof initResult.then === "function")
+    initResult
+      .then((prefs) => {
+        const state = useThemeStore.getState();
+        const storage = safeLocalStorage();
+        const dbFontLigatures = readBooleanPreference(
+          prefs[FONT_LIGATURES_PREFERENCE_KEY],
+          state.disableFontLigatures,
+        );
 
-      if (prefs.themeStyle && prefs.colorMode) {
-        const dbStyle = prefs.themeStyle as ThemeStyle;
-        const dbMode = prefs.colorMode as ColorMode;
-        if (dbStyle !== state.themeStyle || dbMode !== state.colorMode) {
-          const r = resolveMode(dbMode);
-          useThemeStore.setState({
-            themeStyle: dbStyle,
-            colorMode: dbMode,
-            resolvedTheme: r,
-            codeTheme: r === "light" ? state.codeThemeLight : state.codeThemeDark,
-          });
-          applyTheme(dbStyle, dbMode, r);
-          storage?.setItem(STYLE_STORAGE_KEY, dbStyle);
-          storage?.setItem(MODE_STORAGE_KEY, dbMode);
+        if (prefs.themeStyle && prefs.colorMode) {
+          const dbStyle = prefs.themeStyle as ThemeStyle;
+          const dbMode = prefs.colorMode as ColorMode;
+          if (dbStyle !== state.themeStyle || dbMode !== state.colorMode) {
+            const r = resolveMode(dbMode);
+            useThemeStore.setState({
+              themeStyle: dbStyle,
+              colorMode: dbMode,
+              resolvedTheme: r,
+              codeTheme: r === "light" ? state.codeThemeLight : state.codeThemeDark,
+            });
+            applyTheme(dbStyle, dbMode, r);
+            storage?.setItem(STYLE_STORAGE_KEY, dbStyle);
+            storage?.setItem(MODE_STORAGE_KEY, dbMode);
 
-          if (dbMode === "system") {
-            setupSystemThemeListener();
-          } else {
-            teardownSystemThemeListener();
+            if (dbMode === "system") {
+              setupSystemThemeListener();
+            } else {
+              teardownSystemThemeListener();
+            }
           }
+        } else if (prefs.theme) {
+          const migrated = migrateOldTheme(prefs.theme);
+          const r = resolveMode(migrated.mode);
+          useThemeStore.setState({
+            themeStyle: migrated.style,
+            colorMode: migrated.mode,
+            resolvedTheme: r,
+          });
+          applyTheme(migrated.style, migrated.mode, r);
+          storage?.setItem(STYLE_STORAGE_KEY, migrated.style);
+          storage?.setItem(MODE_STORAGE_KEY, migrated.mode);
+          ipc("preferences.set", { key: "themeStyle", value: migrated.style });
+          ipc("preferences.set", { key: "colorMode", value: migrated.mode });
         }
-      } else if (prefs.theme) {
-        const migrated = migrateOldTheme(prefs.theme);
-        const r = resolveMode(migrated.mode);
+
+        let updatedDark = state.codeThemeDark;
+        let updatedLight = state.codeThemeLight;
+
+        if (prefs.codeThemeDark) {
+          updatedDark = prefs.codeThemeDark;
+          storage?.setItem("dispatch-code-theme-dark", updatedDark);
+        }
+        if (prefs.codeThemeLight) {
+          updatedLight = prefs.codeThemeLight;
+          storage?.setItem("dispatch-code-theme-light", updatedLight);
+        }
+
+        if (!prefs.codeThemeDark && !prefs.codeThemeLight && prefs.codeTheme) {
+          updatedDark = prefs.codeTheme;
+          updatedLight = prefs.codeTheme;
+          storage?.setItem("dispatch-code-theme-dark", updatedDark);
+          storage?.setItem("dispatch-code-theme-light", updatedLight);
+          ipc("preferences.set", { key: "codeThemeDark", value: updatedDark });
+          ipc("preferences.set", { key: "codeThemeLight", value: updatedLight });
+          if (storage) storage.removeItem(LEGACY_SINGLE_CODE_THEME_STORAGE_KEY);
+        }
+
+        const resolved = useThemeStore.getState().resolvedTheme;
         useThemeStore.setState({
-          themeStyle: migrated.style,
-          colorMode: migrated.mode,
-          resolvedTheme: r,
+          codeThemeDark: updatedDark,
+          codeThemeLight: updatedLight,
+          codeTheme: resolved === "light" ? updatedLight : updatedDark,
+          disableFontLigatures: dbFontLigatures,
         });
-        applyTheme(migrated.style, migrated.mode, r);
-        storage?.setItem(STYLE_STORAGE_KEY, migrated.style);
-        storage?.setItem(MODE_STORAGE_KEY, migrated.mode);
-        ipc("preferences.set", { key: "themeStyle", value: migrated.style });
-        ipc("preferences.set", { key: "colorMode", value: migrated.mode });
-      }
-
-      let updatedDark = state.codeThemeDark;
-      let updatedLight = state.codeThemeLight;
-
-      if (prefs.codeThemeDark) {
-        updatedDark = prefs.codeThemeDark;
-        storage?.setItem("dispatch-code-theme-dark", updatedDark);
-      }
-      if (prefs.codeThemeLight) {
-        updatedLight = prefs.codeThemeLight;
-        storage?.setItem("dispatch-code-theme-light", updatedLight);
-      }
-
-      if (!prefs.codeThemeDark && !prefs.codeThemeLight && prefs.codeTheme) {
-        updatedDark = prefs.codeTheme;
-        updatedLight = prefs.codeTheme;
-        storage?.setItem("dispatch-code-theme-dark", updatedDark);
-        storage?.setItem("dispatch-code-theme-light", updatedLight);
-        ipc("preferences.set", { key: "codeThemeDark", value: updatedDark });
-        ipc("preferences.set", { key: "codeThemeLight", value: updatedLight });
-        if (storage) storage.removeItem(LEGACY_SINGLE_CODE_THEME_STORAGE_KEY);
-      }
-
-      const resolved = useThemeStore.getState().resolvedTheme;
-      useThemeStore.setState({
-        codeThemeDark: updatedDark,
-        codeThemeLight: updatedLight,
-        codeTheme: resolved === "light" ? updatedLight : updatedDark,
-      });
-    })
-    .catch(() => {});
+        storage?.setItem(FONT_LIGATURES_STORAGE_KEY, dbFontLigatures ? "true" : "false");
+        applyFontLigaturePreference(dbFontLigatures);
+      })
+      .catch(() => {});
 }
 
 // ---------------------------------------------------------------------------
