@@ -38,7 +38,7 @@ import {
   Star,
   XCircle,
 } from "lucide-react";
-import { type FocusEvent, type RefObject, useMemo, useRef, useState } from "react";
+import { type FocusEvent, type RefObject, useCallback, useMemo, useRef, useState } from "react";
 
 function compactTime(dateStr: string): { short: string; full: string } {
   const ms = Date.now() - new Date(dateStr).getTime();
@@ -622,12 +622,23 @@ function PrRow({
   });
 
   const prLabel = `${pr.title}, #${pr.number} by ${authorDisplay}${statusTag ? `, ${statusTag.label}` : ""}`;
+  const focusSelectedRow = useCallback(
+    (node: HTMLButtonElement | null) => {
+      if (!node || !isFocused || node === document.activeElement) {
+        return;
+      }
+
+      node.focus();
+    },
+    [isFocused],
+  );
 
   return (
     <ContextMenu.Root>
       <ContextMenu.Trigger
         render={
           <button
+            ref={focusSelectedRow}
             type="button"
             onClick={onClick}
             aria-label={prLabel}
