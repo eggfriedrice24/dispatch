@@ -310,18 +310,49 @@ export function HomeView() {
 
   // Keyboard navigation
   const { getBinding } = useKeybindings();
+  const prevPrBinding = getBinding("navigation.prevPr");
+  const nextPrBinding = getBinding("navigation.nextPr");
+  const openPrBinding = getBinding("navigation.openPr");
+  const focusSearchBinding = getBinding("search.focusSearch");
+  const plainHomeBindings = [prevPrBinding, nextPrBinding, openPrBinding, focusSearchBinding];
+  const hasPlainArrowDownBinding = plainHomeBindings.some(
+    (binding) => binding.key === "ArrowDown" && !binding.modifiers?.length,
+  );
+  const hasPlainArrowUpBinding = plainHomeBindings.some(
+    (binding) => binding.key === "ArrowUp" && !binding.modifiers?.length,
+  );
+  const focusNextVisiblePr = useCallback(() => {
+    setFocusIndex((index) => {
+      if (flatPrs.length === 0) {
+        return -1;
+      }
+
+      return Math.min(index + 1, flatPrs.length - 1);
+    });
+  }, [flatPrs.length]);
+  const focusPreviousVisiblePr = useCallback(() => {
+    setFocusIndex((index) => {
+      if (flatPrs.length === 0) {
+        return -1;
+      }
+
+      return Math.max(index - 1, 0);
+    });
+  }, [flatPrs.length]);
 
   useKeyboardShortcuts([
     {
-      ...getBinding("navigation.prevPr"),
-      handler: () => setFocusIndex((i) => Math.min(i + 1, flatPrs.length - 1)),
+      ...prevPrBinding,
+      handler: focusNextVisiblePr,
     },
+    ...(hasPlainArrowDownBinding ? [] : [{ key: "ArrowDown", handler: focusNextVisiblePr }]),
     {
-      ...getBinding("navigation.nextPr"),
-      handler: () => setFocusIndex((i) => Math.max(i - 1, 0)),
+      ...nextPrBinding,
+      handler: focusPreviousVisiblePr,
     },
+    ...(hasPlainArrowUpBinding ? [] : [{ key: "ArrowUp", handler: focusPreviousVisiblePr }]),
     {
-      ...getBinding("navigation.openPr"),
+      ...openPrBinding,
       handler: () => {
         const item = flatPrs[focusIndex];
         if (item) {
@@ -330,7 +361,7 @@ export function HomeView() {
       },
     },
     {
-      ...getBinding("search.focusSearch"),
+      ...focusSearchBinding,
       handler: () => searchRef.current?.focus(),
     },
   ]);

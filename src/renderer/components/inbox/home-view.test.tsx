@@ -161,10 +161,10 @@ beforeEach(() => {
         ]);
       }
       case "prActivity.markSeen": {
-        return Promise.resolve(undefined);
+        return Promise.resolve();
       }
       case "workspace.setActive": {
-        return Promise.resolve(undefined);
+        return Promise.resolve();
       }
       default: {
         throw new Error(`Unexpected IPC call in HomeView test: ${method}`);
@@ -174,39 +174,46 @@ beforeEach(() => {
 });
 
 describe("HomeView keyboard navigation", () => {
-  it("moves focus to the selected PR so Enter opens it instead of refreshing the queue", async () => {
-    const user = userEvent.setup();
+  it.each([
+    { keySequence: "j", label: "vim navigation" },
+    { keySequence: "{ArrowDown}", label: "ArrowDown" },
+    { keySequence: "{ArrowUp}", label: "ArrowUp" },
+  ])(
+    "moves focus via $label so Enter opens the selected PR instead of refreshing the queue",
+    async ({ keySequence }) => {
+      const user = userEvent.setup();
 
-    renderHomeView();
+      renderHomeView();
 
-    const refreshButton = await screen.findByRole("button", {
-      name: /refresh homepage pull requests/i,
-    });
-    const pullRequestButton = await screen.findByRole("button", {
-      name: /fix keyboard navigation on the home queue/i,
-    });
+      const refreshButton = await screen.findByRole("button", {
+        name: /refresh homepage pull requests/i,
+      });
+      const pullRequestButton = await screen.findByRole("button", {
+        name: /fix keyboard navigation on the home queue/i,
+      });
 
-    refreshButton.focus();
-    expect(refreshButton).toHaveFocus();
+      refreshButton.focus();
+      expect(refreshButton).toHaveFocus();
 
-    await user.keyboard("j");
+      await user.keyboard(keySequence);
 
-    await waitFor(() => {
-      expect(pullRequestButton).toHaveFocus();
-    });
+      await waitFor(() => {
+        expect(pullRequestButton).toHaveFocus();
+      });
 
-    const listAllCallCount = vi
-      .mocked(ipc)
-      .mock.calls.filter(([method]) => method === "pr.listAll").length;
+      const listAllCallCount = vi
+        .mocked(ipc)
+        .mock.calls.filter(([method]) => method === "pr.listAll").length;
 
-    await user.keyboard("{Enter}");
+      await user.keyboard("{Enter}");
 
-    await waitFor(() => {
-      expect(navigateMock).toHaveBeenCalledWith({ view: "review", prNumber: 101 });
-    });
+      await waitFor(() => {
+        expect(navigateMock).toHaveBeenCalledWith({ view: "review", prNumber: 101 });
+      });
 
-    expect(vi.mocked(ipc).mock.calls.filter(([method]) => method === "pr.listAll")).toHaveLength(
-      listAllCallCount,
-    );
-  });
+      expect(vi.mocked(ipc).mock.calls.filter(([method]) => method === "pr.listAll")).toHaveLength(
+        listAllCallCount,
+      );
+    },
+  );
 });
