@@ -28,6 +28,7 @@ import {
   getAiTaskSlotPreferenceKey,
   normalizeAiTaskSlot,
 } from "@/shared/ai-provider-settings";
+import { AI_SYSTEM_PROMPT_PREFERENCE_KEYS } from "@/shared/ai-system-prompt-settings";
 import {
   EXPERIMENTAL_FEATURE_PREFERENCE_KEYS,
   isExperimentalFeatureEnabled,
@@ -88,6 +89,7 @@ import {
   normalizeAiProvider,
   resolveProviderDotClass,
 } from "./settings-ai-parts";
+import { AiSystemPromptsSection } from "./settings-ai-prompts";
 import {
   CODE_THEMES_DARK,
   CODE_THEMES_LIGHT,
@@ -130,6 +132,7 @@ const PREF_KEYS = [
   "defaultFileNav",
   "displayNameFormat",
   "aiAutoSuggest",
+  ...AI_SYSTEM_PROMPT_PREFERENCE_KEYS,
   "disableFontLigatures",
   "reviewCommentMode",
   SEARCH_STATE_PERSISTENCE_PREFERENCE_KEY,
@@ -1152,6 +1155,11 @@ export function SettingsView() {
                   })}
                 </div>
               </section>
+
+              <AiSystemPromptsSection
+                prefs={prefs}
+                savePref={savePref}
+              />
 
               <section className="mt-8">
                 <p className="text-text-tertiary text-[10px] font-semibold tracking-[0.08em] uppercase">

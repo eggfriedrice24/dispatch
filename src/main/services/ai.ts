@@ -5,6 +5,10 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { constants as osConstants, setPriority, tmpdir } from "node:os";
 import { basename, join } from "node:path";
 
+import {
+  buildAdditionalAiSystemPrompt,
+  getAiSystemPromptPreferenceKey,
+} from "../../shared/ai-system-prompt-settings";
 import * as repo from "../db/repository";
 import {
   getAiProviderConfigWithSecrets,
@@ -63,6 +67,30 @@ interface ResolvedCommandSpec {
   command: string;
   argsPrefix: string[];
   usesGhWrapper: boolean;
+}
+
+function appendTaskSystemPrompt(messages: AiMessage[], task?: AiTaskId): AiMessage[] {
+  if (!task) {
+    return messages;
+  }
+
+  const preferenceKey = getAiSystemPromptPreferenceKey(task);
+  if (!preferenceKey) {
+    return messages;
+  }
+
+  const additionalSystemPrompt = buildAdditionalAiSystemPrompt(repo.getPreference(preferenceKey));
+  if (!additionalSystemPrompt) {
+    return messages;
+  }
+
+  return [
+    ...messages,
+    {
+      role: "system",
+      content: additionalSystemPrompt,
+    },
+  ];
 }
 
 function deprioritizeChildProcess(pid: number | undefined): void {
@@ -696,6 +724,7 @@ export function complete(args: AiCompletionArgs): Promise<string> {
     binaryPath: config.binaryPath,
     homePath: config.homePath,
     baseUrl: config.baseUrl,
+    messages: appendTaskSystemPrompt(args.messages, args.task),
     cwd: resolveWorkingDirectory(args.cwd),
   };
 
